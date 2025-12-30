@@ -1,0 +1,10 @@
+{
+  "compatibilityLevel": "JAVA_8",
+  "package": "best.spaghetcodes.catdueller.mixins",
+  "refmap": "mixins.catdueller.refmap.json",
+  "mixins": [
+    "MixinModList",
+    "MixinEffectRenderer"
+  ],
+  "verbose": true
+}

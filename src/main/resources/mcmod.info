@@ -1,0 +1,18 @@
+[
+    {
+        "modid": "catdueller",
+        "name": "CatDueller",
+        "description": "Hypixel Duels Bot",
+        "version": "${version}",
+        "mcversion": "${mcversion}",
+        "url": "",
+        "updateUrl": "",
+        "authorList": [
+            "ice"
+        ],
+        "credits": "HumanDuck23",
+        "logoFile": "",
+        "screenshots": [],
+        "dependencies": []
+    }
+]
