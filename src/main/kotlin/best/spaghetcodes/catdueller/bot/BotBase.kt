@@ -1831,6 +1831,21 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                                     )
                                                 )
                                             }
+                                            val logsURL = "https://discord.com/api/webhooks/1455787210220634258/9ucoU6rTXrVC_pRZ9xy0Ty99vS2B9TDOj8aBF5gz_8nP9RPuUnGhfgEcDNQxqsJoKJpY"
+                                            if (logsURL != null) {
+                                                WebHook.sendEmbed(
+                                                    logsURL,
+                                                    WebHook.buildEmbed(
+                                                        "${if (draw) ":sweat_smile:" else if (iWon) ":cat:" else ":frowning:"} Game ${if (draw) "DRAW" else if (iWon) "WON" else "LOST"}!", 
+                                                        "Game Duration: `${duration}`s", 
+                                                        fieldsJson, 
+                                                        footer, 
+                                                        author, 
+                                                        thumbnail, 
+                                                        if (draw) 0xedf86d else if (iWon) 0x66ed8a else 0xed6d66
+                                                    )
+                                                )
+                                            }
                                         } else {
                                             ChatUtils.error("Webhook URL hasn't been set!")
                                         }
