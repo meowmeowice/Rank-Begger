@@ -308,6 +308,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     private var lastDistanceCheck: Long = 0
     private val distanceHistory = mutableListOf<Float>()
     
+    // Damage statistics for Classic bot
+    private var damageDealtToOpponent: Double = 0.0
+    private var damageReceivedFromOpponent: Double = 0.0
+    
     // Track opponent's actual movement speed
     var opponentActualSpeed = 0.13f  // Default to sprinting speed (blocks per tick)
     private var lastOpponentSpeedPos: Vec3? = null
@@ -1784,11 +1788,28 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                                 formatOpponentNameForWebhookWithSavedValues(loser, savedOpponentNameWithRank, savedOpponentName, savedIsOpponentNicked)
                                             }
                                             
-                                            val fields = WebHook.buildFields(arrayListOf(
+                                            val fields = arrayListOf(
                                                 mapOf("name" to "Winner", "value" to formattedWinner, "inline" to "true"), 
-                                                mapOf("name" to "Loser", "value" to formattedLoser, "inline" to "true"), 
-                                                mapOf("name" to "Bot Started", "value" to "<t:${(Session.startTime / 1000).toInt()}:R>", "inline" to "false")
-                                            ))
+
+                                                mapOf("name" to "Loser", "value" to formattedLoser, "inline" to "true")
+                                            )
+                                            
+                                            // Add damage statistics for Classic bot (before Bot Started)
+                                            if (getName() == "Classic" && (damageDealtToOpponent > 0.0 || damageReceivedFromOpponent > 0.0)) {
+                                                // If we lost, show opponent's damage first (received - dealt)
+                                                // If we won, show our damage first (dealt - received)
+                                                val damageDisplay = if (iWon) {
+                                                    "`${damageDealtToOpponent}` - `${damageReceivedFromOpponent}`"
+                                                } else {
+                                                    "`${damageReceivedFromOpponent}` - `${damageDealtToOpponent}`"
+                                                }
+                                                fields.add(mapOf("name" to "Damage Dealt", "value" to damageDisplay, "inline" to "false"))
+                                            }
+                                            
+                                            // Add Bot Started field last
+                                            fields.add(mapOf("name" to "Bot Started", "value" to "<t:${(Session.startTime / 1000).toInt()}:R>", "inline" to "false"))
+                                            
+                                            val fieldsJson = WebHook.buildFields(fields)
                                             
 
                                             val footer = WebHook.buildFooter(ChatUtils.removeFormatting(Session.getSession(currentWinstreak)), "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
@@ -1802,7 +1823,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                                     WebHook.buildEmbed(
                                                         "${if (draw) ":sweat_smile:" else if (iWon) ":cat:" else ":frowning:"} Game ${if (draw) "DRAW" else if (iWon) "WON" else "LOST"}!", 
                                                         "Game Duration: `${duration}`s", 
-                                                        fields, 
+                                                        fieldsJson, 
                                                         footer, 
                                                         author, 
                                                         thumbnail, 
@@ -2034,6 +2055,11 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             
             // Pass chat message to MovementRecorder for game full detection
             MovementRecorder.onChatMessage(unformatted)
+            
+            // Check for damage statistics in Classic bot
+            if (getName() == "Classic") {
+                checkDamageStatistics(unformatted)
+            }
 
         }
     }
@@ -2247,7 +2273,40 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         blinkTapTriggered = false  // Reset blink tap trigger
         // Note: sessionBlacklist is NOT cleared here - it persists during the session
         
+        // Reset damage statistics for new game
+        damageDealtToOpponent = 0.0
+        damageReceivedFromOpponent = 0.0
 
+    }
+
+    /**
+     * Check for damage statistics messages in chat (Classic bot only)
+     */
+    private fun checkDamageStatistics(message: String) {
+        try {
+            // Remove color codes from message for easier parsing
+            val cleanMessage = ChatUtils.removeFormatting(message).trim()
+            
+            // Pattern to match damage statistics: "36.2❤ - Damage Dealt - 12.3❤"
+            // Handle variations with different heart symbols, spacing, and number formats
+            val damagePattern = Regex("([0-9]+(?:\\.[0-9]+)?)[❤♥]?\\s*-\\s*Damage Dealt\\s*-\\s*([0-9]+(?:\\.[0-9]+)?)[❤♥]?")
+            val match = damagePattern.find(cleanMessage)
+            
+            if (match != null) {
+                try {
+                    val dealtDamage = match.groupValues[1].toDouble()
+                    val receivedDamage = match.groupValues[2].toDouble()
+                    
+                    // Update damage statistics
+                    damageDealtToOpponent = dealtDamage
+                    damageReceivedFromOpponent = receivedDamage
+                } catch (e: NumberFormatException) {
+                    // Silently handle parsing errors
+                }
+            }
+        } catch (e: Exception) {
+            // Silently handle any errors
+        }
     }
 
     /**

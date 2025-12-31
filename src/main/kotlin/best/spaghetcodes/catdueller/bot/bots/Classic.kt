@@ -395,7 +395,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             // Start arrow blocking after 700ms of opponent drawing bow
             // But only if distance is greater than 6 blocks (close range doesn't need blocking)
             val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
-            if (opponentIsDrawingBow && opponentBowStartTime > 0 && 
+            if (CatDueller.config?.enableArrowBlocking == true && opponentIsDrawingBow && opponentBowStartTime > 0 && 
                 currentTime - opponentBowStartTime >= 500 && !Mouse.isBlockingArrow() && distance > 6f) {
                 
                 // Start arrow blocking - this will prevent other actions
@@ -453,7 +453,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     val transitionType = if (wasUsingProjectile) "seamless" else "fresh"
                     ChatUtils.combatInfo("Started blocking arrow after 700ms draw time (${transitionType} transition, distance: ${String.format("%.1f", distance)} blocks) - will block until opponent stops drawing")
                 }
-            } else if (opponentIsDrawingBow && opponentBowStartTime > 0 && 
+            } else if (CatDueller.config?.enableArrowBlocking == true && opponentIsDrawingBow && opponentBowStartTime > 0 && 
                        currentTime - opponentBowStartTime >= 500 && !Mouse.isBlockingArrow() && distance <= 5f) {
                 // Debug: explain why blocking is not started at close range
                 if (CatDueller.config?.combatLogs == true) {

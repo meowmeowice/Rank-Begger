@@ -540,6 +540,14 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
 
     @Property(
         type = PropertyType.SWITCH,
+        name = "Enable Arrow Blocking",
+        description = "Block arrows when opponent is drawing bow (distance > 6 blocks)",
+        category = "Classic"
+    )
+    val enableArrowBlocking = true
+
+    @Property(
+        type = PropertyType.SWITCH,
         name = "Enable Taunt Messages",
         description = "Send taunt messages when game duration exceeds threshold",
         category = "Chat Messages"
