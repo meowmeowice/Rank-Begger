@@ -113,19 +113,28 @@ object EntityUtils {
                     }
                 } else {
                     val dist = getDistanceNoY(player, target)
+                    
+                    // Rod flight speed calculation
+                    // Rod initial speed is ~1.5 blocks/tick, but decreases due to air resistance
+                    // Average effective speed over distance is approximately 1.4 blocks/tick
+
                     val baseTicks = when (dist) {
-                        in 0f..8f -> dist.toDouble()
-                        in 8f..15f -> 15.0
+                        in 0f..8f -> dist.toDouble()      
+                        in 8f..15f -> 15.0              
                         in 15f..25f -> 20.0
-                        else -> 25.0
-                    } * if (player.isPotionActive(Potion.moveSpeed)) 1.3 else 1.0
+                        else -> 25.0                    
+                    }
+                    
+                    // Apply speed effect multiplier if player has speed
+                    val speedMultiplier = if (player.isPotionActive(Potion.moveSpeed)) 1.3 else 1.0
+                    val adjustedBaseTicks = baseTicks * speedMultiplier
                     
                     // Add ping compensation bonus from config
                     val pingBonus = CatDueller.config?.predictionTicksBonus ?: 0
                     
                     // Apply counter strafe multiplier for bow/rod prediction
                     val counterStrafeMultiplier = CatDueller.bot?.getCounterStrafeMultiplier() ?: 1.0f
-                    val basePredictionTicks = baseTicks + pingBonus
+                    val basePredictionTicks = adjustedBaseTicks + pingBonus
                     val tickPredict = basePredictionTicks * counterStrafeMultiplier
                     
                     // For bow/rod, use actual velocity but apply prediction compensation

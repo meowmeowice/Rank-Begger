@@ -67,8 +67,6 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
     private var lastRetreatEndTime = 0L  // Track when retreat last ended for cooldown
     
     // Track opponent arrow firing for all situations
-    private var opponentJustFiredArrow = false
-    private var lastOpponentArrowFireTime = 0L
     private var bowCounterAttackActive = false  // Track if any bow counter-attack is in progress
     private var lastTickOpponentDrawingBow = false  // Track opponent bow state from previous tick
     private var opponentBowStartTime = 0L  // Track when opponent started drawing bow
@@ -112,8 +110,6 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         lastRetreatEndTime = 0L
         
         // Reset bow counter-attack tracking
-        opponentJustFiredArrow = false
-        lastOpponentArrowFireTime = 0L
         bowCounterAttackActive = false
         opponentBowStartTime = 0L
         blockingEndScheduled = false
@@ -183,8 +179,6 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         lastRetreatEndTime = 0L
         
         // Reset bow counter-attack tracking
-        opponentJustFiredArrow = false
-        lastOpponentArrowFireTime = 0L
         bowCounterAttackActive = false
         opponentBowStartTime = 0L
         blockingEndScheduled = false
@@ -336,8 +330,8 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     }
                 }
                 
-                // W-Tap logic for rod hit - only when distance < 4 blocks and not during rod jump
-                if (!tapping && CatDueller.config?.enableWTap == true && distance < 4f && !rodHitNeedJump) {
+                // W-Tap logic for rod hit - only when distance < 3.5 blocks and not during rod jump
+                if (!tapping && CatDueller.config?.enableWTap == true && distance < 3.5f && !rodHitNeedJump) {
                     tapping = true
                     val delay = CatDueller.config?.wTapDelay ?: 100
                     TimeUtils.setTimeout(fun () {
@@ -370,10 +364,6 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             
             opponentLastHurtTime = opponentCurrentHurtTime
             
-            // Track opponent arrow firing for situation5
-            // Check if opponent stopped drawing bow (likely fired arrow)
-            // Use previous tick's state to detect the transition
-            
             // Track opponent bow drawing time for 700ms blocking
             if (!lastTickOpponentDrawingBow && opponentIsDrawingBow) {
                 // Opponent just started drawing bow
@@ -383,12 +373,10 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 }
             } else if (lastTickOpponentDrawingBow && !opponentIsDrawingBow) {
                 // Opponent stopped drawing bow (fired arrow)
-                opponentJustFiredArrow = true
-                lastOpponentArrowFireTime = currentTime
                 opponentBowStartTime = 0L  // Reset bow start time
                 
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("Opponent fired arrow - arrow fired flag set")
+                    ChatUtils.combatInfo("Opponent stopped drawing bow")
                 }
             }
             
@@ -533,14 +521,6 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             
             // Update previous tick state for next comparison
             lastTickOpponentDrawingBow = opponentIsDrawingBow
-            
-            // Reset arrow fired flag after 3 seconds
-            if (opponentJustFiredArrow && currentTime - lastOpponentArrowFireTime > 3000) {
-                opponentJustFiredArrow = false
-                if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("Situation5: Arrow fired flag reset after 3 seconds")
-                }
-            }
         }
         
         if (mc.thePlayer != null) {
@@ -853,19 +833,17 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             val situation2 = distance in 28.0..33.0 && !EntityUtils.entityFacingAway(mc.thePlayer, opponent()!!) &&
                             !opponentIsDrawingBow
             // Situation 3: Low health opponent (< 2 hearts, distance > 8) - wait for opponent to fire arrow
-            val situation3 = opponent()!!.health < 4.0f && (distance > 10.0f || (distance > 6.0f && opponentIsRetreating)) &&
+            val situation3 = opponent()!!.health < 4.0f && (distance > 10.0f || (distance > 8.0f && opponentIsRetreating)) &&
                             !opponentIsDrawingBow
             // Situation 4: Our health lower than opponent's health and distance > 10 - wait for opponent to fire arrow
             val situation4 = mc.thePlayer.health < opponent()!!.health && distance > 10.0f &&
                             !opponentIsDrawingBow
-            // Situation 5: Counter-attack AFTER opponent fires arrow - wait for arrow then counter-attack
-            val situation5 = opponentJustFiredArrow && distance in 8f..20f
             
             // First, check if we should interrupt our bow usage when opponent starts drawing
             // All situations now wait for opponent to fire before starting, so only interrupt non-protected situations
             if (Mouse.isUsingProjectile() && isUsingBow && opponentIsDrawingBow) {
                 val bowUsageTime = System.currentTimeMillis() - ourBowStartTime
-                val isProtectedSituation = situation3 || situation4 || situation5
+                val isProtectedSituation = situation3 || situation4
                 
                 if (bowUsageTime < 2000 && !isProtectedSituation && !bowCounterAttackActive) {
                     // Interrupt bow usage to focus on dodging - switch to sword and release right click
@@ -882,7 +860,6 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     val situationType = when {
                         situation3 -> "situation 3 (low health opponent)"
                         situation4 -> "situation 4 (our health disadvantage)"
-                        situation5 -> "situation 5 (bow counter-attack)"
                         bowCounterAttackActive -> "bow counter-attack in progress"
                         else -> "protected situation"
                     }
@@ -890,8 +867,8 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 }
             }
             
-            // Check if we should interrupt bow usage due to close distance (≤6 blocks)
-            if (isUsingBow && Mouse.isUsingProjectile() && distance <= 7f) {
+            // Check if we should interrupt bow usage due to close distance (≤8 blocks)
+            if (isUsingBow && Mouse.isUsingProjectile() && distance <= 8f) {
                 // Interrupt bow usage immediately when opponent gets too close
                 Mouse.setUsingProjectile(false)
                 Inventory.setInvItem("sword")
@@ -904,10 +881,10 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 }
             }
             
-            if ((situation1 || situation2 || situation3 || situation4 || situation5) && !Mouse.isBlockingArrow()) {
+            if ((situation1 || situation2 || situation3 || situation4) && !Mouse.isBlockingArrow()) {
                 val canUseBow = if (situation1) {
                     // Situation 1: Start bow usage if not already active
-                    val canStart = distance > 6 && !Mouse.isUsingProjectile() && shotsFired < maxArrows
+                    val canStart = distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows
                     
                     if (canStart && !bowCounterAttackActive) {
                         bowCounterAttackActive = true
@@ -919,7 +896,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     canStart || (bowCounterAttackActive && Mouse.isUsingProjectile())
                 } else if (situation2) {
                     // Situation 2: Start bow usage if not already active (requires opponentUsedBow)
-                    val canStart = distance > 6 && !Mouse.isUsingProjectile() && shotsFired < maxArrows && opponentUsedBow
+                    val canStart = distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows && opponentUsedBow
                     
                     if (canStart && !bowCounterAttackActive) {
                         bowCounterAttackActive = true
@@ -931,7 +908,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     canStart || (bowCounterAttackActive && Mouse.isUsingProjectile())
                 } else if (situation3) {
                     // Situation 3: Start bow usage if not already active
-                    val canStart = distance > 6 && !Mouse.isUsingProjectile() && shotsFired < maxArrows
+                    val canStart = distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows
                     
                     if (canStart && !bowCounterAttackActive) {
                         bowCounterAttackActive = true
@@ -943,24 +920,12 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     canStart || (bowCounterAttackActive && Mouse.isUsingProjectile())
                 } else if (situation4) {
                     // Situation 4: Start bow usage if not already active
-                    val canStart = distance > 6 && !Mouse.isUsingProjectile() && shotsFired < maxArrows
+                    val canStart = distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows
                     
                     if (canStart && !bowCounterAttackActive) {
                         bowCounterAttackActive = true
                         if (CatDueller.config?.combatLogs == true) {
                             ChatUtils.combatInfo("Situation4: Starting bow usage after opponent fired/not drawing")
-                        }
-                    }
-                    
-                    canStart || (bowCounterAttackActive && Mouse.isUsingProjectile())
-                } else if (situation5) {
-                    // Situation 5: Counter-attack AFTER opponent fires arrow
-                    val canStart = distance > 6 && !Mouse.isUsingProjectile() && shotsFired < maxArrows
-                    
-                    if (canStart && !bowCounterAttackActive) {
-                        bowCounterAttackActive = true
-                        if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo("Situation5: Starting counter-attack after opponent fired arrow")
                         }
                     }
                     

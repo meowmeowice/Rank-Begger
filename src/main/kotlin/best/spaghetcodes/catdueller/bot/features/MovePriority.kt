@@ -27,7 +27,7 @@ interface MovePriority {
                     // Don't restart random strafe immediately - let wall avoidance take control
                 } else {
                     // No wall conflict, use normal random strafe
-                    Combat.startRandomStrafe(500, 1000)
+                    Combat.startRandomStrafe(500, 2000)
                 }
             } else {
                 Combat.stopRandomStrafe()

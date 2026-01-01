@@ -1807,7 +1807,8 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                             }
                                             
                                             // Add Bot Started field last
-                                            fields.add(mapOf("name" to "Bot Started", "value" to "<t:${(Session.startTime / 1000).toInt()}:R>", "inline" to "false"))
+                                            val sessionStartTime = if (Session.startTime > 0) Session.startTime else System.currentTimeMillis()
+                                            fields.add(mapOf("name" to "Bot Started", "value" to "<t:${(sessionStartTime / 1000).toInt()}:R>", "inline" to "false"))
                                             
                                             val fieldsJson = WebHook.buildFields(fields)
                                             
@@ -2291,6 +2292,9 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         // Reset damage statistics for new game
         damageDealtToOpponent = 0.0
         damageReceivedFromOpponent = 0.0
+        
+        // Reset mouse states to prevent NPE during game transitions
+        Mouse.resetAllStates()
 
     }
 
@@ -2837,10 +2841,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
             // Game end celebration: sprint + forward + jump + random strafe for 1 second
             // Execute after onGameEnd() and resetVars() to avoid being cleared
-            ChatUtils.info("Game ended - performing celebration movement")
+            ChatUtils.info("Game ended - performing game end movement")
             
             // First, clear all existing movements to ensure clean state
             Movement.clearAll()
+            
+            // Start game end view rotation: pitch to 0 (level), yaw random ±45 degrees
+            Mouse.startGameEndViewRotation()
             
             // Small delay to ensure clearing is complete, then start celebration
             TimeUtils.setTimeout({
@@ -2856,7 +2863,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     Movement.startRight()
                     ChatUtils.info("Celebration: strafing right")
                 }
-            }, 100) // 400ms delay to ensure clearing is complete
+            }, 100) // 100ms delay to ensure clearing is complete
             
             // Stop celebration after 1 second (plus the initial delay)
             TimeUtils.setTimeout({
@@ -2864,7 +2871,9 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 Movement.stopForward()
                 Movement.stopLeft()
                 Movement.stopRight()
-            }, 1000) // 1000ms celebration + 400ms initial delay
+                // Stop view rotation after celebration
+                Mouse.stopGameEndViewRotation()
+            }, 1000) // 1000ms celebration + 100ms initial delay
 
             if (CatDueller.config?.sendAutoGG == true) {
                 TimeUtils.setTimeout(fun () {
@@ -3350,7 +3359,6 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     ): String {
         return "`$opponentName`"
     }
-    
 
     
     /**

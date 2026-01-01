@@ -48,7 +48,7 @@ interface Rod {
                     // Set up normal retract timeout (Step 4: Auto-retract by switching to sword)
                     CatDueller.bot?.rodRetractTimeout = TimeUtils.setTimeout(fun () {
                         retractRod()  // This will switch to sword to retract
-                    }, r + RandomUtils.randomIntInRange(100, 200))
+                    }, r + RandomUtils.randomIntInRange(100, 150))
                 }, RandomUtils.randomIntInRange(50, 90))
             }, RandomUtils.randomIntInRange(30, 60))  // Short delay to ensure sword switch completes
         }, RandomUtils.randomIntInRange(10, 30))

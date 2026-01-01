@@ -229,6 +229,14 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
     )
     val disableAiming = false
 
+    @Property(
+        type = PropertyType.SWITCH,
+        name = "Mouse Movement Interpolation",
+        description = "Smooth mouse movement by interpolating between ticks (visual only, doesn't affect server-side aim)",
+        category = "Combat"
+    )
+    val mouseInterpolation = true
+
 
 
     @Property(
