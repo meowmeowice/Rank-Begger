@@ -169,6 +169,48 @@ object ParticleDetector {
     }
     
     /**
+     * Check if specific particle type exists within a distance range
+     */
+    fun hasParticleInRange(
+        x: Double, 
+        y: Double, 
+        z: Double, 
+        particleType: EnumParticleTypes, 
+        minRadius: Double = 1.0,
+        maxRadius: Double = 20.0,
+        debug: Boolean = false
+    ): Boolean {
+        cleanupOldParticles()
+        
+        var found = false
+        var nearbyCount = 0
+        
+        for ((particle, _) in recentParticles) {
+            if (particle.type == particleType) {
+                val dx = particle.x - x
+                val dy = particle.y - y
+                val dz = particle.z - z
+                val distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
+                
+                if (distance >= minRadius && distance <= maxRadius) {
+                    nearbyCount++
+                    found = true
+                    if (debug) {
+                        println("[ParticleDetector] Found ${particleType.particleName} at distance ${"%.2f".format(distance)} (within range ${minRadius}-${maxRadius})")
+                    }
+                }
+            }
+        }
+        
+        if (debug && !found) {
+            println("[ParticleDetector] No ${particleType.particleName} particles within range ${minRadius}-${maxRadius} blocks")
+            println("[ParticleDetector] Total tracked particles: ${recentParticles.size}")
+        }
+        
+        return found
+    }
+    
+    /**
      * Check if any of the specified particle types exist near coordinates
      */
     fun hasAnyParticleNearby(
@@ -211,6 +253,20 @@ object ParticleDetector {
     }
     
     /**
+     * Check for heart particles (used for player hits/healing in some servers)
+     */
+    fun hasHeartParticleNearby(x: Double, y: Double, z: Double, radius: Double = 3.0, debug: Boolean = false): Boolean {
+        return hasParticleNearby(x, y, z, EnumParticleTypes.HEART, radius, debug)
+    }
+    
+    /**
+     * Check for angry villager particles (used for player hits/damage in some servers)
+     */
+    fun hasAngryVillagerParticleNearby(x: Double, y: Double, z: Double, radius: Double = 3.0, debug: Boolean = false): Boolean {
+        return hasParticleNearby(x, y, z, EnumParticleTypes.VILLAGER_ANGRY, radius, debug)
+    }
+    
+    /**
      * Check for any hit indicator particles near player
      */
     fun hasHitParticleNearPlayer(radius: Double = 3.0, debug: Boolean = false): Boolean {
@@ -221,7 +277,9 @@ object ParticleDetector {
             EnumParticleTypes.SLIME,
             EnumParticleTypes.REDSTONE,
             EnumParticleTypes.CRIT,
-            EnumParticleTypes.CRIT_MAGIC
+            EnumParticleTypes.CRIT_MAGIC,
+            EnumParticleTypes.HEART,
+            EnumParticleTypes.VILLAGER_ANGRY
         )
         
         return hasAnyParticleNearby(player.posX, player.posY, player.posZ, hitParticles, radius, debug)

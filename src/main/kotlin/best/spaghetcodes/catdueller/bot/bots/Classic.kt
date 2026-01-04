@@ -71,6 +71,12 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
     private var lastTickOpponentDrawingBow = false  // Track opponent bow state from previous tick
     private var opponentBowStartTime = 0L  // Track when opponent started drawing bow
     private var blockingEndScheduled = false  // Track if blocking end is scheduled
+    
+    // Track opponent approach for movement control
+    private var lastOpponentDistance = 0f  // Track opponent distance from previous tick
+    private var isOpponentApproaching = false  // Track if opponent is getting closer
+    private var movementPausedForApproach = false  // Track if we paused movement due to approach
+    private var lastRodHitTime = 0L  // Track when rod last hit opponent
 
     private var needJump = false
 
@@ -116,6 +122,12 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         
         // Reset weapon switch tracking
         lastWeaponSwitchTime = 0
+        
+        // Reset opponent approach tracking
+        lastOpponentDistance = 0f
+        isOpponentApproaching = false
+        movementPausedForApproach = false
+        lastRodHitTime = 0L
         
         Movement.startSprinting()
         Movement.startForward()
@@ -321,6 +333,9 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     ChatUtils.combatInfo("Rod hit detected via opponent hurtTime - opponent hurtTime: $opponentCurrentHurtTime, distance: $distance, time since rod: ${currentTime - lastRodUseTime}ms, sword hit excluded")
                 }
                 
+                // Update last rod hit time
+                lastRodHitTime = currentTime
+                
                 // Stop retreat when rod hits
                 if (shouldRetreatUntilRodHit) {
                     shouldRetreatUntilRodHit = false
@@ -330,8 +345,8 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     }
                 }
                 
-                // W-Tap logic for rod hit - only when distance < 3.5 blocks and not during rod jump
-                if (!tapping && CatDueller.config?.enableWTap == true && distance < 3.5f && !rodHitNeedJump) {
+                // W-Tap logic for rod hit - only when distance < 4.0 blocks and not during rod jump
+                if (!tapping && CatDueller.config?.enableWTap == true && distance < 4.0f && !rodHitNeedJump) {
                     tapping = true
                     val delay = CatDueller.config?.wTapDelay ?: 100
                     TimeUtils.setTimeout(fun () {
@@ -537,6 +552,49 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             }
 
             val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
+            
+            // Track opponent approach for movement control
+            if (lastOpponentDistance > 0f) {
+                // Check if opponent is approaching (getting closer)
+                isOpponentApproaching = distance < lastOpponentDistance - 0.1f  // 0.1 block threshold to avoid noise
+            }
+            
+            // Movement control based on distance and opponent approach
+            val timeSinceLastRodHit = System.currentTimeMillis() - lastRodHitTime
+            
+            // Check if we should pause movement due to opponent approach
+            val shouldPauseMovement = distance >= 7f && distance <= 11f && isOpponentApproaching
+            
+            // Check if we should resume movement
+            val shouldResumeMovement = movementPausedForApproach && (
+                distance < 7f || distance > 11f || !isOpponentApproaching || timeSinceLastRodHit < 1000  // Resume if rod hit within 1 second
+            )
+            
+            if (shouldPauseMovement && !movementPausedForApproach) {
+                // Start pausing movement
+                movementPausedForApproach = true
+                Movement.stopForward()
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtils.combatInfo("Paused forward movement - opponent approaching at distance ${String.format("%.1f", distance)}")
+                }
+            } else if (shouldResumeMovement) {
+                // Resume movement
+                movementPausedForApproach = false
+                Movement.startForward()
+                if (CatDueller.config?.combatLogs == true) {
+                    val reason = when {
+                        distance < 7f -> "distance too close (${String.format("%.1f", distance)} < 7)"
+                        distance > 11f -> "distance too far (${String.format("%.1f", distance)} > 11)"
+                        !isOpponentApproaching -> "opponent not approaching"
+                        timeSinceLastRodHit < 1000 -> "rod hit recently (${timeSinceLastRodHit}ms ago)"
+                        else -> "unknown reason"
+                    }
+                    ChatUtils.combatInfo("Resumed forward movement - $reason")
+                }
+            }
+            
+            // Update last distance for next tick comparison
+            lastOpponentDistance = distance
           
             // Check if rod should be immediately retracted due to close distance
             // Only retract non-defensive rods due to distance
@@ -592,7 +650,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 }
             }
 
-            if (distance > 8.8) {
+            if (distance > 11) {
                 // Use opponentIsDrawingBow for more accurate dodge detection
                 if (opponentIsDrawingBow) {
                     isDodging = true
@@ -632,9 +690,8 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             val enableRetreat = CatDueller.config?.enableRetreat ?: true
             
             val shouldStartRetreat = enableRetreat &&
-                                   mc.thePlayer.health < 16f && 
                                    mc.thePlayer.health < opponent()!!.health && 
-                                   distance in 7f..10f &&
+                                   distance in 7f..11f &&
                                    !shouldRetreatUntilRodHit &&  // Only start if not already retreating
                                    retreatCooldownExpired  // Must wait for cooldown
             
@@ -644,7 +701,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                                       shouldRetreatUntilRodHit && 
                                       mc.thePlayer.health < 16f && 
                                       mc.thePlayer.health < opponent()!!.health &&
-                                      distance in 7f..10f  // Must stay in retreat range
+                                      distance in 7f..11f  // Must stay in retreat range
             
             // Defensive rod retreat: retreat when using defensive rod at close distance
             val shouldDefensiveRodRetreat = this.isDefensiveRod && Mouse.isUsingProjectile() && distance < 6f
@@ -977,7 +1034,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     }
                 } else {
                     // Distance <= 8.8: Always use random strafe regardless of opponent's weapon or state
-                    if (distance <= 8.8f) {
+                    if (distance <= 11.0f) {
                         randomStrafe = true
                         if (distance < 15 && !needJump && !rodHitNeedJump) {
                             Movement.stopJumping()

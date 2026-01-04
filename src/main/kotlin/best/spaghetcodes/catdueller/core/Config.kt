@@ -230,16 +230,6 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
     val disableAiming = false
 
     @Property(
-        type = PropertyType.SWITCH,
-        name = "Mouse Movement Interpolation",
-        description = "Smooth mouse movement by interpolating between ticks (visual only, doesn't affect server-side aim)",
-        category = "Combat"
-    )
-    val mouseInterpolation = true
-
-
-
-    @Property(
         type = PropertyType.NUMBER,
         name = "Max Look Distance",
         description = "How close the opponent has to be before the bot starts tracking them",
@@ -627,11 +617,11 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
     @Property(
         type = PropertyType.SELECTOR,
         name = "Dodge Particle Type",
-        description = "Dodge when specific particle type detected within 20 blocks in lobby",
+        description = "Dodge when specific particle type detected within 1-20 blocks in lobby (excludes particles at player position)",
         category = "Queue Dodging",
-        options = ["None", "Slime", "Portal", "Rainbow"]
+        options = ["None", "Slime", "Portal", "Rainbow", "Heart", "Angry Villager"]
     )
-    val dodgeParticleType = 0  // 0=None, 1=Slime, 2=Portal
+    val dodgeParticleType = 0  // 0=None, 1=Slime, 2=Portal, 3=Rainbow, 4=Heart, 5=Angry Villager
 
 
     

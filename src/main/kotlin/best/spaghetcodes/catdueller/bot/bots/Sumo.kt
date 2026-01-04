@@ -76,6 +76,11 @@ class Sumo : BotBase("/play duels_sumo_duel") {
     private var firstQTime = 0L
     private var walkToMiddleStartTime = 0L
     private var justBlinked = false
+    
+    // Particle dodging delay variables
+    private var particleDodgeDelayActive = false
+    private var particleDodgeCheckTime = 0L
+    
     private val robot by lazy { 
         try {
             java.awt.Robot()
@@ -279,10 +284,17 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             checkAndDodgeStandingStillPlayer()
         }
         
-        // Check for particles if dodge feature is enabled
+        // Check for particles if dodge feature is enabled - with random delay
         val dodgeParticleType = CatDueller.config?.dodgeParticleType ?: 0
         if (dodgeParticleType > 0) {  // 0=None, 1=Slime, 2=Portal
-            checkAndDodgeParticles(dodgeParticleType)
+            // Set up delayed particle checking (0-2 seconds)
+            val delayMs = RandomUtils.randomIntInRange(0, 2000)
+            particleDodgeDelayActive = true
+            particleDodgeCheckTime = System.currentTimeMillis() + delayMs
+            
+            if (CatDueller.config?.combatLogs == true) {
+                ChatUtils.info("Particle dodge check scheduled in ${delayMs}ms")
+            }
         }
         
         // Check opponent rotation and dodge if it doesn't match expected values
@@ -346,6 +358,10 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         midRangeStrafeDecided = false  // Reset mid-range strafe decision state
         midRangeStrafeStartTime = 0L  // Reset mid-range strafe timeout
         jumpTriggeredStrafe = false  // Reset jump triggered strafe state
+        
+        // Reset particle dodge delay variables
+        particleDodgeDelayActive = false
+        particleDodgeCheckTime = 0L
         waitingForOpponentAttack = false  // Reset waiting for opponent attack state
         waitingForOpponentAttackStartTime = 0L  // Reset waiting timeout
         enteredAttackRangeTime = 0L  // Reset attack range time
@@ -675,6 +691,8 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 1 -> net.minecraft.util.EnumParticleTypes.SLIME
                 2 -> net.minecraft.util.EnumParticleTypes.PORTAL
                 3 -> net.minecraft.util.EnumParticleTypes.REDSTONE
+                4 -> net.minecraft.util.EnumParticleTypes.HEART
+                5 -> net.minecraft.util.EnumParticleTypes.VILLAGER_ANGRY
                 else -> return  // Invalid type, do nothing
             }
             
@@ -682,6 +700,8 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 1 -> "Slime"
                 2 -> "Portal"
                 3 -> "Redstone"
+                4 -> "Heart"
+                5 -> "Angry Villager"
                 else -> "Unknown"
             }
             
@@ -693,16 +713,16 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 ChatUtils.info(best.spaghetcodes.catdueller.utils.ParticleDetector.getDebugInfo())
             }
             
-            if (best.spaghetcodes.catdueller.utils.ParticleDetector.hasParticleNearby(
-                player.posX, player.posY, player.posZ, particleType, 20.0, debug)) {
-                ChatUtils.info("Detected $particleName particles within 20 blocks - dodging!")
+            if (best.spaghetcodes.catdueller.utils.ParticleDetector.hasParticleInRange(
+                player.posX, player.posY, player.posZ, particleType, 1.0, 20.0, debug)) {
+                ChatUtils.info("Detected $particleName particles within 1-20 blocks - dodging!")
                 
                 // Send queue command to dodge
                 TimeUtils.setTimeout(fun () {
                     ChatUtils.sendAsPlayer(queueCommand)
                 }, RandomUtils.randomIntInRange(100, 300))
             } else if (debug) {
-                ChatUtils.info("No $particleName particles detected")
+                ChatUtils.info("No $particleName particles detected within 1-20 blocks")
             }
         } catch (e: Exception) {
             ChatUtils.info("Error checking for particles: ${e.message}")
@@ -726,6 +746,18 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         
         val player = mc.thePlayer ?: return
         val currentOpponent = opponent()
+        
+        // Check for delayed particle dodging
+        if (particleDodgeDelayActive && System.currentTimeMillis() >= particleDodgeCheckTime) {
+            particleDodgeDelayActive = false
+            val dodgeParticleType = CatDueller.config?.dodgeParticleType ?: 0
+            if (dodgeParticleType > 0) {
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtils.info("Executing delayed particle dodge check")
+                }
+                checkAndDodgeParticles(dodgeParticleType)
+            }
+        }
         
         // Initialize sprinting if sprint reset is enabled and we have an opponent
         if (CatDueller.config?.sprintReset == true && currentOpponent != null && !Movement.sprinting()) {

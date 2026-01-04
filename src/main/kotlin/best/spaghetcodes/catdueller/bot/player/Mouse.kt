@@ -54,14 +54,6 @@ object Mouse {
 
     private var splashAim = 0.0
 
-    // Mouse movement interpolation variables
-    private var targetYaw = 0f
-    private var targetPitch = 0f
-    private var currentYaw = 0f
-    private var currentPitch = 0f
-    private var lastTickTime = 0L
-    private var hasValidTarget = false
-    
     // Game end view rotation variables
     private var gameEndViewRotationActive = false
     private var gameEndTargetYaw = 0f
@@ -263,14 +255,6 @@ object Mouse {
         setBlockingArrow(false)
         rClickDown = false
         
-        // Reset interpolation variables
-        hasValidTarget = false
-        targetYaw = 0f
-        targetPitch = 0f
-        currentYaw = 0f
-        currentPitch = 0f
-        lastTickTime = 0L
-        
         // Reset game end view rotation variables
         gameEndViewRotationActive = false
         gameEndTargetYaw = 0f
@@ -366,19 +350,18 @@ object Mouse {
         // Calculate pitch difference
         val pitchDiff = gameEndTargetPitch - currentPitch
         
-        // Use config aim speeds for smooth rotation
-        val maxRotH = (CatDueller.config?.lookSpeedHorizontal ?: 10).toFloat()
-        val maxRotV = (CatDueller.config?.lookSpeedVertical ?: 5).toFloat()
+        // Use fixed speed of 10 for game end view rotation
+        val fixedSpeed = 10f
         
         // Apply rotation limits
-        val dyaw = if (abs(yawDiff) > maxRotH) {
-            if (yawDiff > 0) maxRotH else -maxRotH
+        val dyaw = if (abs(yawDiff) > fixedSpeed) {
+            if (yawDiff > 0) fixedSpeed else -fixedSpeed
         } else {
             yawDiff
         }
         
-        val dpitch = if (abs(pitchDiff) > maxRotV) {
-            if (pitchDiff > 0) maxRotV else -maxRotV
+        val dpitch = if (abs(pitchDiff) > fixedSpeed) {
+            if (pitchDiff > 0) fixedSpeed else -fixedSpeed
         } else {
             pitchDiff
         }
@@ -478,17 +461,9 @@ object Mouse {
             if (gameEndViewRotationActive) {
                 handleGameEndViewRotation()
             } else if (tracking && CatDueller.bot?.opponent() != null) {
-                // Normal tracking logic
-                if (CatDueller.config?.mouseInterpolation == true) {
-                    // Interpolation mode: calculate target rotations but don't apply them yet
-                    calculateTargetRotations()
-                } else {
-                    // Non-interpolation mode: apply rotations immediately (original behavior)
-                    applyRotationsImmediate()
-                }
+                // Normal tracking logic (original behavior)
+                applyRotationsImmediate()
             }
-        } else {
-            hasValidTarget = false
         }
     }
 
@@ -517,70 +492,6 @@ object Mouse {
         
         // Return the combined angle difference (Euclidean distance in angle space)
         return kotlin.math.sqrt((yawDiff * yawDiff + pitchDiff * pitchDiff).toDouble())
-    }
-
-    /**
-     * Calculate target rotations for interpolation (called every tick)
-     */
-    private fun calculateTargetRotations() {
-        if (_runningAway) {
-            _usingProjectile = false
-        }
-        
-        var rotations = EntityUtils.getRotations(CatDueller.mc.thePlayer, CatDueller.bot?.opponent(), false)
-
-        if (rotations != null) {
-            if (_runningAway) {
-                if (runningRotations == null) {
-                    runningRotations = rotations
-                    runningRotations!![0] += 180 + RandomUtils.randomDoubleInRange(-5.0, 5.0).toFloat()
-                }
-                rotations = runningRotations!!
-            }
-
-            if (_usingPotion) {
-                if (splashAim == 0.0) {
-                    splashAim = RandomUtils.randomDoubleInRange(80.0, 90.0)
-                }
-                rotations[1] = splashAim.toFloat()
-            } else if (!_usingProjectile && CatDueller.config?.verticalMultipoint == true) {
-                // --- vertical multipoint logic (50 points) - only when enabled and NOT using projectiles ---
-                val player = CatDueller.mc.thePlayer
-                val opponent = CatDueller.bot?.opponent()
-                if (player != null && opponent != null) {
-                    val playerEyeY = player.posY + player.eyeHeight
-                    val opponentMinY = opponent.entityBoundingBox.minY
-                    val opponentMaxY = opponent.entityBoundingBox.maxY
-                    val candidateHeights = List(50) { i ->
-                        opponentMinY + i * (opponentMaxY - opponentMinY) / 49.0
-                    }
-                    val targetY = candidateHeights.minByOrNull { h -> kotlin.math.abs(playerEyeY - h) }
-                        ?: (opponentMinY + opponentMaxY) / 2.0
-
-                    // Compute target pitch
-                    val deltaX = opponent.posX - player.posX
-                    val deltaY = targetY - playerEyeY
-                    val deltaZ = opponent.posZ - player.posZ
-                    val distanceXZ = kotlin.math.sqrt(deltaX * deltaX + deltaZ * deltaZ)
-                    val targetPitch = (-Math.toDegrees(kotlin.math.atan2(deltaY, distanceXZ))).toFloat()
-                    rotations[1] = targetPitch // pitch
-                }
-            }
-
-            // Apply look randomization to target rotations
-            val lookRand = (CatDueller.config?.lookRand ?: 0).toDouble()
-            targetYaw = rotations[0] + RandomUtils.randomDoubleInRange(-lookRand, lookRand).toFloat()
-            targetPitch = rotations[1] + RandomUtils.randomDoubleInRange(-lookRand, lookRand).toFloat()
-            
-            // Initialize current rotations if this is the first valid target
-            if (!hasValidTarget) {
-                currentYaw = CatDueller.mc.thePlayer.rotationYaw
-                currentPitch = CatDueller.mc.thePlayer.rotationPitch
-                hasValidTarget = true
-            }
-            
-            lastTickTime = System.currentTimeMillis()
-        }
     }
 
     /**
@@ -700,113 +611,14 @@ object Mouse {
                 }
             }
 
+            // Debug: Log rotation values to check if they're too high
+            if (CatDueller.config?.combatLogs == true && (abs(dyaw) > 0.1f || abs(dpitch) > 0.1f)) {
+                ChatUtils.combatInfo("Immediate Mode - dyaw: ${String.format("%.2f", dyaw)}, dpitch: ${String.format("%.2f", dpitch)}, maxRotH: ${String.format("%.2f", maxRotH)}, maxRotV: ${String.format("%.2f", maxRotV)}, combinedFactor: ${String.format("%.2f", combinedFactor)}")
+            }
+
             CatDueller.mc.thePlayer.rotationYaw += dyaw
             CatDueller.mc.thePlayer.rotationPitch += dpitch
         }
-    }
-
-    /**
-     * Render event handler for smooth mouse interpolation
-     */
-    @SubscribeEvent
-    fun onRenderWorld(event: RenderWorldLastEvent) {
-        // Skip interpolation if game end view rotation is active
-        if (gameEndViewRotationActive) {
-            return
-        }
-        
-        if (CatDueller.config?.mouseInterpolation != true || !hasValidTarget || !tracking || CatDueller.bot?.toggled() != true) {
-            return
-        }
-
-        val player = CatDueller.mc.thePlayer ?: return
-        val currentTime = System.currentTimeMillis()
-        val timeSinceLastTick = currentTime - lastTickTime
-        
-        // Calculate interpolation progress (0.0 to 1.0)
-        // Assume 20 TPS = 50ms per tick
-        val tickDuration = 50f
-        val progress = (timeSinceLastTick / tickDuration).coerceIn(0f, 1f)
-        
-        // Calculate the movement needed this frame
-        var yawDiff = targetYaw - currentYaw
-        var pitchDiff = targetPitch - currentPitch
-        
-        // Handle yaw wrapping around 360 degrees
-        while (yawDiff > 180) yawDiff -= 360
-        while (yawDiff < -180) yawDiff += 360
-        
-        // Apply distance-based and angle-based factors for smooth movement
-        val opponent = CatDueller.bot?.opponent()
-        val distanceToOpponent = if (opponent != null) {
-            EntityUtils.getDistanceNoY(player, opponent)
-        } else {
-            0f // Default distance when opponent is null
-        }
-        val distanceFactor = if (_runningAway || _usingPotion) {
-            1.0f
-        } else {
-            when (distanceToOpponent) {
-                in 0f..10f -> 1.0f
-                in 10f..20f -> 0.6f
-                in 20f..30f -> 0.4f
-                else -> 0.2f
-            }
-        }
-
-        val angleDifference = kotlin.math.sqrt((yawDiff * yawDiff + pitchDiff * pitchDiff).toDouble())
-        val angleFactor = when {
-            angleDifference <= 1.0 -> 0.3f
-            angleDifference <= 5.0 -> 0.5f
-            angleDifference <= 15.0 -> 0.8f
-            angleDifference <= 30.0 -> 1.0f
-            else -> 1.2f
-        }
-
-        val onTarget = opponent != null && 
-                CatDueller.mc.objectMouseOver != null &&
-                CatDueller.mc.objectMouseOver.typeOfHit == net.minecraft.util.MovingObjectPosition.MovingObjectType.ENTITY &&
-                CatDueller.mc.objectMouseOver.entityHit == opponent
-        val onTargetFactor = if (onTarget) 0.85f else 1.0f
-
-        val combinedFactor = distanceFactor * angleFactor * onTargetFactor
-
-        // Calculate max movement per frame (divide tick speed by estimated FPS)
-        val estimatedFPS = 60f // Assume 60 FPS for interpolation
-        val frameTime = 1000f / estimatedFPS // ~16.67ms per frame
-        
-        val maxRotH = if (_runningAway) {
-            30.0f * combinedFactor * (frameTime / tickDuration)
-        } else {
-            (CatDueller.config?.lookSpeedHorizontal ?: 10).toFloat() * combinedFactor * (frameTime / tickDuration)
-        }
-        
-        val maxRotV = if (_runningAway) {
-            30.0f * combinedFactor * (frameTime / tickDuration)
-        } else {
-            (CatDueller.config?.lookSpeedVertical ?: 5).toFloat() * combinedFactor * (frameTime / tickDuration)
-        }
-
-        // Apply movement limits
-        val frameYawMovement = if (abs(yawDiff) > maxRotH) {
-            if (yawDiff > 0) maxRotH else -maxRotH
-        } else {
-            yawDiff * 0.1f // Smooth interpolation factor
-        }
-
-        val framePitchMovement = if (abs(pitchDiff) > maxRotV) {
-            if (pitchDiff > 0) maxRotV else -maxRotV
-        } else {
-            pitchDiff * 0.1f // Smooth interpolation factor
-        }
-
-        // Update current position
-        currentYaw += frameYawMovement
-        currentPitch += framePitchMovement
-
-        // Apply to player rotation (visual only)
-        player.rotationYaw = currentYaw
-        player.rotationPitch = currentPitch
     }
 
 }
