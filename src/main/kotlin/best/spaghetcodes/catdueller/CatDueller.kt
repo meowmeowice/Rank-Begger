@@ -39,7 +39,7 @@ class CatDueller {
         const val MOD_NAME = "CatDueller"
 
         /** Current version of the mod. */
-        const val VERSION = "0.1.0"
+        const val VERSION = "1.0.0"
 
         /** File path for the mod configuration file. */
         const val CONFIG_LOCATION = "./config/catdueller.toml"
