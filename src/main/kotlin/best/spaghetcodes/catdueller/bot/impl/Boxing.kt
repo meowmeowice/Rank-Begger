@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.bot.bots
+package best.spaghetcodes.catdueller.bot.impl
 
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.BotBase
@@ -13,14 +13,34 @@ import net.minecraft.init.Blocks
 import net.minecraft.util.Vec3
 import java.util.*
 
+/**
+ * Bot implementation for Boxing Duels game mode.
+ *
+ * Boxing Duels is a fist-fighting mode where the goal is to land 100 hits.
+ * This bot focuses on:
+ * - W-tapping for sprint reset advantage
+ * - Strategic strafing to avoid opponent hits
+ * - Distance-based attack management
+ * - Optional fish item holding for style
+ */
 class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
 
+    /**
+     * Returns the display name of this bot.
+     * @return The string "Boxing"
+     */
     override fun getName(): String {
         return "Boxing"
     }
 
     /**
-     * Override shouldStartAttacking to add Boxing-specific distance logic
+     * Determines whether the bot should start attacking.
+     *
+     * Adds Boxing-specific distance logic that reduces attack range
+     * when in a combo (3+ hits) to maintain control.
+     *
+     * @param distance Current horizontal distance to opponent
+     * @return True if attacking should begin, false otherwise
      */
     override fun shouldStartAttacking(distance: Float): Boolean {
         val player = mc.thePlayer ?: return false
@@ -69,20 +89,27 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
         )
     }
 
+    /** Flag indicating W-tap is currently active. */
     private var tapping = false
+
+    /** Timer for fish item switching (cosmetic feature). */
     private var fishTimer: Timer? = null
 
+    /**
+     * Called when the game starts.
+     * Initiates sprinting and forward movement.
+     */
     override fun onGameStart() {
-        super.onGameStart()  // Call parent to check scoreboard
+        super.onGameStart()
         Movement.startSprinting()
         Movement.startForward()
-        /* 
-        if (CatDueller.config?.boxingFish == true) {
-            TimeUtils.setTimeout(this::fishFunc, RandomUtils.randomIntInRange(10000, 20000))
-        }
-        */
     }
 
+    /**
+     * Alternates between holding fish and sword items for cosmetic effect.
+     *
+     * @param fish True to switch to fish, false to switch to sword
+     */
     private fun fishFunc(fish: Boolean = true) {
         if (StateManager.state == StateManager.States.PLAYING) {
             if (fish) {
@@ -96,6 +123,10 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
         }
     }
 
+    /**
+     * Called when the game ends.
+     * Stops all movement and cancels the fish timer.
+     */
     override fun onGameEnd() {
         TimeUtils.setTimeout(fun() {
             Movement.clearAll()
@@ -105,6 +136,10 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
         }, RandomUtils.randomIntInRange(100, 300))
     }
 
+    /**
+     * Called when the bot successfully attacks the opponent.
+     * Performs W-tap and clears lateral movement when in a combo.
+     */
     override fun onAttack() {
         if (CatDueller.config?.enableWTap == true) {
             tapping = true
@@ -119,6 +154,12 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
         }
     }
 
+    /**
+     * Main game loop called every tick.
+     *
+     * Handles obstacle jumping, attack initiation, distance-based
+     * forward movement control, and strategic strafing.
+     */
     override fun onTick() {
         if (mc.thePlayer != null) {
             if (WorldUtils.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && mc.thePlayer.onGround) {
@@ -153,7 +194,7 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
             }
 
             val movePriority = arrayListOf(0, 0)
-            var clear = false
+            val clear = false
             var randomStrafe = false
 
             if (!EntityUtils.entityFacingAway(mc.thePlayer, opponent()!!)) {
@@ -178,7 +219,6 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
                     }
                 }
             } else {
-                // runner
                 if (WorldUtils.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
                     movePriority[0] += 4
                 } else {

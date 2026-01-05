@@ -6,29 +6,58 @@ import net.minecraft.client.settings.KeyBinding
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import net.minecraftforge.fml.common.gameevent.TickEvent
 
+/**
+ * Handles player movement input simulation including walking, jumping, sprinting, and sneaking.
+ * Provides both standard methods (respecting bot toggle state) and force methods (bypassing toggle checks).
+ */
 object Movement {
+
+    /** Whether the forward key is currently pressed. */
     private var forward = false
+
+    /** Whether the backward key is currently pressed. */
     private var backward = false
+
+    /** Whether the left strafe key is currently pressed. */
     private var left = false
+
+    /** Whether the right strafe key is currently pressed. */
     private var right = false
+
+    /** Whether the jump key is currently pressed. */
     private var jumping = false
+
+    /** Whether the sprint key is currently pressed. */
     private var sprinting = false
+
+    /** Whether the sneak key is currently pressed. */
     private var sneaking = false
 
-    // Long jump state tracking
+    /** Whether long jump mode is currently active. */
     private var longJumpActive = false
+
+    /** Previous GUI open state for detecting GUI close events. */
     private var lastGuiState = false
-    private var longJumpWaitingForGround = false  // Waiting for onGround after GUI closes
-    private var wasOnGroundLastTick = false       // Track previous onGround state
 
+    /** Whether waiting for player to land to execute long jump. */
+    private var longJumpWaitingForGround = false
 
+    /** Previous onGround state for detecting landing events. */
+    private var wasOnGroundLastTick = false
+
+    /**
+     * Starts moving forward. Requires bot to be toggled on.
+     */
     fun startForward() {
-        if (CatDueller.bot?.toggled() == true) { // need to do this because the type is Boolean? so it could be null
+        if (CatDueller.bot?.toggled() == true) {
             forward = true
             KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindForward.keyCode, true)
         }
     }
 
+    /**
+     * Stops moving forward. Requires bot to be toggled on.
+     */
     fun stopForward() {
         if (CatDueller.bot?.toggled() == true) {
             forward = false
@@ -36,6 +65,9 @@ object Movement {
         }
     }
 
+    /**
+     * Starts moving backward. Requires bot to be toggled on.
+     */
     fun startBackward() {
         if (CatDueller.bot?.toggled() == true) {
             backward = true
@@ -43,6 +75,9 @@ object Movement {
         }
     }
 
+    /**
+     * Stops moving backward. Requires bot to be toggled on.
+     */
     fun stopBackward() {
         if (CatDueller.bot?.toggled() == true) {
             backward = false
@@ -50,6 +85,9 @@ object Movement {
         }
     }
 
+    /**
+     * Starts strafing left. Requires bot to be toggled on.
+     */
     fun startLeft() {
         if (CatDueller.bot?.toggled() == true) {
             left = true
@@ -57,6 +95,9 @@ object Movement {
         }
     }
 
+    /**
+     * Stops strafing left. Requires bot to be toggled on.
+     */
     fun stopLeft() {
         if (CatDueller.bot?.toggled() == true) {
             left = false
@@ -64,6 +105,9 @@ object Movement {
         }
     }
 
+    /**
+     * Starts strafing right. Requires bot to be toggled on.
+     */
     fun startRight() {
         if (CatDueller.bot?.toggled() == true) {
             right = true
@@ -71,6 +115,9 @@ object Movement {
         }
     }
 
+    /**
+     * Stops strafing right. Requires bot to be toggled on.
+     */
     fun stopRight() {
         if (CatDueller.bot?.toggled() == true) {
             right = false
@@ -78,6 +125,9 @@ object Movement {
         }
     }
 
+    /**
+     * Starts jumping (holds jump key). Requires bot to be toggled on.
+     */
     fun startJumping() {
         if (CatDueller.bot?.toggled() == true) {
             jumping = true
@@ -90,6 +140,9 @@ object Movement {
         }
     }
 
+    /**
+     * Stops jumping (releases jump key). Requires bot to be toggled on.
+     */
     fun stopJumping() {
         if (CatDueller.bot?.toggled() == true) {
             jumping = false
@@ -102,6 +155,9 @@ object Movement {
         }
     }
 
+    /**
+     * Starts sprinting. Requires bot to be toggled on.
+     */
     fun startSprinting() {
         if (CatDueller.bot?.toggled() == true) {
             sprinting = true
@@ -109,6 +165,9 @@ object Movement {
         }
     }
 
+    /**
+     * Stops sprinting. Requires bot to be toggled on.
+     */
     fun stopSprinting() {
         if (CatDueller.bot?.toggled() == true) {
             sprinting = false
@@ -116,6 +175,9 @@ object Movement {
         }
     }
 
+    /**
+     * Starts sneaking. Requires bot to be toggled on.
+     */
     fun startSneaking() {
         if (CatDueller.bot?.toggled() == true) {
             sneaking = true
@@ -123,6 +185,9 @@ object Movement {
         }
     }
 
+    /**
+     * Stops sneaking. Requires bot to be toggled on.
+     */
     fun stopSneaking() {
         if (CatDueller.bot?.toggled() == true) {
             sneaking = false
@@ -130,6 +195,11 @@ object Movement {
         }
     }
 
+    /**
+     * Performs a single jump by pressing and releasing the jump key.
+     *
+     * @param holdDuration Time in milliseconds to hold the jump key.
+     */
     fun singleJump(holdDuration: Int) {
         if (CatDueller.config?.combatLogs == true) {
             println("Movement.singleJump() called with duration: $holdDuration, bot toggled: ${CatDueller.bot?.toggled()}")
@@ -138,6 +208,9 @@ object Movement {
         TimeUtils.setTimeout(this::stopJumping, holdDuration)
     }
 
+    /**
+     * Stops all movement inputs and random strafing.
+     */
     fun clearAll() {
         stopForward()
         stopBackward()
@@ -149,11 +222,17 @@ object Movement {
         Combat.stopRandomStrafe()
     }
 
+    /**
+     * Stops both left and right strafe inputs.
+     */
     fun clearLeftRight() {
         stopLeft()
         stopRight()
     }
 
+    /**
+     * Swaps the current strafe direction (left becomes right and vice versa).
+     */
     fun swapLeftRight() {
         if (left) {
             stopLeft()
@@ -164,95 +243,141 @@ object Movement {
         }
     }
 
+    /** Returns whether forward movement is active. */
     fun forward(): Boolean {
         return forward
     }
 
+    /** Returns whether backward movement is active. */
     fun backward(): Boolean {
         return backward
     }
 
+    /** Returns whether left strafe is active. */
     fun left(): Boolean {
         return left
     }
 
+    /** Returns whether right strafe is active. */
     fun right(): Boolean {
         return right
     }
 
+    /** Returns whether jumping is active. */
     fun jumping(): Boolean {
         return jumping
     }
 
+    /** Returns whether sprinting is active. */
     fun sprinting(): Boolean {
         return sprinting
     }
 
+    /** Returns whether sneaking is active. */
     fun sneaking(): Boolean {
         return sneaking
     }
 
-    // Force movement methods for MovementRecorder (bypass bot toggle check)
+    /**
+     * Forces forward movement, bypassing bot toggle check.
+     * Used by MovementRecorder for playback.
+     */
     fun forceStartForward() {
         forward = true
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindForward.keyCode, true)
     }
 
+    /**
+     * Forces stop forward movement, bypassing bot toggle check.
+     */
     fun forceStopForward() {
         forward = false
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindForward.keyCode, false)
     }
 
+    /**
+     * Forces backward movement, bypassing bot toggle check.
+     */
     fun forceStartBackward() {
         backward = true
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindBack.keyCode, true)
     }
 
+    /**
+     * Forces stop backward movement, bypassing bot toggle check.
+     */
     fun forceStopBackward() {
         backward = false
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindBack.keyCode, false)
     }
 
+    /**
+     * Forces left strafe, bypassing bot toggle check.
+     */
     fun forceStartLeft() {
         left = true
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindLeft.keyCode, true)
     }
 
+    /**
+     * Forces stop left strafe, bypassing bot toggle check.
+     */
     fun forceStopLeft() {
         left = false
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindLeft.keyCode, false)
     }
 
+    /**
+     * Forces right strafe, bypassing bot toggle check.
+     */
     fun forceStartRight() {
         right = true
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindRight.keyCode, true)
     }
 
+    /**
+     * Forces stop right strafe, bypassing bot toggle check.
+     */
     fun forceStopRight() {
         right = false
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindRight.keyCode, false)
     }
 
+    /**
+     * Forces jumping, bypassing bot toggle check.
+     */
     fun forceStartJumping() {
         jumping = true
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindJump.keyCode, true)
     }
 
+    /**
+     * Forces stop jumping, bypassing bot toggle check.
+     */
     fun forceStopJumping() {
         jumping = false
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindJump.keyCode, false)
     }
 
+    /**
+     * Forces sneaking, bypassing bot toggle check.
+     */
     fun forceStartSneaking() {
         sneaking = true
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindSneak.keyCode, true)
     }
 
+    /**
+     * Forces stop sneaking, bypassing bot toggle check.
+     */
     fun forceStopSneaking() {
         sneaking = false
         KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindSneak.keyCode, false)
     }
 
+    /**
+     * Forces clearing all movement states, bypassing bot toggle check.
+     */
     fun forceClearAll() {
         forceStopForward()
         forceStopBackward()
@@ -277,24 +402,26 @@ object Movement {
     }
 
     /**
-     * Stop long jump mode
+     * Stops long jump mode and resets related tracking variables.
      */
     fun stopLongJump() {
         longJumpActive = false
         longJumpWaitingForGround = false
         wasOnGroundLastTick = false
-        // Don't stop any actions - let jump finish naturally and keep forward/sprint
     }
 
     /**
-     * Check if long jump is active
+     * Returns whether long jump mode is currently active.
      */
     fun isLongJumpActive(): Boolean {
         return longJumpActive
     }
 
     /**
-     * GUI state monitoring for long jump functionality and jump queue processing
+     * Tick event handler for long jump functionality.
+     * Monitors GUI state and ground contact to execute long jumps at the appropriate time.
+     *
+     * @param ev The client tick event.
      */
     @SubscribeEvent
     fun onTick(ev: TickEvent.ClientTickEvent) {
@@ -303,43 +430,28 @@ object Movement {
 
         val currentGuiState = CatDueller.mc.currentScreen != null
 
-        // Detect GUI closing (was open, now closed)
         if (lastGuiState && !currentGuiState && longJumpActive) {
-            // GUI just closed and long jump is active - start forward and sprint, wait for ground to jump
             if (CatDueller.bot?.toggled() == true) {
-                // Start forward and sprint immediately
                 forward = true
                 sprinting = true
                 KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindForward.keyCode, true)
                 KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindSprint.keyCode, true)
 
-                // Set flag to wait for onGround to jump
                 longJumpWaitingForGround = true
-                println("Long jump started: GUI closed, forward + sprint active, waiting for onGround to jump")
             }
         }
 
-        // Check for onGround transition to execute jump
-
         if (player != null && longJumpWaitingForGround) {
             val currentOnGround = player.onGround
-            // Detect landing (not on ground -> on ground)
             if (!wasOnGroundLastTick && currentOnGround) {
-                // Player just landed - execute single jump
                 if (CatDueller.bot?.toggled() == true) {
-                    singleJump(100)  // Single jump with 100ms duration
-                    println("Long jump executed: Player landed, executing single jump")
-
-                    // Stop waiting for ground
+                    singleJump(100)
                     longJumpWaitingForGround = false
                 }
             }
-
             wasOnGroundLastTick = currentOnGround
         }
 
         lastGuiState = currentGuiState
     }
-
-
 }

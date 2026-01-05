@@ -15,8 +15,22 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
+/**
+ * Utility object for entity-related calculations and operations.
+ *
+ * Provides methods for finding opponent entities, calculating rotations needed
+ * to aim at targets, computing distances, and determining entity movement directions.
+ */
 object EntityUtils {
 
+    /**
+     * Finds the opponent player entity in the current world.
+     *
+     * Searches through all player entities in the world and returns the first
+     * player that is not the local player and meets targeting criteria.
+     *
+     * @return The opponent player entity, or null if no valid opponent is found.
+     */
     fun getOpponentEntity(): EntityPlayer? {
         if (CatDueller.mc.theWorld != null) {
             for (entity in CatDueller.mc.theWorld.playerEntities) {
@@ -28,11 +42,20 @@ object EntityUtils {
         return null
     }
 
+    /**
+     * Determines whether a player entity should be targeted.
+     *
+     * An entity is targetable if it is alive, visible, and within 64 blocks
+     * of the local player.
+     *
+     * @param entity The player entity to evaluate.
+     * @return True if the entity should be targeted, false otherwise.
+     */
     private fun shouldTarget(entity: EntityPlayer?): Boolean {
         return if (entity == null) {
             false
         } else if (CatDueller.mc.thePlayer.isEntityAlive && entity.isEntityAlive) {
-            if (!entity.isInvisible /*&& !entity.isInvisibleToPlayer(mc.thePlayer)*/) {
+            if (!entity.isInvisible) {
                 CatDueller.mc.thePlayer.getDistanceToEntity(entity) <= 64.0f
             } else {
                 false
@@ -43,12 +66,17 @@ object EntityUtils {
     }
 
     /**
-     * Get the rotations needed to look at an entity
+     * Calculates the rotation angles needed to look at a target entity.
      *
-     * @param target target entity
-     * @param raw If true, only returns difference in yaw and pitch instead of values needed
-     * @param center If true, returns values to look at the player's face, if false, returns the values to look at the closest point in the hitbox
-     * @return float[] - {yaw, pitch}
+     * Supports multiple targeting modes including center-of-entity targeting for projectiles
+     * and closest-hitbox-point targeting for melee attacks. Includes prediction logic for
+     * projectile weapons (bows and fishing rods) based on distance and target movement.
+     *
+     * @param player The player entity whose rotations are being calculated.
+     * @param target The entity to aim at.
+     * @param raw If true, returns the rotation difference; if false, returns absolute rotation values.
+     * @param center If true, aims at the entity's eye height; if false, aims at the closest hitbox point.
+     * @return A FloatArray containing [yaw, pitch], or null if either entity is null.
      */
     fun getRotations(player: EntityPlayer?, target: Entity?, raw: Boolean, center: Boolean = false): FloatArray? {
         return if (target == null || player == null) {
@@ -202,8 +230,6 @@ object EntityUtils {
                 }
             }
 
-            // Not originally my code, but I forgot where I found it
-
             val diffX = pos.xCoord - player.posX
             val diffY: Double = pos.yCoord - (player.posY + player.getEyeHeight().toDouble())
             val diffZ = pos.zCoord - player.posZ
@@ -243,12 +269,29 @@ object EntityUtils {
         }
     }
 
+    /**
+     * Calculates the angular distance between the player's current crosshair position
+     * and target rotation values.
+     *
+     * @param yaw The target yaw angle in degrees.
+     * @param pitch The target pitch angle in degrees.
+     * @param player The player entity whose current rotation is compared.
+     * @return The Euclidean distance between current and target rotations in degrees.
+     */
     fun crossHairDistance(yaw: Float, pitch: Float, player: EntityPlayer): Float {
         val nYaw = abs(player.rotationYaw - yaw)
         val nPitch = abs(player.rotationPitch - pitch)
         return MathHelper.sqrt_float(nYaw * nYaw + nPitch * nPitch)
     }
 
+    /**
+     * Calculates the horizontal distance between a player and target entity,
+     * ignoring vertical (Y-axis) differences.
+     *
+     * @param player The player entity.
+     * @param target The target entity.
+     * @return The horizontal distance in blocks, or 0 if either entity is null.
+     */
     fun getDistanceNoY(player: EntityPlayer?, target: Entity?): Float {
         return if (target == null || player == null) {
             0f
@@ -259,11 +302,27 @@ object EntityUtils {
         }
     }
 
+    /**
+     * Gets the 2D look vector for an entity on the horizontal plane.
+     *
+     * Calculates a normalized direction vector based on the entity's yaw rotation,
+     * with the Y component set to zero.
+     *
+     * @param entity The entity whose look vector is calculated.
+     * @return A Vec3 representing the horizontal look direction.
+     */
     fun get2dLookVec(entity: Entity): Vec3 {
         val yaw = ((entity.rotationYaw + 90) * Math.PI) / 180
         return Vec3(cos(yaw), 0.0, sin(yaw))
     }
 
+    /**
+     * Determines if the target entity is moving to the left relative to the viewing entity.
+     *
+     * @param entity The viewing entity (perspective from which left/right is determined).
+     * @param target The entity whose movement direction is being checked.
+     * @return True if the target is moving left relative to the viewing entity.
+     */
     fun entityMovingLeft(entity: Entity, target: Entity): Boolean {
         val lookVec = get2dLookVec(entity).rotateYaw(90f)
         val entityVec = target.getVelocity()
@@ -273,6 +332,13 @@ object EntityUtils {
         return angle > 90
     }
 
+    /**
+     * Determines if the target entity is moving to the right relative to the viewing entity.
+     *
+     * @param entity The viewing entity (perspective from which left/right is determined).
+     * @param target The entity whose movement direction is being checked.
+     * @return True if the target is moving right relative to the viewing entity.
+     */
     fun entityMovingRight(entity: Entity, target: Entity): Boolean {
         val lookVec = get2dLookVec(entity).rotateYaw(90f)
         val entityVec = target.getVelocity()
@@ -282,6 +348,16 @@ object EntityUtils {
         return angle < 90
     }
 
+    /**
+     * Determines if the target entity is facing away from the viewing entity.
+     *
+     * Compares the look vectors of both entities to determine if the target
+     * is looking in a direction away from the viewing entity.
+     *
+     * @param entity The viewing entity.
+     * @param target The entity whose facing direction is being checked.
+     * @return True if the angle between look vectors is between 20 and 70 degrees.
+     */
     fun entityFacingAway(entity: Entity, target: Entity): Boolean {
         val vec1 = get2dLookVec(entity)
         val vec2 = get2dLookVec(target)
@@ -291,6 +367,17 @@ object EntityUtils {
         return angle in 20f..70f
     }
 
+    /**
+     * Finds the two closest corners of a bounding box to the local player.
+     *
+     * Used for determining the optimal aim point on an entity's hitbox.
+     *
+     * @param corner1 First corner of the bounding box.
+     * @param corner2 Second corner of the bounding box.
+     * @param corner3 Third corner of the bounding box.
+     * @param corner4 Fourth corner of the bounding box.
+     * @return An ArrayList containing the two closest corners, sorted by distance.
+     */
     private fun getClosestCorner(corner1: Vec3, corner2: Vec3, corner3: Vec3, corner4: Vec3): ArrayList<Vec3> {
         val pos = Vec3(
             CatDueller.mc.thePlayer.posX,

@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.bot.bots
+package best.spaghetcodes.catdueller.bot.impl
 
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.BotBase
@@ -16,8 +16,22 @@ import best.spaghetcodes.catdueller.utils.WorldUtils
 import net.minecraft.init.Blocks
 import net.minecraft.util.Vec3
 
+/**
+ * Bot implementation for Combo Duels game mode.
+ *
+ * This bot handles combat mechanics for Combo Duels, which includes:
+ * - Strength potion usage for damage boost
+ * - Golden apple consumption for healing and absorption
+ * - Ender pearl teleportation to catch fleeing opponents
+ * - Automatic armor re-equipping when broken
+ * - Strategic strafing based on opponent position and visibility
+ */
 class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
 
+    /**
+     * Returns the display name of this bot.
+     * @return The string "Combo"
+     */
     override fun getName(): String {
         return "Combo"
     }
@@ -32,23 +46,42 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
         )
     }
 
+    /** Flag indicating W-tap is currently active. */
     private var tapping = false
 
+    /** Number of strength potions remaining. */
     private var strengthPots = 2
+
+    /** Timestamp of last potion usage. */
     override var lastPotion = 0L
 
+    /** Number of golden apples remaining. */
     private var gaps = 32
+
+    /** Timestamp of last golden apple usage. */
     override var lastGap = 0L
 
+    /** Number of ender pearls remaining. */
     private var pearls = 5
+
+    /** Timestamp of last ender pearl usage. */
     private var lastPearl = 0L
 
+    /** Flag to prevent starting left click autoclicker during item usage. */
     private var dontStartLeftAC = false
 
+    /**
+     * Enumeration of armor slot types.
+     * Maps to inventory slot indices: BOOTS=0, LEGGINGS=1, CHESTPLATE=2, HELMET=3.
+     */
     enum class ArmorEnum {
         BOOTS, LEGGINGS, CHESTPLATE, HELMET
     }
 
+    /**
+     * Tracks remaining backup armor pieces per slot.
+     * Key is armor slot index, value is count of backup pieces available.
+     */
     private var armor = hashMapOf(
         0 to 1,
         1 to 1,
@@ -56,12 +89,20 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
         3 to 1
     )
 
+    /**
+     * Called when the game starts.
+     * Initiates sprinting and forward movement.
+     */
     override fun onGameStart() {
-        super.onGameStart()  // Call parent to check scoreboard
+        super.onGameStart()
         Movement.startSprinting()
         Movement.startForward()
     }
 
+    /**
+     * Called when the game ends.
+     * Resets all state variables and stops combat actions.
+     */
     override fun onGameEnd() {
         TimeUtils.setTimeout(fun() {
             Movement.clearAll()
@@ -83,6 +124,12 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
         }, RandomUtils.randomIntInRange(100, 300))
     }
 
+    /**
+     * Main game loop called every tick.
+     *
+     * Handles combat, consumable usage, armor re-equipping,
+     * ender pearl throwing, and strategic movement.
+     */
     override fun onTick() {
         if (opponent() != null && mc.theWorld != null && mc.thePlayer != null) {
             val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
@@ -130,7 +177,6 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
             }
 
             if (WorldUtils.blockInFront(mc.thePlayer, 3f, 1.5f) != Blocks.air) {
-                // wall
                 Mouse.setRunningAway(false)
             }
 

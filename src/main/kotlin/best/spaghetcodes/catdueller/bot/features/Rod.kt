@@ -7,19 +7,38 @@ import best.spaghetcodes.catdueller.utils.RandomUtils
 import best.spaghetcodes.catdueller.utils.TimeUtils
 import net.minecraft.client.Minecraft
 
+/**
+ * Interface providing fishing rod usage functionality for combat.
+ *
+ * Handles the complete rod cast and retract sequence, supporting both offensive
+ * and defensive rod usage. Manages state tracking, automatic retraction,
+ * and smooth aim restoration after rod actions.
+ */
 interface Rod {
 
+    /**
+     * Minecraft client instance accessor for player state checks.
+     */
     private val mc_: Minecraft
         get() = Minecraft.getMinecraft()
 
-
+    /**
+     * Casts the fishing rod with proper state management and automatic retraction.
+     *
+     * The method performs the following steps:
+     * 1. Retracts any existing rod if one is in use
+     * 2. Stops ongoing attack actions
+     * 3. Switches to sword then to rod (ensures clean rod state)
+     * 4. Casts the rod and schedules automatic retraction
+     *
+     * @param isDefensive Whether this rod usage is defensive (e.g., to create distance)
+     *                    versus offensive (e.g., combo setup). Defaults to false.
+     */
     fun useRod(isDefensive: Boolean = false) {
-        // If rod is already in use, immediately retract it first
         if (Mouse.isUsingProjectile() || CatDueller.bot?.rodRetractTimeout != null) {
             immediateRetractRod()
         }
 
-        // Stop attacking based on config
         if (CatDueller.config?.holdLeftClick == true) {
             Mouse.stopHoldLeftClick()
         } else {
@@ -27,68 +46,62 @@ interface Rod {
         }
 
         Mouse.setUsingProjectile(true)
-        // Mark rod usage type
         CatDueller.bot?.isDefensiveRod = isDefensive
 
         TimeUtils.setTimeout(fun() {
-            // Step 1: First switch to sword to ensure any existing rod is retracted
             Inventory.setInvItem("sword")
             TimeUtils.setTimeout(fun() {
-                // Step 2: Now switch to rod
                 Inventory.setInvItem("rod")
                 TimeUtils.setTimeout(fun() {
-                    // Step 3: Use rod (right click)
                     val r = RandomUtils.randomIntInRange(100, 200)
                     Mouse.rClick(r)
-                    // Don't set setUsingProjectile(false) here - let retractRod() handle it
 
-                    // Set up normal retract timeout (Step 4: Auto-retract by switching to sword)
                     CatDueller.bot?.rodRetractTimeout = TimeUtils.setTimeout(fun() {
-                        retractRod()  // This will switch to sword to retract
+                        retractRod()
                     }, r + RandomUtils.randomIntInRange(100, 200))
                 }, RandomUtils.randomIntInRange(50, 90))
-            }, RandomUtils.randomIntInRange(30, 60))  // Short delay to ensure sword switch completes
+            }, RandomUtils.randomIntInRange(30, 60))
         }, RandomUtils.randomIntInRange(10, 30))
     }
 
+    /**
+     * Retracts the fishing rod and restores combat state.
+     *
+     * Handles rod retraction by switching to sword (which automatically retracts
+     * any cast rod). Temporarily disables aim tracking to prevent jarring aim
+     * snap-back, then smoothly restores tracking after a short delay.
+     * Clears rod-related state flags upon completion.
+     */
     fun retractRod() {
-        // First, stop any ongoing right click to ensure clean state
         Mouse.rClickUp()
-
-        // Immediately allow next projectile usage (for rapid rod usage)
         Mouse.setUsingProjectile(false)
 
-        // Retract rod by switching to sword (this automatically retracts the rod)
         if (mc_.thePlayer.heldItem != null && !mc_.thePlayer.heldItem.unlocalizedName.lowercase().contains("bow")) {
             Inventory.setInvItem("sword")
         }
 
-        // Temporarily disable tracking to prevent immediate aim snap-back
         val wasTracking = Mouse.isTracking()
         if (wasTracking) {
             Mouse.stopTracking()
-            // Re-enable tracking after rod retraction is complete (200-300ms total)
             TimeUtils.setTimeout({
                 Mouse.startTracking()
-            }, RandomUtils.randomIntInRange(100, 200))  // Additional delay for smooth aim restoration
+            }, RandomUtils.randomIntInRange(100, 200))
         }
 
-        // Don't start attacking here - let the distance control logic in onTick handle it 
-
-        // Clear the timeout and defensive flag since we're retracting now
         CatDueller.bot?.rodRetractTimeout = null
         CatDueller.bot?.isDefensiveRod = false
     }
 
+    /**
+     * Immediately retracts the fishing rod, canceling any pending retraction timer.
+     *
+     * Used when a new rod action needs to be performed before the current one
+     * completes, or when immediate rod retraction is required for other actions.
+     */
     fun immediateRetractRod() {
-        // Cancel the normal retract timeout
         CatDueller.bot?.rodRetractTimeout?.cancel()
         CatDueller.bot?.rodRetractTimeout = null
-
-        // Stop using projectile flag immediately
         Mouse.setUsingProjectile(false)
-
-        // Immediately retract
         retractRod()
     }
 

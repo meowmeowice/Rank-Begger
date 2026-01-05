@@ -1,24 +1,39 @@
 package best.spaghetcodes.catdueller.core
 
 import best.spaghetcodes.catdueller.CatDueller
-import best.spaghetcodes.catdueller.bot.bots.*
+import best.spaghetcodes.catdueller.bot.impl.*
 import gg.essential.vigilance.Vigilant
 import gg.essential.vigilance.data.Property
 import gg.essential.vigilance.data.PropertyType
 import java.io.File
 
+/**
+ * Configuration class for CatDueller mod settings.
+ *
+ * Extends Vigilant to provide a GUI-based configuration system with
+ * persistent storage. All settings are organized into categories
+ * and automatically saved to a TOML file.
+ *
+ * Categories include:
+ * - General: Core bot behavior and session settings
+ * - Combat: Attack timing, aiming, and combat mechanics
+ * - Toggling: Automatic key press triggers
+ * - Sumo/Classic: Game mode specific settings
+ * - Queue Dodging: Opponent filtering options
+ * - Auto Requeue: Automatic queue management
+ * - AutoGG: Post-game messaging
+ * - Chat Messages: Automated chat responses
+ * - Webhook: Discord integration
+ * - Bot Crasher: Anti-bot functionality
+ */
 class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = ConfigSorter()) {
-
-    /*
-        GENERAL
-     */
 
     @Property(
         type = PropertyType.SELECTOR,
         name = "Current Bot",
         description = "The bot you want to use",
         category = "General",
-        options = ["Sumo", "Classic", "OP"/*, "Boxing", "Combo"*/]
+        options = ["Sumo", "Classic", "OP"]
     )
     val currentBot = 0
 
@@ -161,10 +176,6 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
         max = 23
     )
     val bigBreakEndHour = 17
-
-    /*
-        COMBAT
-     */
 
     @Property(
         type = PropertyType.DECIMAL_SLIDER,
@@ -369,49 +380,16 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
     )
     val waitForFirstHitTimeout = 150
 
-    /* 
-    @Property(
-        type = PropertyType.SWITCH,
-        name = "Blink Tap",
-        description = "Automatically press a key when entering specified distance from opponent",
-        category = "Toggling"
-    )
-    */
+    /** Blink tap feature toggle (currently disabled). */
     val blinkTap = false
 
-    /* 
-    @Property(
-        type = PropertyType.DECIMAL_SLIDER,
-        name = "Blink Tap Distance",
-        description = "Distance from opponent to trigger blink tap (blocks)",
-        category = "Toggling",
-        minF = 5.0f,
-        maxF = 14.0f,
-    )
-    */
+    /** Distance threshold for blink tap activation in blocks. */
     val blinkTapDistance = 8.0f
 
-    /* 
-    @Property(
-        type = PropertyType.TEXT,
-        name = "Blink Tap Key",
-        description = "Key to press when entering blink tap distance (e.g., Q, E, R, F, etc.)",
-        category = "Toggling"
-    )
-    */
+    /** Key to press when blink tap triggers. */
     val blinkTapKey = "Q"
 
-    /* 
-    @Property(
-        type = PropertyType.NUMBER,
-        name = "Blink Tap Timeout",
-        description = "Timeout in milliseconds after which the key is pressed again (0 = don't press again)",
-        category = "Toggling",
-        min = 0,
-        max = 1500,
-        increment = 100
-    )
-    */
+    /** Delay before second blink tap key press in milliseconds. */
     val blinkTapSecondPressDelay = 0
 
 
@@ -689,10 +667,6 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
     )
     val clipLosses = false
 
-    /*
-        Bot Crasher
-     */
-
     @Property(
         type = PropertyType.SWITCH,
         name = "Bot Crasher Mode",
@@ -724,10 +698,6 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
         category = "Bot Crasher",
     )
     var botCrasherTargetPlayers = ""
-
-    /*
-        Auto GG
-     */
 
     @Property(
         type = PropertyType.SWITCH,
@@ -782,10 +752,6 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
         increment = 50
     )
     val startMessageDelay = 100
-
-    /*
-        Auto Requeue
-    */
 
     @Property(
         type = PropertyType.NUMBER,
@@ -909,10 +875,6 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
     )
     val antiRagebait = false
 
-    /*
-        Webhook
-     */
-
     @Property(
         type = PropertyType.SWITCH,
         name = "Send Webhook Messages",
@@ -930,147 +892,57 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
     val webhookURL = ""
 
 
-    /*
-        BOOSTING
-
-
-    @Property(
-        type = PropertyType.SWITCH,
-        name = "Set My Rotation",
-        description = "Set my rotation to specific yaw and pitch angles",
-        category = "Boosting"
-    )
+    /** Enable custom rotation setting (boosting feature, currently disabled). */
     val setMyRotation = false
 
-    @Property(
-        type = PropertyType.DECIMAL_SLIDER,
-        name = "My Target Yaw",
-        description = "My target yaw angle (rotation left/right)",
-        category = "Boosting",
-        minF = -180f,
-        maxF = 180f,
-        decimalPlaces = 1
-    )
+    /** Target yaw angle for rotation setting. */
     val myTargetYaw = 0.0f
 
-    @Property(
-        type = PropertyType.DECIMAL_SLIDER,
-        name = "My Target Pitch",
-        description = "My target pitch angle (rotation up/down)",
-        category = "Boosting",
-        minF = -90f,
-        maxF = 90f,
-        decimalPlaces = 1
-    )
+    /** Target pitch angle for rotation setting. */
     val myTargetPitch = 0.0f
 
-    @Property(
-        type = PropertyType.DECIMAL_SLIDER,
-        name = "My Angle Tolerance",
-        description = "My angle accuracy tolerance (smaller = more precise)",
-        category = "Boosting",
-        minF = 0.01f,
-        maxF = 5.0f,
-        decimalPlaces = 2
-    )
+    /** Angle tolerance for rotation matching. */
     val myAngleTolerance = 0.01f
 
-    @Property(
-        type = PropertyType.SWITCH,
-        name = "Only Stay Bots",
-        description = "Dodge when opponent's rotation doesn't match expected values",
-        category = "Boosting"
-    )
+    /** Dodge opponents with unexpected rotation (boosting feature, currently disabled). */
     val dodgeWrongRotation = false
 
-    @Property(
-        type = PropertyType.SWITCH,
-        name = "Dodge Each Other (Bot)",
-        description = "Dodge when opponent's rotation DOES match expected values (opposite of Dodge Wrong Rotation)",
-        category = "Boosting"
-    )
+    /** Dodge opponents with matching rotation (boosting feature, currently disabled). */
     val dodgeEachOtherBot = false
 
-    @Property(
-        type = PropertyType.DECIMAL_SLIDER,
-        name = "Expected Opponent Yaw",
-        description = "Expected opponent yaw angle (rotation left/right)",
-        category = "Boosting",
-        minF = -180f,
-        maxF = 180f,
-        decimalPlaces = 1
-    )
+    /** Expected opponent yaw angle for rotation matching. */
     val expectedOpponentYaw = 0.0f
 
-    @Property(
-        type = PropertyType.DECIMAL_SLIDER,
-        name = "Expected Opponent Pitch",
-        description = "Expected opponent pitch angle (rotation up/down)",
-        category = "Boosting",
-        minF = -90f,
-        maxF = 90f,
-        decimalPlaces = 1
-    )
+    /** Expected opponent pitch angle for rotation matching. */
     val expectedOpponentPitch = 0.0f
 
-    @Property(
-        type = PropertyType.DECIMAL_SLIDER,
-        name = "Opponent Angle Tolerance",
-        description = "Opponent angle tolerance for matching (smaller = more strict). Note: Minecraft network sync precision is ~0.1 degrees",
-        category = "Boosting",
-        minF = 0.1f,
-        maxF = 10.0f,
-        decimalPlaces = 1
-    )
+    /** Tolerance for opponent angle matching. */
     val opponentAngleTolerance = 0.5f
 
-    @Property(
-        type = PropertyType.SWITCH,
-        name = "Show Rotation Debug",
-        description = "Show debug information about rotation setting and checking",
-        category = "Boosting"
-    )
+    /** Show rotation debug information. */
     val showRotationDebug = false
 
-    @Property(
-        type = PropertyType.SWITCH,
-        name = "/l when opponent freeze",
-        description = "Send /l command when opponent doesn't move for 3 seconds during game",
-        category = "Boosting"
-    )
-    val leaveWhenOpponentFreeze = false
-*/
-
-    val setMyRotation = false
-    val myTargetYaw = 0.0f
-    val myTargetPitch = 0.0f
-    val myAngleTolerance = 0.01f
-    val dodgeWrongRotation = false
-    val dodgeEachOtherBot = false
-    val expectedOpponentYaw = 0.0f
-    val expectedOpponentPitch = 0.0f
-    val opponentAngleTolerance = 0.5f
-    val showRotationDebug = false
+    /** Leave game when opponent freezes (boosting feature, currently disabled). */
     val leaveWhenOpponentFreeze = false
 
+    /**
+     * Map of bot index to bot instance for each available game mode.
+     * Index corresponds to the selector options in currentBot property.
+     */
     val bots = mapOf(0 to Sumo(), 1 to Classic(), 2 to OP(), 3 to Boxing(), 4 to Combo())
 
     init {
         try {
             addDependency("webhookURL", "sendWebhookMessages")
-
             addDependency("ggMessage", "sendAutoGG")
             addDependency("ggDelay", "sendAutoGG")
-
             addDependency("startMessage", "sendStartMessage")
             addDependency("startMessageDelay", "sendStartMessage")
-
             addDependency("tauntThresholdSeconds", "enableTauntMessages")
             addDependency("blatantToggleKey", "toggleBlatantOnBlacklisted")
             addDependency("blacklistedPlayers", "toggleBlatantOnBlacklisted")
             addDependency("blatantToggleKey", "toggleBlatantAtEdge")
             addDependency("toggleBlatantDistance", "toggleBlatantAtEdge")
-
             addDependency("dmTargetPlayer", "sendServerToDM")
             addDependency("botCrasherAutoRequeue", "botCrasherMode")
             addDependency("botCrasherSpamPlayers", "botCrasherMode")
@@ -1087,7 +959,6 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
             addDependency("hitSelectDelay", "hitSelect")
             addDependency("hitLaterInTrades", "hitSelect")
             addDependency("waitForFirstHitTimeout", "waitForFirstHit")
-
             addDependency("distance7Jump", "hitSelectAtEdge")
         } catch (e: Exception) {
             println("Failed to add dependencies: ${e.message}")
@@ -1096,7 +967,6 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
 
         try {
             registerListener("currentBot") { bot: Int ->
-                // Avoid calling CatDueller.swapBot during initialization
                 if (CatDueller.bot != null && bots.keys.contains(bot)) {
                     CatDueller.swapBot(bots[bot]!!)
                 }

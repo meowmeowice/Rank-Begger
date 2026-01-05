@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.bot.bots
+package best.spaghetcodes.catdueller.bot.impl
 
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.BotBase
@@ -13,8 +13,26 @@ import best.spaghetcodes.catdueller.utils.*
 import net.minecraft.init.Blocks
 import net.minecraft.util.Vec3
 
+/**
+ * Bot implementation for Classic Duels game mode.
+ *
+ * This bot handles combat mechanics including sword fighting, bow usage,
+ * fishing rod tactics, W-tapping, block-hitting, arrow blocking, and
+ * strategic movement based on distance and opponent behavior.
+ *
+ * Features:
+ * - Intelligent weapon switching between sword, bow, and rod
+ * - Distance-based combat strategy with retreat mechanics
+ * - Arrow blocking when opponent draws bow for extended periods
+ * - Hurt strafe for evasion after taking damage
+ * - Wall avoidance during strafing
+ */
 class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
+    /**
+     * Returns the display name of this bot.
+     * @return The string "Classic"
+     */
     override fun getName(): String {
         return "Classic"
     }
@@ -29,100 +47,99 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         )
     }
 
+    /** Number of arrows fired this game. */
     var shotsFired = 0
+
+    /** Maximum arrows allowed per game. */
     var maxArrows = 5
 
-    // Strafe variables
-    private var hurtStrafeDirection = 0  // strafe direction after being hurt: 0=none, 1=left, 2=right
+    /** Strafe direction after being hurt: 0=none, 1=left, 2=right. */
+    private var hurtStrafeDirection = 0
 
-    // Track hold left click state to avoid unnecessary calls
+    /** Current state of hold left click to avoid unnecessary calls. */
     private var shouldHoldLeftClick = false
 
-    // Track rod hit to prevent jump interruption
+    /** Flag to prevent jump interruption after rod hit. */
     private var rodHitNeedJump = false
 
-    // Track rod hit distance for debugging
-    private var rodHitDistance = 0f  // Store distance when rod hit occurred
+    /** Distance stored when rod hit occurred for debugging purposes. */
+    private var rodHitDistance = 0f
 
-    // Track rod usage time for accurate hit detection
+    /** Timestamp of last rod usage for accurate hit detection. */
     private var lastRodUseTime = 0L
 
-    // Track opponent's hurtTime for rod hit detection
+    /** Previous hurtTime value of opponent for rod hit detection. */
     private var opponentLastHurtTime = 0
 
-    // Track sword hits to exclude them from rod hit detection
+    /** Timestamp of last sword hit to exclude from rod hit detection. */
     private var lastSwordHitTime = 0L
 
-    // Track dodge state to prevent block jump interference
+    /** Flag indicating active dodge state to prevent block jump interference. */
     private var isDodging = false
 
-    // Track our own bow usage
+    /** Timestamp when bot started using bow. */
     private var ourBowStartTime: Long = 0
+
+    /** Flag indicating bot is currently using bow. */
     private var isUsingBow = false
 
-    // Track weapon switching to add delay before attacking
+    /** Timestamp of last weapon switch to add delay before attacking. */
     private var lastWeaponSwitchTime: Long = 0
 
-    // Track retreat state - retreat until rod hits once
+    /** Flag to continue retreating until rod hits opponent once. */
     private var shouldRetreatUntilRodHit = false
-    private var lastRetreatEndTime = 0L  // Track when retreat last ended for cooldown
 
-    // Track opponent arrow firing for all situations
-    private var bowCounterAttackActive = false  // Track if any bow counter-attack is in progress
-    private var lastTickOpponentDrawingBow = false  // Track opponent bow state from previous tick
-    private var opponentBowStartTime = 0L  // Track when opponent started drawing bow
-    private var blockingEndScheduled = false  // Track if blocking end is scheduled
+    /** Timestamp when retreat last ended for cooldown tracking. */
+    private var lastRetreatEndTime = 0L
 
-    // Track opponent approach for movement control
-    private var lastOpponentDistance = 0f  // Track opponent distance from previous tick
-    private var isOpponentApproaching = false  // Track if opponent is getting closer
-    private var movementPausedForApproach = false  // Track if we paused movement due to approach
-    private var lastRodHitTime = 0L  // Track when rod last hit opponent
+    /** Flag indicating bow counter-attack is in progress. */
+    private var bowCounterAttackActive = false
 
+    /** Previous tick's opponent bow drawing state. */
+    private var lastTickOpponentDrawingBow = false
+
+    /** Timestamp when opponent started drawing bow. */
+    private var opponentBowStartTime = 0L
+
+    /** Flag to prevent multiple scheduling of blocking end. */
+    private var blockingEndScheduled = false
+
+    /** Previous tick's distance to opponent. */
+    private var lastOpponentDistance = 0f
+
+    /** Flag indicating opponent is moving closer. */
+    private var isOpponentApproaching = false
+
+    /** Flag indicating forward movement is paused due to opponent approach. */
+    private var movementPausedForApproach = false
+
+    /** Timestamp when rod last hit opponent. */
+    private var lastRodHitTime = 0L
+
+    /**
+     * Called when the game starts.
+     * Resets all game-specific state variables and initiates movement.
+     */
     override fun onGameStart() {
-        super.onGameStart()  // Call parent to check scoreboard
-        shotsFired = 0  // Reset arrow count for new game
+        super.onGameStart()
+        shotsFired = 0
 
-        // Reset strafe variables
         hurtStrafeDirection = 0
-
-        // Reset hold left click state
         shouldHoldLeftClick = false
-
-        // Reset rod hit jump state
         rodHitNeedJump = false
-        // Reset rod hit distance
         rodHitDistance = 0f
-
-        // Reset rod usage tracking
         lastRodUseTime = 0L
-
-        // Reset opponent hurtTime tracking
         opponentLastHurtTime = 0
-
-        // Reset sword hit tracking
         lastSwordHitTime = 0L
-
-        // Reset dodge state
         isDodging = false
-
-        // Reset bow usage tracking
         ourBowStartTime = 0
         isUsingBow = false
-
-        // Reset retreat state
         shouldRetreatUntilRodHit = false
         lastRetreatEndTime = 0L
-
-        // Reset bow counter-attack tracking
         bowCounterAttackActive = false
         opponentBowStartTime = 0L
         blockingEndScheduled = false
-
-        // Reset weapon switch tracking
         lastWeaponSwitchTime = 0
-
-        // Reset opponent approach tracking
         lastOpponentDistance = 0f
         isOpponentApproaching = false
         movementPausedForApproach = false
@@ -133,16 +150,18 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         TimeUtils.setTimeout(Movement::startJumping, RandomUtils.randomIntInRange(400, 1200))
     }
 
+    /**
+     * Called when the game ends.
+     * Stops all combat actions, cleans up resources, and prepares for next game.
+     */
     override fun onGameEnd() {
-        super.onGameEnd()  // Call parent to handle requeue logic
+        super.onGameEnd()
 
         shotsFired = 0
         shouldHoldLeftClick = false
 
-        // Additional cleanup to prevent memory leaks
         cleanupGameResources()
 
-        // Stop attacking based on config
         if (CatDueller.config?.holdLeftClick == true) {
             Mouse.stopHoldLeftClick()
         } else {
@@ -161,7 +180,6 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             i?.cancel()
         }, RandomUtils.randomIntInRange(200, 400))
 
-        // Immediately clear movement like Sumo bot to avoid interfering with celebration
         if (CatDueller.bot?.toggled() == true) {
             Mouse.stopTracking()
             Movement.clearAll()
@@ -170,40 +188,33 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
     }
 
     /**
-     * Clean up game-specific resources to prevent memory leaks
+     * Resets all game-specific resources and state variables.
+     * Called at game end to ensure clean state for next game.
      */
     private fun cleanupGameResources() {
-        // Reset all timing variables
         lastRodUseTime = 0L
         lastSwordHitTime = 0L
         ourBowStartTime = 0L
         lastWeaponSwitchTime = 0L
 
-        // Reset all state flags
         rodHitNeedJump = false
         isDodging = false
         isUsingBow = false
         shouldRetreatUntilRodHit = false
         tapping = false
 
-        // Reset retreat cooldown
         lastRetreatEndTime = 0L
 
-        // Reset bow counter-attack tracking
         bowCounterAttackActive = false
         opponentBowStartTime = 0L
         blockingEndScheduled = false
 
-        // Reset distance tracking
         rodHitDistance = 0f
 
-        // Reset opponent tracking
         opponentLastHurtTime = 0
 
-        // Reset strafe variables
         hurtStrafeDirection = 0
 
-        // Reset hold left click state
         shouldHoldLeftClick = false
 
         if (CatDueller.config?.combatLogs == true) {
@@ -211,22 +222,26 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         }
     }
 
+    /** Flag indicating W-tap is currently active. */
     var tapping = false
 
     /**
-     * Wrapper function to track rod usage time and trigger delayed jump if close
+     * Uses the fishing rod with additional tracking and jump scheduling.
+     *
+     * Tracks rod usage time for hit detection and schedules a delayed jump
+     * when using rod at close range (distance less than 5 blocks) if rod jump is enabled.
+     *
+     * @param isDefensive Whether this is a defensive rod usage (when being combo'd)
      */
     private fun useRodWithTracking(isDefensive: Boolean = false) {
         lastRodUseTime = System.currentTimeMillis()
 
-        // Check if we should jump after delay when using rod (distance < 5) and rod jump is enabled
         val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
         val enableRodJump = CatDueller.config?.enableRodJump ?: true
 
         if (distance < 5f && mc.thePlayer.onGround && enableRodJump) {
-            rodHitNeedJump = true  // Set flag to prevent jump interruption
+            rodHitNeedJump = true
 
-            // Schedule jump after configured delay
             val jumpDelay = CatDueller.config?.rodJumpDelay ?: 200
             TimeUtils.setTimeout({
                 if (mc.thePlayer != null && mc.thePlayer.onGround && rodHitNeedJump) {
@@ -236,11 +251,10 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     }
                 }
 
-                // Reset the flag after jump or timeout
                 TimeUtils.setTimeout({
                     rodHitNeedJump = false
-                }, 500)  // Reset 500ms after jump
-            }, jumpDelay)  // Jump after configured delay
+                }, 500)
+            }, jumpDelay)
 
             if (CatDueller.config?.combatLogs == true) {
                 ChatUtils.combatInfo("Rod delayed jump SCHEDULED for ${jumpDelay}ms - distance: $distance")
@@ -262,6 +276,12 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         useRod(isDefensive)
     }
 
+    /**
+     * Called when the bot successfully attacks the opponent.
+     *
+     * Handles block-hitting at close range, W-tapping at medium range,
+     * and clears lateral movement when in a combo.
+     */
     override fun onAttack() {
         val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
 
@@ -269,30 +289,26 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             ChatUtils.combatInfo("onAttack triggered - distance: $distance")
         }
 
-        // Record sword hit time to exclude from rod hit detection
         lastSwordHitTime = System.currentTimeMillis()
 
         if (CatDueller.config?.combatLogs == true) {
             ChatUtils.combatInfo("Sword hit recorded - time: $lastSwordHitTime")
         }
 
-        // This is likely a sword hit (rod hits don't trigger onAttack)
         if (mc.thePlayer != null && mc.thePlayer.heldItem != null) {
             val n = mc.thePlayer.heldItem.unlocalizedName.lowercase()
 
             if (n.contains("sword") && distance < 3) {
-                Mouse.rClick(RandomUtils.randomIntInRange(80, 100)) // blockhit
+                Mouse.rClick(RandomUtils.randomIntInRange(80, 100))
             }
         }
 
-        if (distance < 3) {
-            // Other close range logic can go here if needed
-        } else {
+        if (distance >= 3) {
             if (!tapping && CatDueller.config?.enableWTap == true) {
                 tapping = true
                 val delay = CatDueller.config?.wTapDelay ?: 100
                 TimeUtils.setTimeout(fun() {
-                    val dur = 50  // Normal W-Tap duration
+                    val dur = 50
                     Combat.wTap(dur)
                     TimeUtils.setTimeout(fun() {
                         tapping = false
@@ -305,8 +321,19 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         }
     }
 
+    /**
+     * Main game loop called every tick.
+     *
+     * Handles all combat logic including:
+     * - Rod hit detection via opponent hurtTime
+     * - Arrow blocking when opponent draws bow
+     * - Weapon switching based on distance
+     * - Bow usage in various tactical situations
+     * - Movement control including retreat and approach management
+     * - Hurt strafe and wall avoidance
+     */
     override fun onTick() {
-        super.onTick()  // Call BotBase onTick for tracking functions
+        super.onTick()
         var needJump = false
 
         if (mc.thePlayer != null && opponent() != null) {
@@ -316,7 +343,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
             // Detect rod hit: opponent's hurtTime increased AND we used rod recently AND it's NOT a sword hit
             val isRecentSwordHit = currentTime - lastSwordHitTime < 200  // 200ms window for sword hit
-            val isRecentRodUse = currentTime - lastRodUseTime < 3000     // Extended to 3 second window for rod use
+            val isRecentRodUse = currentTime - lastRodUseTime < 3000     // Extended to 3-second window for rod use
 
             // Debug rod hit detection conditions
             if (CatDueller.config?.combatLogs == true && shouldRetreatUntilRodHit) {
@@ -1204,7 +1231,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     opponent() != null &&
                     mc.thePlayer != null
 
-            // HURT STRAFE HAS HIGHEST PRIORITY - but consider walls
+            // HURT STRAFE HAS THE HIGHEST PRIORITY - but consider walls
             if (hasActiveHurtStrafe) {
                 // Force execute hurt strafe but avoid walls
                 Combat.stopRandomStrafe()
@@ -1276,8 +1303,9 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
     }
 
     /**
-     * Decide strafe direction randomly
-     * Returns 1 for left, 2 for right
+     * Randomly decides strafe direction for hurt strafe.
+     *
+     * @return 1 for left, 2 for right
      */
     private fun decideRandomStrafeDirection(): Int {
         return if (RandomUtils.randomBool()) 1 else 2

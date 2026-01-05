@@ -8,8 +8,19 @@ import gg.essential.api.commands.Command
 import gg.essential.api.commands.DefaultHandler
 import gg.essential.api.commands.SubCommand
 
+/**
+ * Main command handler for CatDueller configuration and session management.
+ *
+ * Provides the `/catdueller` command with subcommands for opening the configuration GUI
+ * and managing session statistics (wins, losses, winstreak).
+ */
 class ConfigCommand : Command("CatDueller") {
 
+    /**
+     * Default command handler that displays available commands and opens the configuration GUI.
+     *
+     * Invoked when the user runs `/catdueller` without any subcommands.
+     */
     @DefaultHandler
     fun handle() {
         ChatUtils.info("CatDueller Commands:")
@@ -19,6 +30,11 @@ class ConfigCommand : Command("CatDueller") {
         EssentialAPI.getGuiUtil().openScreen(CatDueller.config?.gui())
     }
 
+    /**
+     * Handles the session subcommand for viewing or resetting session statistics.
+     *
+     * @param action The action to perform: "reset" to clear statistics, "show"/"stats" or null to display them.
+     */
     @SubCommand("session")
     fun sessionCommand(action: String? = null) {
         when (action?.lowercase()) {
@@ -36,6 +52,11 @@ class ConfigCommand : Command("CatDueller") {
         }
     }
 
+    /**
+     * Resets all session statistics to their initial values.
+     *
+     * Clears wins and losses counters, and resets the session start time to the current time.
+     */
     private fun resetSession() {
         Session.wins = 0
         Session.losses = 0
@@ -43,16 +64,21 @@ class ConfigCommand : Command("CatDueller") {
         ChatUtils.info("Session statistics have been reset!")
     }
 
+    /**
+     * Displays the current session statistics including wins, losses, and winstreak.
+     *
+     * Retrieves the current winstreak from the bot instance via reflection if available,
+     * otherwise defaults to zero.
+     */
     private fun showSession() {
         val currentBot = CatDueller.bot
         val winstreak = if (currentBot != null) {
-            // Get current winstreak from bot's currentWinstreak field
             try {
                 val field = currentBot.javaClass.superclass.getDeclaredField("currentWinstreak")
                 field.isAccessible = true
                 field.getInt(currentBot)
             } catch (e: Exception) {
-                0 // Default to 0 if we can't access the field
+                0
             }
         } else {
             0

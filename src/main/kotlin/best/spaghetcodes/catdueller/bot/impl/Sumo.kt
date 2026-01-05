@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.bot.bots
+package best.spaghetcodes.catdueller.bot.impl
 
 
 import best.spaghetcodes.catdueller.CatDueller
@@ -18,6 +18,20 @@ import java.util.*
 import kotlin.math.atan2
 import kotlin.math.sqrt
 
+/**
+ * Bot implementation for Sumo Duels game mode.
+ *
+ * Sumo Duels is a knockback-based mode where players must push each other
+ * off the platform. This bot features extensive edge awareness and includes:
+ * - Edge detection and avoidance
+ * - Blink mechanics for repositioning
+ * - Strategic strafing based on distance and edge proximity
+ * - Hurt strafe for momentum control after taking hits
+ * - S-tap for additional knockback
+ * - Opponent freeze detection
+ * - Map and opponent dodging features
+ * - Jump velocity mechanics
+ */
 class Sumo : BotBase("/play duels_sumo_duel") {
 
     init {
@@ -30,47 +44,85 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         )
     }
 
+    /**
+     * Returns the display name of this bot.
+     * @return The string "Sumo"
+     */
     override fun getName(): String {
         return "Sumo"
     }
 
     /**
-     * Disable Blink Tap when walking to middle
+     * Determines whether Blink Tap feature should be disabled.
+     * Disabled when bot is walking to middle during blink sequence.
+     *
+     * @return True if blink tap should be disabled
      */
     override fun shouldDisableBlinkTap(): Boolean {
         return walkingToMiddle
     }
 
+    /** Flag indicating W-tap is currently active. */
     private var tapping = false
 
+    /** Flag indicating opponent has fallen off the platform edge. */
     private var opponentOffEdge = false
-    private var closeRangeStrafe = false
-    private var lastStrafeDirection = 0  // 0=none, 1=left, 2=right
 
-    // Delayed movement clear when opponent off edge
+    /** Flag indicating bot is in close-range strafe mode. */
+    private var closeRangeStrafe = false
+
+    /** Last strafe direction: 0=none, 1=left, 2=right. */
+    private var lastStrafeDirection = 0
+
+    /** Flag for pending delayed movement clear when opponent is off edge. */
     private var pendingMovementClear = false
+
+    /** Timestamp when movement clear should execute. */
     private var movementClearTime = 0L
 
-    private var opponentEdgeStrafeDirection = 0  // opponent-at-edge strafe direction: 0=none, 1=left, 2=right
-    private var opponentEdgeStrafeLastChange = 0L  // last time we changed direction
+    /** Strafe direction when opponent is at edge: 0=none, 1=left, 2=right. */
+    private var opponentEdgeStrafeDirection = 0
 
-    private var midRangeStrafeDecided = false  // whether strafe direction for 3?? blocks has been decided
-    private var midRangeStrafeStartTime = 0L  // time when mid-range strafe started
+    /** Timestamp when opponent-at-edge strafe direction last changed. */
+    private var opponentEdgeStrafeLastChange = 0L
 
-    // Blink At Edge variables
+    /** Flag indicating strafe direction for 3-6 block range has been decided. */
+    private var midRangeStrafeDecided = false
+
+    /** Timestamp when mid-range strafe started. */
+    private var midRangeStrafeStartTime = 0L
+
+    /** Flag indicating bot is walking to middle during blink sequence. */
     private var walkingToMiddle = false
+
+    /** Flag indicating next blink is possible. */
     private var nextBlinkPossible = true
+
+    /** Flag indicating blink key cooldown is active. */
     private var qCooldownActive = false
+
+    /** Flag indicating second blink key press has occurred. */
     private var secondQPressed = false
+
+    /** Flag indicating first blink key was pressed. */
     private var qPressed = false
+
+    /** Timestamp of first blink key press. */
     private var firstQTime = 0L
+
+    /** Timestamp when walk to middle sequence started. */
     private var walkToMiddleStartTime = 0L
+
+    /** Flag indicating a blink was just executed. */
     private var justBlinked = false
 
-    // Particle dodging delay variables
+    /** Flag indicating particle dodge delay is active. */
     private var particleDodgeDelayActive = false
+
+    /** Timestamp when particle dodge check should execute. */
     private var particleDodgeCheckTime = 0L
 
+    /** Robot instance for simulating key presses. */
     private val robot by lazy {
         try {
             java.awt.Robot()
@@ -79,69 +131,125 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             null
         }
     }
-    private var jumpTriggeredStrafe = false  // whether mid range strafe was triggered by jump
-    private var waitingForOpponentAttack = false  // waiting for opponent to attack
-    private var waitingForOpponentAttackStartTime = 0L  // time when waiting for opponent attack started
-    private var enteredAttackRangeTime = 0L  // time when first entered attack range
-    private var wasInAttackRange = false  // whether we were in attack range last tick
-    private var lastPlayerHurtTime = 0  // last player hurtTime value
-    private var groundTime = 0L  // time spent on ground
-    private var lastOnGround = false  // whether we were on ground last tick
-    private var waitingDistanceWasGreaterThan7 = false  // whether distance was >7 when waiting started
-    private var jumpedAtDistance7 = false  // whether we jumped at distance 7 while waiting
 
-    private var hurtStrafeDirection = 0  // strafe direction after being hurt: 0=none, 1=left, 2=right
+    /** Flag indicating mid-range strafe was triggered by a jump. */
+    private var jumpTriggeredStrafe = false
 
-    // Jump Velocity variables
-    private var setJump = false  // whether jump key should be held down
-    private var lastHurtTime = 0  // last recorded hurtTime value
+    /** Flag indicating bot is waiting for opponent to attack first. */
+    private var waitingForOpponentAttack = false
+
+    /** Timestamp when waiting for opponent attack started. */
+    private var waitingForOpponentAttackStartTime = 0L
+
+    /** Timestamp when bot first entered attack range. */
+    private var enteredAttackRangeTime = 0L
+
+    /** Flag indicating bot was in attack range last tick. */
+    private var wasInAttackRange = false
+
+    /** Previous tick's player hurtTime value. */
+    private var lastPlayerHurtTime = 0
+
+    /** Duration bot has been on ground. */
+    private var groundTime = 0L
+
+    /** Flag indicating bot was on ground last tick. */
+    private var lastOnGround = false
+
+    /** Flag indicating distance was greater than 7 when waiting started. */
+    private var waitingDistanceWasGreaterThan7 = false
+
+    /** Flag indicating bot jumped at distance 7 while waiting. */
+    private var jumpedAtDistance7 = false
+
+    /** Hurt strafe direction: 0=none, 1=left, 2=right. */
+    private var hurtStrafeDirection = 0
+
+    /** Flag indicating jump key should be held for velocity. */
+    private var setJump = false
+
+    /** Previous tick's hurtTime value for jump velocity detection. */
+    private var lastHurtTime = 0
+
+    /** Flag to prevent movement override during edge stutter. */
+    private var edgeStutterActive = false
+
+    /** Flag indicating stop-at-edge feature is currently active. */
+    private var stopAtEdgeActive = false
+
+    /** Timestamp when stop-at-edge started. */
+    private var stopAtEdgeStartTime = 0L
+
+    /** Player's hurtTime when stop-at-edge started. */
+    private var stopAtEdgeInitialHurtTime = 0
+
+    /** Timestamp of last opponent rotation log. */
+    private var lastOpponentRotationLogTime = 0L
+
+    /** Last logged opponent yaw rotation. */
+    private var lastLoggedOpponentYaw = 0f
+
+    /** Last logged opponent pitch rotation. */
+    private var lastLoggedOpponentPitch = 0f
+
+    /** Timer for continuous opponent rotation logging. */
+    private var rotationLoggingTimer: Timer? = null
+
+    /** Last recorded opponent position for freeze detection. */
+    private var lastOpponentPosition: Triple<Double, Double, Double>? = null
+
+    /** Timestamp when opponent last moved. */
+    private var opponentLastMoveTime = 0L
+
+    /** Flag indicating freeze check is active. */
+    private var opponentFreezeCheckActive = false
+
+    /** Flag to prevent spam of leave command. */
+    private var alreadySentLeaveCommand = false
+
+    /** Timer for opponent freeze checking. */
+    private var freezeCheckTimer: Timer? = null
+
+    /** Flag indicating game start waiting period is active. */
+    private var gameStartWaitActive = false
+
+    /** Timestamp when game started. */
+    private var gameStartTime = 0L
+
+    /** Duration of game start waiting period in milliseconds. */
+    private val gameStartWaitDuration = 1000L
+
+    /** Last horizontal distance to opponent for S-tap trigger. */
+    private var lastDistanceToOpponent = 999f
+
+    /** Timestamp of last edge back-then-forward trigger. */
+    private var lastBackForwardAtEdgeTime = 0L
+
+    /** Flag indicating taunt message has been sent this game. */
+    private var tauntMessageSent = false
+
+    /** Flag indicating blatant mode was toggled due to edge proximity. */
+    private var edgeBlatantToggled = false
+
+    /** Flag tracking if player was off edge last tick. */
+    private var playerOffEdgeLastTick = false
+
+    /** Flag tracking if off-edge bind was triggered this game. */
+    private var offEdgeBindTriggeredThisGame = false
 
 
-    private var edgeStutterActive = false  // flag to prevent movement override during edge stutter
-
-    // Stop When Opponent At Edge variables
-    private var stopAtEdgeActive = false  // whether stop at edge is currently active
-    private var stopAtEdgeStartTime = 0L  // time when stop at edge started
-    private var stopAtEdgeInitialHurtTime = 0  // player's hurtTime when stop at edge started
-
-    // Opponent rotation logging variables
-    private var lastOpponentRotationLogTime = 0L  // last time we logged opponent rotation
-    private var lastLoggedOpponentYaw = 0f  // last logged opponent yaw
-    private var lastLoggedOpponentPitch = 0f  // last logged opponent pitch
-    private var rotationLoggingTimer: Timer? = null  // timer for continuous rotation logging
-
-    // Opponent freeze detection variables
-    private var lastOpponentPosition: Triple<Double, Double, Double>? = null  // last opponent position (x, y, z)
-    private var opponentLastMoveTime = 0L  // last time opponent moved
-    private var opponentFreezeCheckActive = false  // whether freeze check is active
-    private var alreadySentLeaveCommand = false  // prevent spam
-    private var freezeCheckTimer: Timer? = null  // timer for opponent freeze checking
-
-    // Game start waiting period variables
-    private var gameStartWaitActive = false  // whether we're in the waiting period after game start
-    private var gameStartTime = 0L  // time when game started
-    private val gameStartWaitDuration = 1000L  // 1 seconds wait time
-
-    private var lastDistanceToOpponent = 999f  // last horizontal distance (for S-tap trigger)
-    private var lastBackForwardAtEdgeTime = 0L  // last edge back-then-forward trigger time
-    private var tauntMessageSent = false  // whether taunt message has been sent this game
-    private var edgeBlatantToggled = false  // whether blatant mode was toggled due to edge proximity
-    private var playerOffEdgeLastTick = false  // track if player was off edge last tick to prevent spam
-    private var offEdgeBindTriggeredThisGame = false  // track if off edge bind was triggered this game
-
-    // Jump Velocity variables
-
-
+    /**
+     * Called when the bot joins a game lobby.
+     * Handles lobby movement and rotation setup.
+     */
     override fun onJoinGame() {
-        super.onJoinGame()  // Call BotBase force requeue logic
+        super.onJoinGame()
 
         if (CatDueller.config?.lobbyMovement == true) {
             LobbyMovement.sumo()
         }
 
-        // Set my rotation if enabled - delay to ensure server info is updated first
         if (CatDueller.config?.setMyRotation == true) {
-            // Wait 500ms for server info to be updated from scoreboard
             TimeUtils.setTimeout({
                 val baseYaw = CatDueller.config?.myTargetYaw ?: 0.0f
                 val basePitch = CatDueller.config?.myTargetPitch ?: 0.0f
@@ -157,16 +265,17 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                         ChatUtils.info("My rotation adjustment completed!")
                     }
                 }
-            }, 1000) // 1000ms (1 second) delay to allow server info update
+            }, 1000)
         }
-
-
     }
 
+    /**
+     * Called before the game starts.
+     * Stops lobby movement and handles long jump setup if enabled.
+     */
     override fun beforeStart() {
         LobbyMovement.stop()
 
-        // Sumo Long Jump: Use existing GUI or open inventory for keybind holding
         if (CatDueller.config?.sumoLongJump == true) {
             val player = mc.thePlayer ?: return
 
@@ -222,11 +331,19 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         }
     }
 
+    /**
+     * Called just before the game starts.
+     *
+     * Performs pre-game checks including:
+     * - Huaxi server detection and dodging
+     * - Map validation (air block detection)
+     * - Standing still player detection
+     * - Particle detection for bot dodging
+     * - Opponent rotation verification
+     */
     override fun onGameAlmostStart() {
-
         val player = mc.thePlayer ?: return
 
-        // Check for Huaxi server and dodge if enabled
         if (CatDueller.config?.dodgeHuaxi == true) {
             if (readScoreboardLines8And9()) {
                 // Huaxi detected, stop execution of onGameAlmostStart
@@ -323,67 +440,53 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         super.onGameAlmostStart()  // Call BotBase method
     }
 
+    /**
+     * Called when the game starts.
+     * Resets all state variables, handles long jump completion, and initiates movement.
+     */
     override fun onGameStart() {
-        super.onGameStart()  // Call parent to check scoreboard
+        super.onGameStart()
         LobbyMovement.stop()
 
-        // Server will auto-close inventory when game starts, triggering long jump
-        // Cancel long jump after 300ms to ensure it has time to execute
         if (Movement.isLongJumpActive()) {
             TimeUtils.setTimeout({
                 Movement.stopLongJump()
             }, 300)
         }
 
-        // Only start movement if long jump is not active (to avoid interference)
         if (!Movement.isLongJumpActive()) {
             Movement.startSprinting()
             Movement.startForward()
         }
-        closeRangeStrafe = false  // Reset close range strafe state
-        lastStrafeDirection = 0   // Reset strafe direction record
 
-
-        midRangeStrafeDecided = false  // Reset mid-range strafe decision state
-        midRangeStrafeStartTime = 0L  // Reset mid-range strafe timeout
-        jumpTriggeredStrafe = false  // Reset jump triggered strafe state
-
-        // Reset particle dodge delay variables
+        closeRangeStrafe = false
+        lastStrafeDirection = 0
+        midRangeStrafeDecided = false
+        midRangeStrafeStartTime = 0L
+        jumpTriggeredStrafe = false
         particleDodgeDelayActive = false
         particleDodgeCheckTime = 0L
-        waitingForOpponentAttack = false  // Reset waiting for opponent attack state
-        waitingForOpponentAttackStartTime = 0L  // Reset waiting timeout
-        enteredAttackRangeTime = 0L  // Reset attack range time
-        wasInAttackRange = false  // Reset attack range state
+        waitingForOpponentAttack = false
+        waitingForOpponentAttackStartTime = 0L
+        enteredAttackRangeTime = 0L
+        wasInAttackRange = false
         lastPlayerHurtTime = 0
-        groundTime = 0L  // Reset ground time
-        lastOnGround = false  // Reset ground state
-        waitingDistanceWasGreaterThan7 = false  // Reset waiting distance state
-        jumpedAtDistance7 = false  // Reset jumped at distance 7 state
-
-        hurtStrafeDirection = 0  // Reset hurt strafe direction
-
-        // Reset Jump Velocity variables
+        groundTime = 0L
+        lastOnGround = false
+        waitingDistanceWasGreaterThan7 = false
+        jumpedAtDistance7 = false
+        hurtStrafeDirection = 0
         setJump = false
         lastHurtTime = 0
-
-
-        // Reset Stop When Opponent At Edge variables
         stopAtEdgeActive = false
         stopAtEdgeStartTime = 0L
         stopAtEdgeInitialHurtTime = 0
-
-        lastDistanceToOpponent = 999f  // Reset distance for S-tap trigger
-        lastBackForwardAtEdgeTime = 0L  // Reset edge back-forward trigger time
-        tauntMessageSent = false  // Reset taunt message state
-        edgeBlatantToggled = false  // Reset edge blatant toggle flag for new game
-        playerOffEdgeLastTick = false  // Reset player off edge tracking for new game
-        offEdgeBindTriggeredThisGame = false  // Reset off edge bind trigger flag for new game
-
-
-        // Trade state variables are now reset in BotBase
-
-        // Reset Blink At Edge variables
+        lastDistanceToOpponent = 999f
+        lastBackForwardAtEdgeTime = 0L
+        tauntMessageSent = false
+        edgeBlatantToggled = false
+        playerOffEdgeLastTick = false
+        offEdgeBindTriggeredThisGame = false
         walkingToMiddle = false
         nextBlinkPossible = true
         qCooldownActive = false
@@ -393,50 +496,41 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         walkToMiddleStartTime = 0L
         justBlinked = false
 
-        // Start game start waiting period
         gameStartWaitActive = true
         gameStartTime = System.currentTimeMillis()
         ChatUtils.combatInfo("Game started - waiting ${gameStartWaitDuration}ms before enabling edge features")
 
-        // Reset opponent freeze detection for new game
         resetOpponentFreezeDetection()
     }
 
+    /**
+     * Called when the game ends.
+     *
+     * Handles cleanup including turning off blatant mode, pressing freeze binds,
+     * stopping rotation logging, and resetting freeze detection.
+     */
     override fun onGameEnd() {
-        // Turn off blatant mode if it was toggled due to edge proximity
         if (edgeBlatantToggled && CatDueller.config?.toggleBlatantAtEdge == true) {
             val keyName = CatDueller.config?.blatantToggleKey ?: "F1"
             ChatUtils.combatInfo("Game ended - turning off edge blatant mode")
-
             simulateKeyPress(keyName)
         }
 
-        // Press freeze bind at game end if it was triggered during this game
         if (CatDueller.config?.freezeWhenOffEdge == true && offEdgeBindTriggeredThisGame) {
             val freezeBind = CatDueller.config?.freezeBind ?: "F1"
             ChatUtils.combatInfo("Game ended - pressing freeze bind again (was triggered during game): $freezeBind")
             simulateKeyPress(freezeBind)
         }
 
-        // Reset edge blatant toggle flag for next game
         edgeBlatantToggled = false
-
-        // Reset game start wait period
         gameStartWaitActive = false
 
-
-        // Stop opponent rotation logging
         stopOpponentRotationLogging()
-
-        // Reset opponent freeze detection
         resetOpponentFreezeDetection()
 
-        super.onGameEnd()  // Call BotBase force requeue logic
+        super.onGameEnd()
 
-        // Check for taunt message based on game duration
         checkTauntMessage()
-
-        // Stop hold left click at game end
         Mouse.stopHoldLeftClick()
 
         if (CatDueller.bot?.toggled() == true) {
@@ -444,36 +538,35 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             Mouse.stopLeftAC()
             Combat.stopRandomStrafe()
         }
-
     }
 
-
+    /**
+     * Called when the bot successfully attacks the opponent.
+     *
+     * Resets close-range strafe, cancels stop-at-edge, and performs
+     * W-tap or sprint reset based on configuration.
+     */
     override fun onAttack() {
-        super.onAttack() // Call parent to update lastAttackTime
+        super.onAttack()
 
-        closeRangeStrafe = false  // Stop close range strafe after hitting opponent
-        midRangeStrafeStartTime = 0L  // Reset timeout after attack
+        closeRangeStrafe = false
+        midRangeStrafeStartTime = 0L
 
-        // Cancel stop at edge when we attack opponent
         if (stopAtEdgeActive) {
             stopAtEdgeActive = false
             if (CatDueller.config?.combatLogs == true) {
                 ChatUtils.combatInfo("Stop When Opponent At Edge cancelled - attacked opponent")
             }
-            // Forward movement will be restored by W-Tap logic or normal movement logic
         }
 
         if (!tapping && CatDueller.config?.enableWTap == true) {
             tapping = true
-            // Execute W-Tap or Sprint Reset with delay after attack (adjustable in config)
             val delay = CatDueller.config?.wTapDelay ?: 100
             TimeUtils.setTimeout(fun() {
-                val dur = 50  // Fixed 50ms duration
+                val dur = 50
                 if (CatDueller.config?.sprintReset == true) {
-
                     Combat.sprintReset(dur)
                 } else {
-
                     Combat.wTap(dur)
                 }
                 TimeUtils.setTimeout(fun() {
@@ -483,20 +576,35 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         }
     }
 
+    /**
+     * Gets a list of all player names currently in the tab list.
+     *
+     * @return List of player names from the tab list
+     */
     fun getPlayersInTab(): List<String> {
         val mc = Minecraft.getMinecraft()
         val player = mc.thePlayer ?: return emptyList()
-        // Extract each player's gameProfile.name
         val players: List<String> = player.sendQueue.playerInfoMap.map { it.gameProfile.name }
         return players
     }
 
-    // Check if opponent is in tablist
+    /**
+     * Checks if the opponent is a valid player in the tab list.
+     *
+     * @param opponentName The display name of the opponent
+     * @return True if opponent is in tab list, false otherwise
+     */
     fun isOpponentValid(opponentName: String): Boolean {
         val playersInTab = getPlayersInTab()
         return playersInTab.contains(opponentName)
     }
 
+    /**
+     * Called when opponent is found.
+     *
+     * Validates opponent is in tab list, starts mouse tracking,
+     * and initiates rotation logging and freeze detection.
+     */
     override fun onFoundOpponent() {
         val opponentPlayer = opponent() ?: return
         if (!isOpponentValid(opponentPlayer.displayNameString)) {
@@ -504,41 +612,65 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             return
         }
 
-        super.onFoundOpponent()  // Call BotBase force requeue logic
+        super.onFoundOpponent()
 
-        // Only track players that exist in tablist
         if (CatDueller.config?.disableAiming != true) {
             Mouse.startTracking()
         }
 
-        // Hold Left Click will be managed by distance-based logic in onTick()
-
-
-        // Start continuous logging of opponent rotation for debugging network sync precision
         if (CatDueller.config?.showRotationDebug == true) {
             startOpponentRotationLogging()
         }
 
-        // Start opponent freeze detection if enabled
         startOpponentFreezeDetection()
     }
 
+    /**
+     * Checks if there is air (edge) to the left of the player.
+     *
+     * @param distance Distance to check
+     * @return True if edge is on the left
+     */
     fun leftEdge(distance: Float): Boolean {
         return (WorldUtils.airOnLeft(mc.thePlayer, distance))
     }
 
+    /**
+     * Checks if there is air (edge) to the right of the player.
+     *
+     * @param distance Distance to check
+     * @return True if edge is on the right
+     */
     fun rightEdge(distance: Float): Boolean {
         return (WorldUtils.airOnRight(mc.thePlayer, distance))
     }
 
-    fun nearEdge(distance: Float): Boolean { // doesnt check front
+    /**
+     * Checks if the player is near any edge (left, right, or back).
+     *
+     * @param distance Distance to check
+     * @return True if near any edge (excluding front)
+     */
+    fun nearEdge(distance: Float): Boolean {
         return (rightEdge(distance) || leftEdge(distance) || WorldUtils.airInBack(mc.thePlayer, distance))
     }
 
-    fun nearLeftOrRightEdge(distance: Float): Boolean { // only check left and right, not back
+    /**
+     * Checks if the player is near the left or right edge only.
+     *
+     * @param distance Distance to check
+     * @return True if near left or right edge
+     */
+    fun nearLeftOrRightEdge(distance: Float): Boolean {
         return (rightEdge(distance) || leftEdge(distance))
     }
 
+    /**
+     * Checks if the opponent is near any edge.
+     *
+     * @param distance Distance to check
+     * @return True if opponent is near an edge
+     */
     fun opponentNearEdge(distance: Float): Boolean {
         val opponent = opponent() ?: return false
         return (WorldUtils.airInBack(opponent, distance) || WorldUtils.airOnLeft(
@@ -548,8 +680,9 @@ class Sumo : BotBase("/play duels_sumo_duel") {
     }
 
     /**
-     * Check if we're still in the game start waiting period
-     * Returns true if we should wait, false if edge features can be used
+     * Checks if the game start waiting period is still active.
+     *
+     * @return True if in waiting period, false if edge features can be used
      */
     private fun isInGameStartWaitPeriod(): Boolean {
         if (!gameStartWaitActive) return false
@@ -564,9 +697,12 @@ class Sumo : BotBase("/play duels_sumo_duel") {
     }
 
     /**
-     * Decide strafe direction based on distance to left and right edges ONLY
-     * Returns 1 for left, 2 for right (towards the direction with more space)
-     * Only considers left and right edges, not back edge
+     * Decides strafe direction based on distance to left and right edges.
+     *
+     * Chooses to strafe towards the direction with more space (larger distance to edge).
+     * Only considers left and right edges, not back edge.
+     *
+     * @return 1 for left, 2 for right
      */
     private fun decideStrafeDirectionByEdgeDistance(): Int {
         val player = mc.thePlayer ?: return if (RandomUtils.randomBool()) 1 else 2
@@ -586,7 +722,13 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
 
     /**
-     * Override shouldStartAttacking to add Sumo-specific logic
+     * Determines whether the bot should start attacking.
+     *
+     * Adds Sumo-specific logic that prevents attacking while
+     * waiting for opponent to attack first.
+     *
+     * @param distance Current horizontal distance to opponent
+     * @return True if attacking should begin, false otherwise
      */
     override fun shouldStartAttacking(distance: Float): Boolean {
         // First check base conditions
@@ -604,12 +746,9 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         return true
     }
 
-
-    // isPlayerMoving() method is now inherited from BotBase
-
-
     /**
-     * Check if opponent is standing still and dodge if necessary
+     * Checks if opponent is standing still (on block center) and dodges if necessary.
+     * Players standing exactly at x.5, z.5 coordinates are likely bots or afk.
      */
     private fun checkAndDodgeStandingStillPlayer() {
         val world = mc.theWorld ?: return
@@ -649,9 +788,12 @@ class Sumo : BotBase("/play duels_sumo_duel") {
     }
 
     /**
-     * Check for specific particle type and dodge if detected
-     * Uses S2APacketParticles for accurate particle detection in Forge 1.8.9
-     * @param particleTypeIndex 1=Slime, 2=Portal, 3=Redstone
+     * Checks for specific particle types near the player and dodges if detected.
+     *
+     * Uses S2APacketParticles for accurate particle detection in Forge 1.8.9.
+     * Particles may indicate bot presence or special abilities.
+     *
+     * @param particleTypeIndex Particle type: 1=Slime, 2=Portal, 3=Redstone, 4=Heart, 5=Angry Villager
      */
     private fun checkAndDodgeParticles(particleTypeIndex: Int) {
         val player = mc.thePlayer ?: return
@@ -704,15 +846,31 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
 
     /**
-     * Disable opponent speed tracking for Sumo (performance optimization)
-     * Sumo is primarily melee-based and doesn't need projectile prediction
+     * Disables opponent speed tracking for Sumo.
+     *
+     * Sumo is melee-only and doesn't need projectile prediction,
+     * so speed tracking is disabled for performance optimization.
+     *
+     * @return Always false for Sumo
      */
     override fun shouldTrackOpponentSpeed(): Boolean {
         return false
     }
 
+    /**
+     * Main game loop called every tick.
+     *
+     * Handles all Sumo-specific combat logic including:
+     * - Edge detection and avoidance
+     * - Blink mechanics when near edge
+     * - Attack and strafe logic
+     * - Hurt strafe for momentum control
+     * - S-tap at edge for extra knockback
+     * - Jump velocity when attacked
+     * - Opponent freeze detection
+     */
     override fun onTick() {
-        super.onTick()  // Call BotBase onTick for scoreboard check
+        super.onTick()
 
         val player = mc.thePlayer ?: return
         val currentOpponent = opponent()
@@ -1706,7 +1864,10 @@ class Sumo : BotBase("/play duels_sumo_duel") {
     }
 
     /**
-     * Check if game duration exceeds threshold and send taunt message
+     * Checks if game duration exceeds the configured threshold and sends a taunt message.
+     *
+     * Randomly selects from a list of taunt messages and sends it via /ac command
+     * if the game lasted longer than the configured threshold.
      */
     private fun checkTauntMessage() {
         // Only check if taunt messages are enabled and we haven't sent one yet
@@ -1736,6 +1897,15 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         }
     }
 
+    /**
+     * Handles the blink-at-edge mechanic.
+     *
+     * When the player is near an edge, triggers a blink to walk to the middle
+     * of the platform, then blinks again to attack the opponent.
+     *
+     * @param player The player entity
+     * @param currentOpponent The opponent entity
+     */
     private fun handleBlinkAtEdge(player: EntityPlayer, currentOpponent: EntityPlayer) {
         val now = System.currentTimeMillis()
         EntityUtils.getDistanceNoY(player, currentOpponent)
@@ -1854,6 +2024,13 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         }
     }
 
+    /**
+     * Reads scoreboard lines 8 and 9 to detect Huaxi server.
+     *
+     * If Huaxi server is detected, sends a queue command to dodge the game.
+     *
+     * @return True if Huaxi was detected and dodge initiated, false otherwise
+     */
     private fun readScoreboardLines8And9(): Boolean {
         val world = mc.theWorld ?: return false
         val scoreboard = world.scoreboard
@@ -1889,7 +2066,9 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
 
     /**
-     * Start continuous logging of opponent's rotation angles
+     * Starts continuous logging of opponent's rotation angles.
+     *
+     * Used for debugging network sync precision by logging yaw and pitch changes.
      */
     private fun startOpponentRotationLogging() {
         stopOpponentRotationLogging() // Stop any existing timer

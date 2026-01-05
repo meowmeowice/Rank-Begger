@@ -10,15 +10,31 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.sqrt
 
 /**
- * Particle detector using S2APacketParticles for Forge 1.8.9
- * Tracks particles near the player for dodge detection
+ * Particle detection system for Forge 1.8.9.
+ *
+ * Intercepts S2APacketParticles packets to track particle spawns near the player.
+ * Used for detecting combat-related particles such as hit indicators, critical hits,
+ * and other server-spawned effects that may require dodge responses.
  */
 object ParticleDetector {
 
+    /** Thread-safe map storing recent particles with their spawn timestamps. */
     private val recentParticles = ConcurrentHashMap<ParticleInfo, Long>()
-    private const val PARTICLE_LIFETIME_MS = 500L // Keep particles for 500ms
-    var debugMode = false // Enable to see packet structure details
 
+    /** Duration in milliseconds to retain particle information before cleanup. */
+    private const val PARTICLE_LIFETIME_MS = 500L
+
+    /** When enabled, outputs detailed packet parsing information to console. */
+    var debugMode = false
+
+    /**
+     * Data class representing a detected particle with its type and position.
+     *
+     * @property type The Minecraft particle type.
+     * @property x The X coordinate where the particle spawned.
+     * @property y The Y coordinate where the particle spawned.
+     * @property z The Z coordinate where the particle spawned.
+     */
     data class ParticleInfo(
         val type: EnumParticleTypes,
         val x: Double,
@@ -26,17 +42,23 @@ object ParticleDetector {
         val z: Double
     )
 
+    /**
+     * Event handler for incoming packets.
+     *
+     * Processes S2APacketParticles packets using reflection to extract particle
+     * type and coordinates. Only active when the bot is toggled on to minimize
+     * performance impact.
+     *
+     * @param event The incoming packet event.
+     */
     @SubscribeEvent
     fun onPacketReceive(event: PacketEvent.Incoming) {
-        // Only process particles when bot is toggled on to prevent performance issues
         if (CatDueller.bot?.toggled() != true) return
 
         val packet = event.getPacket()
 
         if (packet is S2APacketParticles) {
             try {
-                // Use reflection to access S2APacketParticles fields
-                // Field names may vary between different Forge versions
                 val packetClass = packet.javaClass
 
                 if (debugMode) {
@@ -44,14 +66,12 @@ object ParticleDetector {
                     println("[ParticleDetector] Packet class: ${packetClass.name}")
                 }
 
-                // Try to get particle type/name
                 var particleType: EnumParticleTypes? = null
                 var x = 0.0
                 var y = 0.0
                 var z = 0.0
                 var coordCount = 0
 
-                // Try different possible field names for particle type
                 for (field in packetClass.declaredFields) {
                     field.isAccessible = true
                     val value = field.get(packet)
@@ -61,12 +81,10 @@ object ParticleDetector {
                     }
 
                     when {
-                        // Check for EnumParticleTypes field
                         value is EnumParticleTypes -> {
                             particleType = value
                             if (debugMode) println("[ParticleDetector]     -> Particle type: ${value.particleName}")
                         }
-                        // Check for particle name string
                         value is String && particleType == null -> {
                             particleType = try {
                                 EnumParticleTypes.values().find {
@@ -79,7 +97,6 @@ object ParticleDetector {
                                 println("[ParticleDetector]     -> Particle type from string: ${particleType.particleName}")
                             }
                         }
-                        // Check for coordinate fields (float or double)
                         value is Float || value is Double -> {
                             val doubleValue = when (value) {
                                 is Float -> value.toDouble()
@@ -87,7 +104,6 @@ object ParticleDetector {
                                 else -> 0.0
                             }
 
-                            // Assign coordinates in order: x, y, z
                             when (coordCount) {
                                 0 -> {
                                     x = doubleValue; coordCount++
@@ -115,7 +131,6 @@ object ParticleDetector {
                     }
                 }
 
-                // Only add if we successfully got particle type and coordinates
                 if (particleType != null && coordCount >= 3) {
                     val particleInfo = ParticleInfo(particleType, x, y, z)
                     recentParticles[particleInfo] = System.currentTimeMillis()
@@ -137,7 +152,15 @@ object ParticleDetector {
     }
 
     /**
-     * Check if specific particle type exists near coordinates
+     * Checks if a specific particle type exists near the given coordinates.
+     *
+     * @param x The X coordinate to check around.
+     * @param y The Y coordinate to check around.
+     * @param z The Z coordinate to check around.
+     * @param particleType The particle type to search for.
+     * @param radius The search radius in blocks.
+     * @param debug If true, outputs debug information to console.
+     * @return True if a matching particle exists within the radius.
      */
     fun hasParticleNearby(
         x: Double,
@@ -184,7 +207,16 @@ object ParticleDetector {
     }
 
     /**
-     * Check if specific particle type exists within a distance range
+     * Checks if a specific particle type exists within a distance range.
+     *
+     * @param x The X coordinate to check around.
+     * @param y The Y coordinate to check around.
+     * @param z The Z coordinate to check around.
+     * @param particleType The particle type to search for.
+     * @param minRadius The minimum distance in blocks.
+     * @param maxRadius The maximum distance in blocks.
+     * @param debug If true, outputs debug information to console.
+     * @return True if a matching particle exists within the specified range.
      */
     fun hasParticleInRange(
         x: Double,
@@ -232,7 +264,15 @@ object ParticleDetector {
     }
 
     /**
-     * Check if any of the specified particle types exist near coordinates
+     * Checks if any of the specified particle types exist near the given coordinates.
+     *
+     * @param x The X coordinate to check around.
+     * @param y The Y coordinate to check around.
+     * @param z The Z coordinate to check around.
+     * @param particleTypes List of particle types to search for.
+     * @param radius The search radius in blocks.
+     * @param debug If true, outputs debug information to console.
+     * @return True if any matching particle exists within the radius.
      */
     fun hasAnyParticleNearby(
         x: Double,
@@ -253,7 +293,16 @@ object ParticleDetector {
     }
 
     /**
-     * Check for portal particles (used for player hits in some servers)
+     * Checks for portal particles near the specified coordinates.
+     *
+     * Portal particles are used as hit indicators on some servers.
+     *
+     * @param x The X coordinate to check around.
+     * @param y The Y coordinate to check around.
+     * @param z The Z coordinate to check around.
+     * @param radius The search radius in blocks.
+     * @param debug If true, outputs debug information to console.
+     * @return True if portal particles exist within the radius.
      */
     fun hasPortalParticleNearby(
         x: Double,
@@ -266,14 +315,32 @@ object ParticleDetector {
     }
 
     /**
-     * Check for slime particles (used for player hits in some servers)
+     * Checks for slime particles near the specified coordinates.
+     *
+     * Slime particles are used as hit indicators on some servers.
+     *
+     * @param x The X coordinate to check around.
+     * @param y The Y coordinate to check around.
+     * @param z The Z coordinate to check around.
+     * @param radius The search radius in blocks.
+     * @param debug If true, outputs debug information to console.
+     * @return True if slime particles exist within the radius.
      */
     fun hasSlimeParticleNearby(x: Double, y: Double, z: Double, radius: Double = 3.0, debug: Boolean = false): Boolean {
         return hasParticleNearby(x, y, z, EnumParticleTypes.SLIME, radius, debug)
     }
 
     /**
-     * Check for redstone/reddust particles (used for player hits in some servers)
+     * Checks for redstone particles near the specified coordinates.
+     *
+     * Redstone particles are used as hit indicators on some servers.
+     *
+     * @param x The X coordinate to check around.
+     * @param y The Y coordinate to check around.
+     * @param z The Z coordinate to check around.
+     * @param radius The search radius in blocks.
+     * @param debug If true, outputs debug information to console.
+     * @return True if redstone particles exist within the radius.
      */
     fun hasRedstoneParticleNearby(
         x: Double,
@@ -286,14 +353,32 @@ object ParticleDetector {
     }
 
     /**
-     * Check for heart particles (used for player hits/healing in some servers)
+     * Checks for heart particles near the specified coordinates.
+     *
+     * Heart particles may indicate healing or hit effects on some servers.
+     *
+     * @param x The X coordinate to check around.
+     * @param y The Y coordinate to check around.
+     * @param z The Z coordinate to check around.
+     * @param radius The search radius in blocks.
+     * @param debug If true, outputs debug information to console.
+     * @return True if heart particles exist within the radius.
      */
     fun hasHeartParticleNearby(x: Double, y: Double, z: Double, radius: Double = 3.0, debug: Boolean = false): Boolean {
         return hasParticleNearby(x, y, z, EnumParticleTypes.HEART, radius, debug)
     }
 
     /**
-     * Check for angry villager particles (used for player hits/damage in some servers)
+     * Checks for angry villager particles near the specified coordinates.
+     *
+     * Angry villager particles may indicate damage or hit effects on some servers.
+     *
+     * @param x The X coordinate to check around.
+     * @param y The Y coordinate to check around.
+     * @param z The Z coordinate to check around.
+     * @param radius The search radius in blocks.
+     * @param debug If true, outputs debug information to console.
+     * @return True if angry villager particles exist within the radius.
      */
     fun hasAngryVillagerParticleNearby(
         x: Double,
@@ -306,7 +391,14 @@ object ParticleDetector {
     }
 
     /**
-     * Check for any hit indicator particles near player
+     * Checks for any common hit indicator particles near the local player.
+     *
+     * Searches for portal, slime, redstone, crit, magic crit, heart,
+     * and angry villager particles around the player's position.
+     *
+     * @param radius The search radius in blocks.
+     * @param debug If true, outputs debug information to console.
+     * @return True if any hit indicator particles exist near the player.
      */
     fun hasHitParticleNearPlayer(radius: Double = 3.0, debug: Boolean = false): Boolean {
         val player = Minecraft.getMinecraft().thePlayer ?: return false
@@ -325,7 +417,9 @@ object ParticleDetector {
     }
 
     /**
-     * Remove particles older than PARTICLE_LIFETIME_MS
+     * Removes particles that have exceeded the lifetime threshold.
+     *
+     * Called automatically before particle queries to ensure stale data is removed.
      */
     private fun cleanupOldParticles() {
         val currentTime = System.currentTimeMillis()
@@ -335,14 +429,18 @@ object ParticleDetector {
     }
 
     /**
-     * Clear all tracked particles
+     * Clears all tracked particles from memory.
      */
     fun clear() {
         recentParticles.clear()
     }
 
     /**
-     * Get debug information
+     * Returns a formatted string containing debug information about tracked particles.
+     *
+     * Lists the total number of tracked particles and a breakdown by particle type.
+     *
+     * @return A multi-line string with particle tracking statistics.
      */
     fun getDebugInfo(): String {
         cleanupOldParticles()

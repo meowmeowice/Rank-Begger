@@ -12,7 +12,19 @@ import java.io.FileWriter
 import kotlin.random.Random
 
 /**
- * Records and plays back player movement patterns for lobby movement
+ * Records and plays back player movement patterns for automated lobby navigation.
+ *
+ * This system allows users to record their movement inputs (WASD, jump, sneak, mouse clicks,
+ * and rotation) in the pre-game lobby and replay them automatically in future games.
+ * Supports multiple named patterns with automatic recording mode and relative rotation playback.
+ *
+ * Features:
+ * - Manual recording via `/movement record` command
+ * - Automatic recording mode that captures lobby movement each game
+ * - Relative rotation playback (patterns adjust to player's starting orientation)
+ * - Click recording for inventory interactions
+ * - JSON persistence for patterns across sessions
+ * - Rotation limiting to prevent jarring camera movements
  */
 object MovementRecorder {
 

@@ -9,19 +9,42 @@ import net.minecraft.init.Blocks
 import net.minecraft.util.BlockPos
 import net.minecraft.util.Vec3
 
+/**
+ * Utility object for world and terrain analysis.
+ *
+ * Provides functions to detect blocks, edges, and air gaps relative to player
+ * position and orientation. Useful for navigation, edge detection, and
+ * environmental awareness in dueling scenarios.
+ */
 object WorldUtils {
 
+    /**
+     * Gets the block at a specified distance in front of the player.
+     *
+     * @param player The player whose facing direction is used.
+     * @param distance The distance in blocks to check ahead.
+     * @param yMod Vertical offset from feet level. 0 = feet, 1 = one block above feet, etc.
+     * @return The [Block] at the specified position.
+     */
     fun blockInFront(
         player: EntityPlayer,
         distance: Float,
         yMod: Float = 0f
-    ): Block { // yMod = 0 -> feet, 1 -> 1 above feet etc
+    ): Block {
         val vec = Vec3(player.lookVec.xCoord * distance, 0.0, player.lookVec.zCoord * distance)
         return CatDueller.mc.theWorld.getBlockState(player.position.add(vec.xCoord, -0.2 + yMod, vec.zCoord)).block
     }
 
     /**
-     * The block that is x ticks away from the player at their current velocity
+     * Gets the block at the player's projected position after a number of ticks.
+     *
+     * Calculates where the player will be based on current velocity and returns
+     * the block at that position.
+     *
+     * @param player The player whose velocity is used for projection.
+     * @param ticks The number of ticks to project ahead.
+     * @param yMod Vertical offset from feet level.
+     * @return The [Block] at the projected position.
      */
     fun blockInPath(player: EntityPlayer, ticks: Int, yMod: Float = 0f): Block {
         val velo = player.getVelocity()
@@ -29,26 +52,57 @@ object WorldUtils {
         return CatDueller.mc.theWorld.getBlockState(player.position.add(vec.xCoord, -0.2 + yMod, vec.zCoord)).block
     }
 
+    /**
+     * Checks if there is an air gap (void/edge) in front of the player.
+     *
+     * @param player The player to check from.
+     * @param distance The maximum distance in blocks to check.
+     * @return `true` if an air gap is detected within the distance, `false` otherwise.
+     */
     fun airInFront(player: EntityPlayer, distance: Float): Boolean {
         return airCheck(player.position, distance, EntityUtils.get2dLookVec(player))
     }
 
+    /**
+     * Checks if there is an air gap (void/edge) behind the player.
+     *
+     * @param player The player to check from.
+     * @param distance The maximum distance in blocks to check.
+     * @return `true` if an air gap is detected within the distance, `false` otherwise.
+     */
     fun airInBack(player: EntityPlayer, distance: Float): Boolean {
         return airCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(180f))
     }
 
+    /**
+     * Checks if there is an air gap (void/edge) to the left of the player.
+     *
+     * @param player The player to check from.
+     * @param distance The maximum distance in blocks to check.
+     * @return `true` if an air gap is detected within the distance, `false` otherwise.
+     */
     fun airOnLeft(player: EntityPlayer, distance: Float): Boolean {
         return airCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(90f))
-        //return circleAirCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(90f), 2, 2)
-    }
-
-    fun airOnRight(player: EntityPlayer, distance: Float): Boolean {
-        return airCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(-90f))
-        //return circleAirCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(-90f), 2, 2)
     }
 
     /**
-     * Returns the distance to the closest left edge, or 21.0f if there is none within 20 blocks
+     * Checks if there is an air gap (void/edge) to the right of the player.
+     *
+     * @param player The player to check from.
+     * @param distance The maximum distance in blocks to check.
+     * @return `true` if an air gap is detected within the distance, `false` otherwise.
+     */
+    fun airOnRight(player: EntityPlayer, distance: Float): Boolean {
+        return airCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(-90f))
+    }
+
+    /**
+     * Calculates the distance to the nearest edge on the player's left side.
+     *
+     * Checks up to 20 blocks to the left for an air gap.
+     *
+     * @param player The player to check from.
+     * @return The distance in blocks to the left edge, or 21.0f if no edge exists within 20 blocks.
      */
     fun distanceToLeftEdge(player: EntityPlayer): Float {
         for (i in 1..20) {
@@ -60,7 +114,12 @@ object WorldUtils {
     }
 
     /**
-     * Returns the distance to the closest right edge, or 21.0f if there is none within 20 blocks
+     * Calculates the distance to the nearest edge on the player's right side.
+     *
+     * Checks up to 20 blocks to the right for an air gap.
+     *
+     * @param player The player to check from.
+     * @return The distance in blocks to the right edge, or 21.0f if no edge exists within 20 blocks.
      */
     fun distanceToRightEdge(player: EntityPlayer): Float {
         for (i in 1..20) {
@@ -71,11 +130,18 @@ object WorldUtils {
         return 21.0f
     }
 
-
+    /**
+     * Determines if an entity is falling off an edge into the void.
+     *
+     * Checks if the player is airborne and has no solid blocks within a 0.6 block
+     * radius at 4 blocks below their current position.
+     *
+     * @param player The player to check.
+     * @return `true` if the player is off the edge with no ground below, `false` otherwise.
+     */
     fun entityOffEdge(player: EntityPlayer): Boolean {
         if (!player.onGround) {
             val pos = player.positionVector.subtract(Vec3(0.0, 4.0, 0.0))
-            // Expand check radius by 0.2 blocks (from 0.4 to 0.6) to avoid misdetecting players standing on the edge
             val positions = arrayListOf(
                 pos.add(Vec3(0.6, 0.0, 0.0)),
                 pos.add(Vec3(0.0, 0.0, 0.6)),
@@ -97,8 +163,14 @@ object WorldUtils {
     }
 
     /**
-     * Check whether moving left or right gets you closer to a specific point
-     * @return true if left, false if right
+     * Determines which lateral direction moves the player closer to a target point.
+     *
+     * Compares the distance to the target from hypothetical left and right positions
+     * to determine optimal strafing direction.
+     *
+     * @param player The player to calculate from.
+     * @param point The target point to approach.
+     * @return `true` if moving left gets closer to the point, `false` if moving right is better.
      */
     fun leftOrRightToPoint(player: EntityPlayer, point: Vec3): Boolean {
         val pos = player.positionVector
@@ -115,12 +187,22 @@ object WorldUtils {
         return leftDist < rightDist
     }
 
+    /**
+     * Checks for air gaps along a direction from a starting position.
+     *
+     * Scans at three Y levels (-0.2, -1.4, -2.2 relative to position) to detect
+     * multi-block air gaps that indicate edges or voids.
+     *
+     * @param pos The starting block position.
+     * @param distance The maximum distance to check.
+     * @param lookVec The direction vector to check along.
+     * @return `true` if all three Y levels are air at any point within the distance.
+     */
     private fun airCheck(pos: BlockPos, distance: Float, lookVec: Vec3): Boolean {
         for (i in 1..distance.toInt()) {
             val x = pos.x + lookVec.xCoord * i
             val z = pos.z + lookVec.zCoord * i
 
-            // Check three different Y levels: -0.2, -1.4, -2.2
             val y1 = pos.y - 0.2
             val y2 = pos.y - 1.4
             val y3 = pos.y - 2.2
@@ -129,7 +211,6 @@ object WorldUtils {
             val block2 = CatDueller.mc.theWorld.getBlockState(BlockPos(x, y2, z)).block
             val block3 = CatDueller.mc.theWorld.getBlockState(BlockPos(x, y3, z)).block
 
-            // Return true only if ALL three levels are air
             if (block1 == Blocks.air && block2 == Blocks.air && block3 == Blocks.air) {
                 return true
             }

@@ -6,34 +6,50 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * HWID Lock system to restrict module usage to whitelisted hardware IDs
+ * Hardware ID (HWID) lock system for license verification.
+ *
+ * Restricts module usage to whitelisted hardware identifiers by checking
+ * the current machine's HWID against an online whitelist hosted on GitHub Gist.
+ * Provides fallback to a local emergency whitelist when network is unavailable.
+ *
+ * The verification flow:
+ * 1. Generate a unique HWID for the current machine
+ * 2. Check against cached online whitelist (if available and not expired)
+ * 3. Fetch fresh whitelist from remote sources if cache is stale
+ * 4. Fall back to emergency local whitelist if all remote sources fail
  */
 object HWIDLock {
 
-    // GitHub Gist whitelist URL
+    /** URLs for fetching the HWID whitelist, tried in order until one succeeds. */
     private val WHITELIST_URLS = listOf(
-        // GitHub Gist - using permanent URL without commit hash (always gets latest version)
         "https://gist.githubusercontent.com/meowmeowice/7c8c947acc796270e3dd6ea297ab53c2/raw/hwid_whitelist.txt",
     )
 
-
-    // Cache for online whitelist
+    /** Cached whitelist entries from the last successful fetch. */
     private var cachedWhitelist: Set<String>? = null
+
+    /** Timestamp of the last cache update in milliseconds. */
     private var lastCacheUpdate = 0L
-    private const val CACHE_DURATION = 5 * 60 * 1000L // 5 minutes
 
-    // Emergency local whitelist (fallback when online sources fail)
-    private val EMERGENCY_LOCAL_WHITELIST: Set<String> = setOf(
-        // Add critical HWIDs here as emergency fallback
-        // "HWID2"
-    )
+    /** Duration in milliseconds before the cache expires (5 minutes). */
+    private const val CACHE_DURATION = 5 * 60 * 1000L
 
+    /** Local fallback whitelist used when all remote sources are unreachable. */
+    private val EMERGENCY_LOCAL_WHITELIST: Set<String> = setOf()
+
+    /** The generated HWID for the current machine. */
     private var currentHWID: String? = null
+
+    /** Whether the current machine is authorized to use the mod. */
     private var isAuthorized: Boolean = false
 
     /**
-     * Initialize HWID lock system
-     * @return true if authorized, false if not
+     * Initializes the HWID lock system and verifies authorization.
+     *
+     * Generates the current machine's HWID and checks it against the whitelist.
+     * Displays appropriate messages in chat based on the verification result.
+     *
+     * @return True if the current machine is authorized, false otherwise.
      */
     fun initialize(): Boolean {
         try {
@@ -65,21 +81,30 @@ object HWIDLock {
     }
 
     /**
-     * Check if current session is authorized
+     * Checks if the current session is authorized.
+     *
+     * @return True if the HWID verification was successful, false otherwise.
      */
     fun isAuthorized(): Boolean {
         return isAuthorized
     }
 
     /**
-     * Get current HWID for debugging purposes
+     * Gets the current machine's HWID for display or debugging purposes.
+     *
+     * @return The generated HWID string, or null if not yet initialized.
      */
     fun getCurrentHWID(): String? {
         return currentHWID
     }
 
     /**
-     * Generate cross-platform HWID using MachineID utility
+     * Generates a cross-platform hardware identifier using the MachineID utility.
+     *
+     * The HWID is converted to uppercase for consistent whitelist matching.
+     * If generation fails, returns an error identifier containing OS info and timestamp.
+     *
+     * @return The generated HWID string in uppercase format.
      */
     private fun generateHWID(): String {
         try {
@@ -87,7 +112,6 @@ object HWIDLock {
             val machineId = MachineID.getMachineId()
             println("[HWIDLock] MachineID generated: $machineId")
 
-            // Convert to uppercase for consistency with existing whitelist format
             val hwid = machineId.uppercase()
 
             ChatUtils.info("Using cross-platform Machine ID as HWID")
@@ -107,24 +131,29 @@ object HWIDLock {
     }
 
     /**
-     * Check HWID authorization using online whitelist and emergency fallback
+     * Checks HWID authorization against online and local whitelists.
+     *
+     * Verification order:
+     * 1. Reject immediately if HWID generation failed
+     * 2. Check online whitelist sources
+     * 3. Fall back to emergency local whitelist if online check fails
+     *
+     * @param hwid The hardware identifier to verify.
+     * @return True if the HWID is whitelisted, false otherwise.
      */
     private fun checkHWIDAuthorization(hwid: String): Boolean {
-        // If HWID generation failed, deny access immediately
         if (hwid.startsWith("HWID_ERROR")) {
             println("[HWIDLock] HWID generation failed - denying access")
             ChatUtils.error("HWID generation failed - cannot verify authorization")
             return false
         }
 
-        // Try online whitelist first
         val onlineResult = checkOnlineWhitelist(hwid)
         if (onlineResult != null) {
             println("[HWIDLock] Online whitelist check result: $onlineResult")
             return onlineResult
         }
 
-        // If online check fails, try emergency local whitelist
         val isInEmergencyList = EMERGENCY_LOCAL_WHITELIST.contains(hwid.uppercase())
         if (isInEmergencyList) {
             println("[HWIDLock] HWID found in emergency local whitelist")
@@ -132,18 +161,24 @@ object HWIDLock {
             return true
         }
 
-        // No fallback available - deny access
         println("[HWIDLock] All whitelist checks failed - access denied")
         ChatUtils.error("Cannot connect to whitelist server and HWID not in emergency list - access denied")
         return false
     }
 
     /**
-     * Check whitelist from online sources (GitHub Gist)
+     * Fetches and checks the HWID against the online whitelist.
+     *
+     * Uses a cached whitelist if available and not expired. Otherwise,
+     * attempts to fetch from each configured URL until successful.
+     * The whitelist format expects one HWID per line, with support for
+     * comments starting with '#'.
+     *
+     * @param hwid The hardware identifier to check.
+     * @return True if found in whitelist, false if not found, null if fetch failed.
      */
     private fun checkOnlineWhitelist(hwid: String): Boolean? {
         return try {
-            // Check cache first
             val currentTime = System.currentTimeMillis()
             if (cachedWhitelist != null && (currentTime - lastCacheUpdate) < CACHE_DURATION) {
                 println("[HWIDLock] Using cached online whitelist")
@@ -152,7 +187,6 @@ object HWIDLock {
 
             println("[HWIDLock] Fetching online whitelist...")
 
-            // Try each URL until one works
             for ((index, urlString) in WHITELIST_URLS.withIndex()) {
                 try {
                     println("[HWIDLock] Trying source ${index + 1}/${WHITELIST_URLS.size}...")
@@ -160,10 +194,9 @@ object HWIDLock {
                     val url = URL(urlString)
                     val connection = url.openConnection() as HttpURLConnection
                     connection.requestMethod = "GET"
-                    connection.connectTimeout = 5000 // 5 seconds timeout per URL
+                    connection.connectTimeout = 5000
                     connection.readTimeout = 5000
                     connection.setRequestProperty("User-Agent", "CatDueller-HWID-Check/1.0")
-
 
                     val responseCode = connection.responseCode
                     println("[HWIDLock] Source ${index + 1} response: $responseCode")
@@ -172,12 +205,10 @@ object HWIDLock {
                         val response = connection.inputStream.bufferedReader().readText()
                         println("[HWIDLock] Downloaded whitelist data (${response.length} chars)")
 
-                        // Parse whitelist (expect one HWID per line)
                         val whitelistLines = response.split("\n")
                             .map { it.trim().uppercase() }
-                            .filter { it.isNotEmpty() && !it.startsWith("#") } // Ignore comments
+                            .filter { it.isNotEmpty() && !it.startsWith("#") }
                             .map { line ->
-                                // Remove inline comments (everything after #)
                                 val commentIndex = line.indexOf("#")
                                 if (commentIndex != -1) line.substring(0, commentIndex).trim()
                                 else line
@@ -212,6 +243,4 @@ object HWIDLock {
             null
         }
     }
-
-
 }

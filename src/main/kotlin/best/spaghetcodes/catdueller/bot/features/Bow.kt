@@ -7,22 +7,42 @@ import best.spaghetcodes.catdueller.bot.player.Mouse
 import best.spaghetcodes.catdueller.utils.RandomUtils
 import best.spaghetcodes.catdueller.utils.TimeUtils
 
+/**
+ * Interface providing bow usage functionality for combat scenarios.
+ *
+ * Handles the complete bow shooting sequence including inventory switching,
+ * charge timing based on distance, and proper state management.
+ */
 interface Bow {
 
+    /**
+     * Executes a bow shot sequence with distance-based charge timing.
+     *
+     * The method performs the following steps:
+     * 1. Validates that no other projectile action is in progress
+     * 2. Stops any ongoing attack actions
+     * 3. Switches to bow and charges based on target distance
+     * 4. Releases the shot and switches back to sword
+     * 5. Invokes the callback when the sequence completes
+     *
+     * Charge times are adjusted based on distance:
+     * - Close range (0-15 blocks): 700-900ms charge
+     * - Long range (15+ blocks): 900-1100ms charge
+     *
+     * @param distance The distance to the target in blocks, used to calculate charge time
+     * @param cb Callback function invoked after the bow sequence completes successfully
+     */
     fun useBow(distance: Float, cb: () -> Unit) {
-        // Prevent repeated bow usage if already using projectile or blocking arrow
         if (Mouse.isUsingProjectile() || Mouse.isBlockingArrow()) {
             return
         }
 
-        // Stop attacking based on config
         if (CatDueller.config?.holdLeftClick == true) {
             Mouse.stopHoldLeftClick()
         } else {
             Mouse.stopLeftAC()
         }
 
-        // Use bow directly without evasive maneuver (dodge is only for enemy bow)
         Mouse.setUsingProjectile(true)
         TimeUtils.setTimeout(fun() {
             Inventory.setInvItem("bow")
@@ -38,7 +58,6 @@ interface Bow {
                     Inventory.setInvItem("sword")
                     TimeUtils.setTimeout(fun() {
                         if (StateManager.state == StateManager.States.PLAYING) {
-                            // Don't start attacking here - let the distance control logic in onTick handle it
                             cb()
                         }
                     }, RandomUtils.randomIntInRange(100, 200))

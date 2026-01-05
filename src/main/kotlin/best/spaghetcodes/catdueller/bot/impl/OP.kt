@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.bot.bots
+package best.spaghetcodes.catdueller.bot.impl
 
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.BotBase
@@ -11,8 +11,25 @@ import best.spaghetcodes.catdueller.utils.*
 import net.minecraft.init.Blocks
 import net.minecraft.util.Vec3
 
+/**
+ * Bot implementation for OP Duels game mode.
+ *
+ * OP Duels features full diamond armor with protection enchantments,
+ * along with potions, golden apples, bow, and fishing rod.
+ * This bot handles:
+ * - Speed and regeneration splash potion usage
+ * - Golden apple consumption for healing
+ * - Bow combat at long range
+ * - Fishing rod tactics for combos
+ * - Arrow blocking when opponent draws bow
+ * - Wall avoidance during combat
+ */
 class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
 
+    /**
+     * Returns the display name of this bot.
+     * @return The string "OP"
+     */
     override fun getName(): String {
         return "OP"
     }
@@ -27,57 +44,85 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
         )
     }
 
+    /** Number of arrows fired this game. */
     var shotsFired = 0
+
+    /** Maximum arrows allowed per game. */
     var maxArrows = 20
 
+    /** Damage value for speed splash potion. */
     var speedDamage = 16386
+
+    /** Damage value for regeneration splash potion. */
     var regenDamage = 16385
 
+    /** Number of speed potions remaining. */
     var speedPotsLeft = 2
+
+    /** Number of regeneration potions remaining. */
     var regenPotsLeft = 2
+
+    /** Number of golden apples remaining. */
     var gapsLeft = 6
 
+    /** Timestamp of last speed potion usage. */
     var lastSpeedUse = 0L
+
+    /** Timestamp of last regeneration potion usage. */
     var lastRegenUse = 0L
+
+    /** Timestamp of last potion usage (implements Potion interface). */
     override var lastPotion = 0L
+
+    /** Timestamp of last golden apple usage (implements Gap interface). */
     override var lastGap = 0L
 
+    /** Flag indicating W-tap is currently active. */
     var tapping = false
+
+    /** Timestamp when current W-tap will end. */
     var tappingEndTime = 0L
 
-    // Track hold left click state to avoid unnecessary calls
+    /** Current state of hold left click to avoid unnecessary calls. */
     private var shouldHoldLeftClick = false
 
-    // Arrow blocking variables (copied from Classic)
+    /** Flag indicating opponent just fired an arrow. */
     private var opponentJustFiredArrow = false
+
+    /** Timestamp when opponent last fired an arrow. */
     private var lastOpponentArrowFireTime = 0L
-    private var lastTickOpponentDrawingBow = false  // Track opponent bow state from previous tick
-    private var opponentBowStartTime = 0L  // Track when opponent started drawing bow
-    private var blockingEndScheduled = false  // Track if blocking end is scheduled
 
+    /** Previous tick's opponent bow drawing state. */
+    private var lastTickOpponentDrawingBow = false
+
+    /** Timestamp when opponent started drawing bow. */
+    private var opponentBowStartTime = 0L
+
+    /** Flag to prevent multiple scheduling of blocking end. */
+    private var blockingEndScheduled = false
+
+    /**
+     * Called when the game starts.
+     * Resets all consumable counts and state variables, then initiates movement.
+     */
     override fun onGameStart() {
-        super.onGameStart()  // Call parent to check scoreboard
+        super.onGameStart()
 
-        // Reset consumable counts for new game
         shotsFired = 0
         speedPotsLeft = 2
         regenPotsLeft = 2
         gapsLeft = 6
 
-        // Reset usage timestamps
         lastSpeedUse = 0L
         lastRegenUse = 0L
         lastPotion = 0L
         lastGap = 0L
 
-        // Reset tapping state
         tapping = false
         tappingEndTime = 0L
 
-        // Reset hold left click state
         shouldHoldLeftClick = false
 
-        // Reset arrow blocking variables (copied from Classic)
         opponentJustFiredArrow = false
         lastOpponentArrowFireTime = 0L
         lastTickOpponentDrawingBow = false
@@ -89,13 +134,21 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
         TimeUtils.setTimeout(Movement::startJumping, RandomUtils.randomIntInRange(400, 1200))
     }
 
+    /**
+     * Called when opponent is found.
+     * Starts tracking the opponent with the mouse.
+     */
     override fun onFoundOpponent() {
-        super.onFoundOpponent()  // Call BotBase force requeue logic
+        super.onFoundOpponent()
         Mouse.startTracking()
     }
 
+    /**
+     * Called when the game ends.
+     * Resets all state variables and stops combat actions.
+     */
     override fun onGameEnd() {
-        super.onGameEnd()  // Call BotBase force requeue logic
+        super.onGameEnd()
 
         shotsFired = 0
 
@@ -113,14 +166,12 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
 
         shouldHoldLeftClick = false
 
-        // Reset arrow blocking variables (copied from Classic)
         opponentJustFiredArrow = false
         lastOpponentArrowFireTime = 0L
         lastTickOpponentDrawingBow = false
         opponentBowStartTime = 0L
         blockingEndScheduled = false
 
-        // Stop attacking based on config
         if (CatDueller.config?.holdLeftClick == true) {
             Mouse.stopHoldLeftClick()
         } else {
@@ -138,7 +189,6 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
             i?.cancel()
         }, RandomUtils.randomIntInRange(200, 400))
 
-        // Immediately clear movement like Sumo bot to avoid interfering with celebration
         if (CatDueller.bot?.toggled() == true) {
             Mouse.stopTracking()
             Movement.clearAll()
@@ -146,8 +196,14 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
         }
     }
 
+    /**
+     * Called when the bot successfully attacks the opponent.
+     *
+     * Handles rod retraction, jump after rod hit, block-hitting at close range,
+     * and W-tap for sprint reset.
+     */
     override fun onAttack() {
-        super.onAttack()  // Call parent to update lastAttackTime
+        super.onAttack()
 
         val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
         if (mc.thePlayer != null && mc.thePlayer.heldItem != null) {
@@ -179,19 +235,25 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
         }
     }
 
+    /**
+     * Main game loop called every tick.
+     *
+     * Handles all combat logic including:
+     * - Arrow blocking when opponent draws bow
+     * - Potion and golden apple usage
+     * - Bow and rod combat
+     * - Distance-based movement and attack management
+     * - Wall avoidance during strafing
+     */
     override fun onTick() {
-        super.onTick()  // Call BotBase onTick for scoreboard check
+        super.onTick()
 
-        // Check and reset tapping state based on time
         if (tapping && System.currentTimeMillis() >= tappingEndTime) {
             tapping = false
         }
 
         if (opponent() != null && mc.theWorld != null && mc.thePlayer != null) {
             val currentTime = System.currentTimeMillis()
-
-            // Arrow blocking logic (copied from Classic)
-            // Track opponent bow drawing time for 700ms blocking
             if (!lastTickOpponentDrawingBow && opponentIsDrawingBow) {
                 // Opponent just started drawing bow
                 opponentBowStartTime = currentTime

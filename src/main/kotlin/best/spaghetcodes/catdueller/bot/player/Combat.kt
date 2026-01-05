@@ -3,54 +3,50 @@ package best.spaghetcodes.catdueller.bot.player
 import best.spaghetcodes.catdueller.utils.RandomUtils
 import best.spaghetcodes.catdueller.utils.TimeUtils
 
+/**
+ * Handles combat-related movement techniques such as W-tapping, sprint resetting,
+ * and strafing patterns used during PvP encounters.
+ */
 object Combat {
 
+    /** Whether random strafing is currently active. */
     private var randomStrafe = false
+
+    /** Minimum interval in milliseconds between strafe direction changes. */
     private var randomStrafeMin = 0
+
+    /** Maximum interval in milliseconds between strafe direction changes. */
     private var randomStrafeMax = 0
 
+    /**
+     * Performs a W-tap by briefly releasing and re-pressing the forward key.
+     * This technique is used to reset sprint and gain a knockback advantage.
+     *
+     * @param duration Time in milliseconds to hold the forward key released.
+     */
     fun wTap(duration: Int) {
         Movement.stopForward()
         TimeUtils.setTimeout(Movement::startForward, duration)
     }
 
+    /**
+     * Resets sprint by briefly stopping and restarting the sprint key.
+     * Similar to W-tap but only affects the sprint state.
+     *
+     * @param duration Time in milliseconds to hold sprint released.
+     */
     fun sprintReset(duration: Int) {
         Movement.stopSprinting()
         TimeUtils.setTimeout(Movement::startSprinting, duration)
     }
 
-    fun sTap(duration: Int) {
-        Movement.stopForward()
-        TimeUtils.setTimeout(Movement::startForward, duration)
-    }
-
-    fun aTap(duration: Int) {
-        Movement.startLeft()
-        TimeUtils.setTimeout(Movement::stopLeft, duration)
-    }
-
-    fun dTap(duration: Int) {
-        Movement.startRight()
-        TimeUtils.setTimeout(Movement::stopRight, duration)
-    }
-
-    fun shiftTap(duration: Int) {
-        Movement.startSneaking()
-        TimeUtils.setTimeout(Movement::stopSneaking, duration)
-    }
-
-    fun spamA(hold: Int, duration: Int) {
-        val spamTimer =
-            TimeUtils.setInterval(fun() { aTap(hold) }, 0, hold * 2 + RandomUtils.randomIntInRange(0, hold / 5))
-        TimeUtils.setTimeout(fun() { spamTimer?.cancel() }, duration)
-    }
-
-    fun spamD(hold: Int, duration: Int) {
-        val spamTimer =
-            TimeUtils.setInterval(fun() { dTap(hold) }, 0, hold * 2 + RandomUtils.randomIntInRange(0, hold / 5))
-        TimeUtils.setTimeout(fun() { spamTimer?.cancel() }, duration)
-    }
-
+    /**
+     * Starts random strafing behavior that alternates between left and right
+     * at random intervals within the specified range.
+     *
+     * @param min Minimum interval in milliseconds between direction changes.
+     * @param max Maximum interval in milliseconds between direction changes.
+     */
     fun startRandomStrafe(min: Int, max: Int) {
         randomStrafeMin = min
         randomStrafeMax = max
@@ -60,6 +56,9 @@ object Combat {
         }
     }
 
+    /**
+     * Stops the random strafing behavior and clears any active left/right movement.
+     */
     fun stopRandomStrafe() {
         if (randomStrafe) {
             randomStrafe = false
@@ -67,6 +66,10 @@ object Combat {
         }
     }
 
+    /**
+     * Internal recursive function that handles the random strafe direction changes.
+     * Alternates between left and right movement at random intervals.
+     */
     private fun randomStrafeFunc() {
         if (randomStrafe) {
             if (!(Movement.left() || Movement.right())) {

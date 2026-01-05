@@ -10,56 +10,71 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent
 import java.util.*
 
+/**
+ * Handles player movement patterns during lobby/pre-game phases.
+ * Provides automated movement behaviors like circling the arena, rotation adjustments,
+ * and opponent detection for queue dodging.
+ */
 object LobbyMovement {
 
+    /** Yaw rotation change applied each tick during lobby movement. */
     private var tickYawChange = 0f
+
+    /** Collection of active timer intervals for movement patterns. */
     private var intervals: ArrayList<Timer?> = ArrayList()
 
-    // Rotation adjustment variables (pitch and yaw)
+    /** Whether rotation adjustment is currently active. */
     private var rotationAdjustmentActive = false
+
+    /** Target pitch angle for rotation adjustment. */
     private var targetPitch = 0f
+
+    /** Target yaw angle for rotation adjustment. */
     private var targetYaw = 0f
+
+    /** Tolerance in degrees for considering rotation target reached. */
     private var angleTolerance = 0.01f
+
+    /** Callback invoked when target rotation is reached. */
     private var onRotationReached: (() -> Unit)? = null
 
+    /**
+     * Initiates the sumo lobby movement pattern.
+     * Attempts to use recorded movement patterns if configured, otherwise falls back to default behavior.
+     */
     fun sumo() {
-        // Check if we should use recorded movement patterns
         if (CatDueller.config?.useRecordedMovement == true) {
-            // Try to start random recorded movement
             if (MovementRecorder.startRandomPlayback()) {
-                return // Successfully started recorded movement
+                return
             }
-            // If no recorded patterns available, fall back to default movement
         }
-
-        /*val opt = RandomUtils.randomIntInRange(0, 1)
-        when (opt) {
-            0 -> sumo1()
-            1 -> twerk()
-        }*/
         sumo1()
     }
 
+    /**
+     * Stops all lobby movement, clears timers, and resets rotation state.
+     * Also stops any recorded movement playback.
+     */
     fun stop() {
         Movement.clearAll()
         tickYawChange = 0f
         intervals.forEach { it?.cancel() }
-        intervals.clear()  // 清空 intervals 列表
+        intervals.clear()
 
-        // Stop rotation adjustment
         rotationAdjustmentActive = false
         onRotationReached = null
 
-        // Also stop any recorded movement playback
         MovementRecorder.stopPlayback()
     }
 
     /**
-     * 調整玩家的 pitch 和 yaw 到指定角度
-     * @param yaw Target yaw angle
-     * @param pitch Target pitch angle
-     * @param angleTolerance Angle tolerance (default 0.01)
-     * @param onComplete Callback when rotation is reached
+     * Smoothly adjusts the player's rotation to the specified target angles.
+     * The adjustment is applied gradually each tick until the target is reached.
+     *
+     * @param yaw Target yaw angle in degrees.
+     * @param pitch Target pitch angle in degrees.
+     * @param angleTolerance Tolerance in degrees for considering target reached (default 0.01).
+     * @param onComplete Optional callback invoked when target rotation is reached.
      */
     fun adjustRotation(
         yaw: Float,
@@ -69,53 +84,39 @@ object LobbyMovement {
     ) {
         if (CatDueller.mc.thePlayer == null) return
 
-        // Set target values
         targetYaw = yaw
         targetPitch = pitch
         this.angleTolerance = angleTolerance
         onRotationReached = onComplete
 
-        // Start rotation adjustment
         rotationAdjustmentActive = true
-
-        println("Starting rotation adjustment: yaw=$yaw, pitch=$pitch")
-        println("Angle tolerance: $angleTolerance")
     }
 
     /**
-     * Update rotation adjustment logic
+     * Updates the rotation adjustment each tick, smoothly moving toward the target angles.
+     * Applies speed limiting to ensure smooth rotation and calls the completion callback when done.
      */
     private fun updateRotationAdjustment() {
         if (!rotationAdjustmentActive) return
 
         val player = CatDueller.mc.thePlayer ?: return
 
-        // Calculate angle differences
         val yawDiff = normalizeAngle(targetYaw - player.rotationYaw)
         val pitchDiff = targetPitch - player.rotationPitch
 
-        // Check if we've reached the target rotation
         if (kotlin.math.abs(yawDiff) <= angleTolerance &&
             kotlin.math.abs(pitchDiff) <= angleTolerance
         ) {
-
-            // Target rotation reached!
             rotationAdjustmentActive = false
 
-            // Set exact final rotation
             player.rotationYaw = targetYaw
             player.rotationPitch = targetPitch
             player.rotationYawHead = targetYaw
 
-            println("Target rotation reached! Final rotation: yaw=${player.rotationYaw}, pitch=${player.rotationPitch}")
-
-            // Call completion callback
             onRotationReached?.invoke()
-
             return
         }
 
-        // Update yaw with smooth adjustment
         if (kotlin.math.abs(yawDiff) > angleTolerance) {
             val yawSpeed = kotlin.math.min(kotlin.math.abs(yawDiff), 2f) * if (yawDiff > 0) 1 else -1
             player.rotationYaw += yawSpeed
@@ -125,29 +126,19 @@ object LobbyMovement {
             player.rotationYawHead = targetYaw
         }
 
-        // Update pitch with smooth adjustment
         if (kotlin.math.abs(pitchDiff) > angleTolerance) {
             val pitchSpeed = kotlin.math.min(kotlin.math.abs(pitchDiff), 2f) * if (pitchDiff > 0) 1 else -1
             player.rotationPitch += pitchSpeed
         } else if (kotlin.math.abs(pitchDiff) > 0.001f) {
             player.rotationPitch = targetPitch
         }
-
-        // Debug output for rotation adjustment
-        if (CatDueller.mc.thePlayer.ticksExisted % 20 == 0) {
-            println(
-                "Rotation adjustment: yaw=${String.format("%.2f", player.rotationYaw)}/${
-                    String.format(
-                        "%.2f",
-                        targetYaw
-                    )
-                }, pitch=${String.format("%.2f", player.rotationPitch)}/${String.format("%.2f", targetPitch)}"
-            )
-        }
     }
 
     /**
-     * Normalize angle to -180 to 180 range
+     * Normalizes an angle to the range of -180 to 180 degrees.
+     *
+     * @param angle The angle to normalize.
+     * @return The normalized angle within -180 to 180 degrees.
      */
     private fun normalizeAngle(angle: Float): Float {
         var normalized = angle % 360f
@@ -157,11 +148,13 @@ object LobbyMovement {
     }
 
     /**
-     * 檢查對手的 pitch 和 yaw 是否在指定角度範圍內，如果不是就 dodge
-     * @param expectedYaw Expected opponent yaw angle
-     * @param expectedPitch Expected opponent pitch angle
-     * @param tolerance Angle tolerance for matching
-     * @return true if dodged, false if opponent rotation matches
+     * Checks if the opponent's rotation differs from expected values and initiates a queue dodge if so.
+     * Used to detect and avoid suspected bot opponents based on their rotation patterns.
+     *
+     * @param expectedYaw Expected opponent yaw angle in degrees.
+     * @param expectedPitch Expected opponent pitch angle in degrees.
+     * @param tolerance Angle tolerance for matching (default 1.0 degrees).
+     * @return True if a dodge was initiated, false if rotation matches or no opponent found.
      */
     fun checkOpponentRotationAndDodge(
         expectedYaw: Float,
@@ -172,94 +165,46 @@ object LobbyMovement {
         val player = CatDueller.mc.thePlayer ?: return false
 
         try {
-            // Safely get player entities with multiple fallback methods
             val otherPlayers = try {
-                // Method 1: Try to get a safe copy of the player entities
                 synchronized(world.playerEntities) {
                     world.playerEntities.toList().filter {
                         it != player && it is net.minecraft.entity.player.EntityPlayer
                     }
                 }
-            } catch (e: ConcurrentModificationException) {
+            } catch (_: ConcurrentModificationException) {
                 try {
-                    // Method 2: Fallback - try again with a different approach
                     world.loadedEntityList.filterIsInstance<net.minecraft.entity.player.EntityPlayer>().filter {
                         it != player
                     }
-                } catch (e2: Exception) {
-                    // Method 3: Final fallback - return false to avoid crash
-                    println("Failed to safely access player entities: ${e2.message}")
+                } catch (_: Exception) {
                     return false
                 }
             }
 
-            // Check if there's exactly one other player (our opponent)
             if (otherPlayers.size == 1) {
                 val opponent = otherPlayers[0] as net.minecraft.entity.player.EntityPlayer
 
-                // Safely get opponent rotation values
                 val opponentYaw = try {
                     opponent.rotationYaw
-                } catch (e: Exception) {
-                    println("Failed to get opponent yaw: ${e.message}")
+                } catch (_: Exception) {
                     return false
                 }
 
                 val opponentPitch = try {
                     opponent.rotationPitch
-                } catch (e: Exception) {
-                    println("Failed to get opponent pitch: ${e.message}")
+                } catch (_: Exception) {
                     return false
                 }
 
-                // Calculate angle differences with detailed debugging
                 val rawYawDiff = opponentYaw - expectedYaw
                 val normalizedYawDiff = normalizeAngle(rawYawDiff)
                 val yawDiff = kotlin.math.abs(normalizedYawDiff)
                 val pitchDiff = kotlin.math.abs(opponentPitch - expectedPitch)
 
-                // Check if opponent's rotation matches expected values within tolerance
                 val yawMatches = yawDiff <= tolerance
                 val pitchMatches = pitchDiff <= tolerance
 
-                // Always print detailed debug info
-                println("=== Rotation Check Debug ===")
-                println(
-                    "Expected: yaw=${String.format("%.3f", expectedYaw)}, pitch=${
-                        String.format(
-                            "%.3f",
-                            expectedPitch
-                        )
-                    }"
-                )
-                println(
-                    "Actual: yaw=${String.format("%.3f", opponentYaw)}, pitch=${
-                        String.format(
-                            "%.3f",
-                            opponentPitch
-                        )
-                    }"
-                )
-                println("Raw yaw diff: ${String.format("%.3f", rawYawDiff)}")
-                println("Normalized yaw diff: ${String.format("%.3f", normalizedYawDiff)}")
-                println(
-                    "Absolute differences: yaw=${String.format("%.3f", yawDiff)}, pitch=${
-                        String.format(
-                            "%.3f",
-                            pitchDiff
-                        )
-                    }"
-                )
-                println("Tolerance: ${String.format("%.3f", tolerance)}")
-                if (tolerance < 0.1f) {
-                    println("WARNING: Tolerance < 0.1 may not work reliably due to Minecraft network sync precision limits (~0.1 degrees)")
-                }
-                println("Matches: yaw=$yawMatches (${yawDiff} <= $tolerance), pitch=$pitchMatches (${pitchDiff} <= $tolerance)")
-
                 if (!yawMatches || !pitchMatches) {
-                    println("RESULT: Opponent rotation mismatch - dodging!")
-
-                    // Send queue command to dodge (with safer execution)
                     try {
                         TimeUtils.setTimeout({
                             try {
@@ -267,40 +212,31 @@ object LobbyMovement {
                                     CatDueller.bot?.queueCommand
                                         ?: "/play duels_sumo_duel"
                                 best.spaghetcodes.catdueller.utils.ChatUtils.sendAsPlayer(queueCommand)
-                            } catch (e: Exception) {
-                                println("Failed to send dodge command: ${e.message}")
-                            }
+                            } catch (_: Exception) { }
                         }, RandomUtils.randomIntInRange(100, 300))
-                    } catch (e: Exception) {
-                        println("Failed to schedule dodge command: ${e.message}")
-                    }
+                    } catch (_: Exception) { }
 
-                    return true // Dodged
+                    return true
                 } else {
-                    println("RESULT: Opponent rotation matches expected values - no dodge needed")
-                    return false // No dodge needed
+                    return false
                 }
-            } else {
-                println("Found ${otherPlayers.size} other players, expected exactly 1 opponent")
             }
-        } catch (e: ConcurrentModificationException) {
-            println("ConcurrentModificationException in rotation check - retrying safely")
-            // Don't crash, just return false and let the game continue
+        } catch (_: ConcurrentModificationException) {
             return false
-        } catch (e: Exception) {
-            println("Unexpected error checking opponent rotation: ${e.javaClass.simpleName}: ${e.message}")
-            e.printStackTrace()
-        }
+        } catch (_: Exception) { }
 
-        return false // No opponent found or error occurred
+        return false
     }
 
     /**
-     * 檢查對手的 pitch 和 yaw 是否匹配指定角度，如果匹配就 dodge（與 checkOpponentRotationAndDodge 相反）
-     * @param expectedYaw Expected opponent yaw angle
-     * @param expectedPitch Expected opponent pitch angle
-     * @param tolerance Angle tolerance for matching
-     * @return true if dodged, false if opponent rotation doesn't match
+     * Checks if the opponent's rotation matches expected values and initiates a queue dodge if so.
+     * Opposite behavior of [checkOpponentRotationAndDodge] - dodges when rotation MATCHES expected values.
+     * Used to detect and avoid suspected bot opponents based on their rotation patterns.
+     *
+     * @param expectedYaw Expected opponent yaw angle in degrees.
+     * @param expectedPitch Expected opponent pitch angle in degrees.
+     * @param tolerance Angle tolerance for matching (default 1.0 degrees).
+     * @return True if a dodge was initiated, false if rotation does not match or no opponent found.
      */
     fun checkOpponentRotationMatchAndDodge(
         expectedYaw: Float,
@@ -311,94 +247,46 @@ object LobbyMovement {
         val player = CatDueller.mc.thePlayer ?: return false
 
         try {
-            // Safely get player entities with multiple fallback methods
             val otherPlayers = try {
-                // Method 1: Try to get a safe copy of the player entities
                 synchronized(world.playerEntities) {
                     world.playerEntities.toList().filter {
                         it != player && it is net.minecraft.entity.player.EntityPlayer
                     }
                 }
-            } catch (e: ConcurrentModificationException) {
+            } catch (_: ConcurrentModificationException) {
                 try {
-                    // Method 2: Fallback - try again with a different approach
                     world.loadedEntityList.filterIsInstance<net.minecraft.entity.player.EntityPlayer>().filter {
                         it != player
                     }
-                } catch (e2: Exception) {
-                    // Method 3: Final fallback - return false to avoid crash
-                    println("Failed to safely access player entities: ${e2.message}")
+                } catch (_: Exception) {
                     return false
                 }
             }
 
-            // Check if there's exactly one other player (our opponent)
             if (otherPlayers.size == 1) {
                 val opponent = otherPlayers[0] as net.minecraft.entity.player.EntityPlayer
 
-                // Safely get opponent rotation values
                 val opponentYaw = try {
                     opponent.rotationYaw
-                } catch (e: Exception) {
-                    println("Failed to get opponent yaw: ${e.message}")
+                } catch (_: Exception) {
                     return false
                 }
 
                 val opponentPitch = try {
                     opponent.rotationPitch
-                } catch (e: Exception) {
-                    println("Failed to get opponent pitch: ${e.message}")
+                } catch (_: Exception) {
                     return false
                 }
 
-                // Calculate angle differences with detailed debugging
                 val rawYawDiff = opponentYaw - expectedYaw
                 val normalizedYawDiff = normalizeAngle(rawYawDiff)
                 val yawDiff = kotlin.math.abs(normalizedYawDiff)
                 val pitchDiff = kotlin.math.abs(opponentPitch - expectedPitch)
 
-                // Check if opponent's rotation matches expected values within tolerance
                 val yawMatches = yawDiff <= tolerance
                 val pitchMatches = pitchDiff <= tolerance
 
-                // Always print detailed debug info
-                println("=== Bot Detection Debug ===")
-                println(
-                    "Expected: yaw=${String.format("%.3f", expectedYaw)}, pitch=${
-                        String.format(
-                            "%.3f",
-                            expectedPitch
-                        )
-                    }"
-                )
-                println(
-                    "Actual: yaw=${String.format("%.3f", opponentYaw)}, pitch=${
-                        String.format(
-                            "%.3f",
-                            opponentPitch
-                        )
-                    }"
-                )
-                println("Raw yaw diff: ${String.format("%.3f", rawYawDiff)}")
-                println("Normalized yaw diff: ${String.format("%.3f", normalizedYawDiff)}")
-                println(
-                    "Absolute differences: yaw=${String.format("%.3f", yawDiff)}, pitch=${
-                        String.format(
-                            "%.3f",
-                            pitchDiff
-                        )
-                    }"
-                )
-                println("Tolerance: ${String.format("%.3f", tolerance)}")
-                if (tolerance < 0.1f) {
-                    println("WARNING: Tolerance < 0.1 may not work reliably due to Minecraft network sync precision limits (~0.1 degrees)")
-                }
-                println("Matches: yaw=$yawMatches (${yawDiff} <= $tolerance), pitch=$pitchMatches (${pitchDiff} <= $tolerance)")
-
                 if (yawMatches && pitchMatches) {
-                    println("RESULT: Opponent rotation MATCHES expected values - dodging bot!")
-
-                    // Send queue command to dodge (with safer execution)
                     try {
                         TimeUtils.setTimeout({
                             try {
@@ -406,34 +294,27 @@ object LobbyMovement {
                                     CatDueller.bot?.queueCommand
                                         ?: "/play duels_sumo_duel"
                                 best.spaghetcodes.catdueller.utils.ChatUtils.sendAsPlayer(queueCommand)
-                            } catch (e: Exception) {
-                                println("Failed to send dodge command: ${e.message}")
-                            }
+                            } catch (_: Exception) { }
                         }, RandomUtils.randomIntInRange(100, 300))
-                    } catch (e: Exception) {
-                        println("Failed to schedule dodge command: ${e.message}")
-                    }
+                    } catch (_: Exception) { }
 
-                    return true // Dodged
+                    return true
                 } else {
-                    println("RESULT: Opponent rotation doesn't match expected values - no dodge needed")
-                    return false // No dodge needed
+                    return false
                 }
-            } else {
-                println("Found ${otherPlayers.size} other players, expected exactly 1 opponent")
             }
-        } catch (e: ConcurrentModificationException) {
-            println("ConcurrentModificationException in bot detection - retrying safely")
-            // Don't crash, just return false and let the game continue
+        } catch (_: ConcurrentModificationException) {
             return false
-        } catch (e: Exception) {
-            println("Unexpected error checking opponent rotation for bot detection: ${e.javaClass.simpleName}: ${e.message}")
-            e.printStackTrace()
-        }
+        } catch (_: Exception) { }
 
-        return false // No opponent found or error occurred
+        return false
     }
 
+    /**
+     * Default sumo lobby movement pattern.
+     * Moves forward while sprinting, jumping, and rotating to avoid falling off the arena.
+     * Automatically adjusts rotation speed based on proximity to edges.
+     */
     private fun sumo1() {
         if (CatDueller.mc.thePlayer != null) {
             var left = RandomUtils.randomBool()
@@ -467,19 +348,19 @@ object LobbyMovement {
         }
     }
 
+    /**
+     * Tick event handler for lobby movement updates.
+     * Processes movement recorder playback, rotation adjustments, and yaw changes.
+     *
+     * @param ev The client tick event.
+     */
     @SubscribeEvent
     fun onTick(ev: ClientTickEvent) {
-        // Only run when bot is toggled on to prevent performance issues
         if (CatDueller.bot?.toggled() != true) return
 
-        // Update MovementRecorder every tick
         MovementRecorder.onTick()
-
-        // Update rotation adjustment if active
         updateRotationAdjustment()
 
-        // Only apply yaw changes if not using recorded movement and not using rotation adjustment
-        // When rotation adjustment is active, it has control over rotation
         if (tickYawChange != 0f && CatDueller.mc.thePlayer != null &&
             StateManager.state != StateManager.States.PLAYING && !MovementRecorder.isPlaying() && !rotationAdjustmentActive
         ) {

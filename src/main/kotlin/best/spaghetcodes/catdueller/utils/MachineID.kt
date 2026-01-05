@@ -8,19 +8,28 @@ import java.nio.file.Paths
 import java.util.regex.Pattern
 
 /**
- * Kotlin implementation of node-machine-id functionality.
- * <p>
- * Uses OS-native UUID/GUID methods:
+ * Cross-platform machine identification utility.
+ *
+ * Retrieves a unique machine identifier using OS-native methods:
  * - Windows: MachineGuid from HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography
  * - macOS: IOPlatformUUID (Hardware UUID) from ioreg
  * - Linux: /var/lib/dbus/machine-id
+ *
+ * This implementation is based on the node-machine-id functionality and
+ * formats the ID as a UUID-compatible string.
  */
 object MachineID {
+
+    /** Fallback UUID used when the machine ID cannot be retrieved. */
     private const val FALLBACK_ID = "0ed5c84c-3e16-4c44-927d-2d76d5cac79d"
 
     /**
-     * Gets the machine ID using OS-native methods.
-     * Formats it as a UUID-like string matching the Node.js implementation.
+     * Retrieves the machine's unique identifier.
+     *
+     * Detects the operating system and calls the appropriate platform-specific
+     * method to retrieve the machine ID. The result is formatted as a UUID string.
+     *
+     * @return The machine ID formatted as a UUID string, or [FALLBACK_ID] if retrieval fails.
      */
     fun getMachineId(): String {
         return try {
@@ -42,8 +51,12 @@ object MachineID {
     }
 
     /**
-     * Gets Windows MachineGuid from registry.
-     * Reads from HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography\MachineGuid
+     * Retrieves the Windows MachineGuid from the system registry.
+     *
+     * Executes a registry query to read the MachineGuid value from
+     * HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography.
+     *
+     * @return The machine GUID as a lowercase hex string without dashes, or null if unavailable.
      */
     private fun getWindowsMachineId(): String? {
         return try {
@@ -76,8 +89,12 @@ object MachineID {
     }
 
     /**
-     * Gets macOS IOPlatformUUID (Hardware UUID) using ioreg command.
-     * Equivalent to: ioreg -rd1 -c IOPlatformExpertDevice
+     * Retrieves the macOS hardware UUID using the ioreg command.
+     *
+     * Executes `ioreg -rd1 -c IOPlatformExpertDevice` and parses the
+     * IOPlatformUUID value from the output.
+     *
+     * @return The hardware UUID as a lowercase hex string without dashes, or null if unavailable.
      */
     private fun getMacMachineId(): String? {
         return try {
@@ -104,8 +121,12 @@ object MachineID {
     }
 
     /**
-     * Gets Linux machine ID from /var/lib/dbus/machine-id.
-     * The file contains a 32-character hexadecimal string.
+     * Retrieves the Linux machine ID from the dbus machine-id file.
+     *
+     * Reads the contents of /var/lib/dbus/machine-id, which contains
+     * a 32-character hexadecimal identifier.
+     *
+     * @return The machine ID as a lowercase hex string, or null if the file cannot be read.
      */
     private fun getLinuxMachineId(): String? {
         return try {
@@ -118,9 +139,13 @@ object MachineID {
     }
 
     /**
-     * Formats the raw machine ID as a Cubelify-compatible UUID string.
-     * Matches the Node.js implementation: takes first 16 bytes, pads to 32 hex chars,
-     * then formats as UUID (8-4-4-4-12).
+     * Formats a raw machine ID as a UUID-formatted string.
+     *
+     * Normalizes the input to 32 hexadecimal characters (padding with zeros if shorter,
+     * truncating if longer) and formats it in the standard UUID format (8-4-4-4-12).
+     *
+     * @param rawId The raw machine ID string to format.
+     * @return The formatted UUID string.
      */
     private fun formatAsCubelifyId(rawId: String): String {
         var hex = rawId.replace("-", "").lowercase()

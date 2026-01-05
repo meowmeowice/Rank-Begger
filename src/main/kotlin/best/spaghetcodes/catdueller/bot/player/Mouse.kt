@@ -16,14 +16,22 @@ import java.awt.event.InputEvent
 import java.lang.reflect.Method
 import kotlin.math.abs
 
+/**
+ * Handles mouse input simulation including left/right clicks, auto-clicking,
+ * target tracking, and aim rotation calculations for combat.
+ */
 object Mouse {
 
+    /** Whether left auto-click is currently active. */
     private var leftAC = false
+
+    /** Whether the right mouse button is currently held down. */
     var rClickDown = false
 
+    /** Whether target tracking is currently active. */
     private var tracking = false
 
-    // Variables for Hold Left Click
+    /** AWT Robot instance for hardware-level mouse simulation. */
     private val robot by lazy {
         try {
             Robot()
@@ -32,32 +40,50 @@ object Mouse {
             null
         }
     }
+
+    /** Whether a left click is being held via Robot. */
     private var isHoldingClick = false
+
+    /** Whether a right click is being held via Robot. */
     private var isHoldingRightClick = false
 
+    /** Whether the player is currently using a projectile (bow, fishing rod, etc.) */
     private var _usingProjectile = false
-    private var _usingPotion = false
-    private var _runningAway = false
-    private var _blockingArrow = false  // Prevent other actions during arrow blocking
 
+    /** Whether the player is currently using a splash potion. */
+    private var _usingPotion = false
+
+    /** Whether the player is currently running away from the opponent. */
+    private var _runningAway = false
+
+    /** Whether the player is currently blocking an incoming arrow. */
+    private var _blockingArrow = false
+
+    /** Remaining ticks to hold the left click. */
     private var leftClickDur = 0
 
+    /** Timestamp of the last left click for CPS calculation. */
     private var lastLeftClick = 0L
 
-    // Simple tick-based CPS variables
+    /** Tick counter for CPS timing. */
     private var tickCounter = 0
 
+    /** Cached rotation values when running away. */
     private var runningRotations: FloatArray? = null
 
+    /** Target pitch for splash potion aiming. */
     private var splashAim = 0.0
 
-    // Game end view rotation variables
+    /** Whether game end view rotation is active. */
     private var gameEndViewRotationActive = false
+
+    /** Target yaw for game end view rotation. */
     private var gameEndTargetYaw = 0f
+
+    /** Target pitch for game end view rotation. */
     private var gameEndTargetPitch = 0f
 
-
-    // Reflection method for clickMouse
+    /** Reflection reference to Minecraft's clickMouse method. */
     private val clickMouseMethod: Method? by lazy {
         try {
             ReflectionHelper.findMethod(
@@ -72,14 +98,14 @@ object Mouse {
     }
 
     /**
-     * Invoke clickMouse using direct method calls
+     * Invokes Minecraft's clickMouse method via reflection.
+     * Falls back to manual attack simulation if reflection fails.
      */
     private fun invokeClickMouse() {
         try {
             clickMouseMethod?.invoke(Minecraft.getMinecraft())
         } catch (e: Exception) {
             ChatUtils.error("Failed to invoke clickMouse: ${e.message}")
-            // Fallback to direct method calls
             CatDueller.mc.thePlayer.swingItem()
             KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindAttack.keyCode, true)
             if (CatDueller.mc.objectMouseOver != null && CatDueller.mc.objectMouseOver.entityHit != null) {
@@ -92,30 +118,17 @@ object Mouse {
     }
 
     /**
-     * Traditional left-click using KeyBinding (fallback method)
+     * Performs a left-click attack if conditions allow.
+     * Respects bot toggle state, item usage, and canSwing() permissions.
      */
-    fun leftClickKeyBinding() {
-        if (CatDueller.bot?.toggled() == true && CatDueller.mc.thePlayer != null && !CatDueller.mc.thePlayer.isUsingItem) {
-            KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindAttack.keyCode, true)
-            CatDueller.mc.thePlayer.swingItem()
-            if (CatDueller.mc.objectMouseOver != null && CatDueller.mc.objectMouseOver.entityHit != null) {
-                CatDueller.mc.playerController.attackEntity(
-                    CatDueller.mc.thePlayer,
-                    CatDueller.mc.objectMouseOver.entityHit
-                )
-            }
-        }
-    }
-
     fun leftClick() {
         val mc = CatDueller.mc
         if (CatDueller.bot?.toggled() == true && mc.thePlayer != null && !mc.thePlayer.isUsingItem) {
             // Only swing if canSwing allows it (BotBase handles all attack decision logic)
             if (CatDueller.bot?.canSwing() == true) {
-                // Use invokeClickMouse which handles swing, keybind, and packet logic
                 invokeClickMouse()
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("leftClick() executed - invokeClickMouse() called")
+                    ChatUtils.combatInfo("leftClick() executed")
                 }
             } else {
                 if (CatDueller.config?.combatLogs == true) {
@@ -135,24 +148,11 @@ object Mouse {
         }
     }
 
-
     /**
-     * Left-click using Robot (safer than KeyBinding)
+     * Performs a right-click for the specified duration.
+     *
+     * @param duration Time in milliseconds to hold the right-click.
      */
-    private fun leftClickRobot() {
-        try {
-            // Use Robot to perform hardware-level click
-            robot?.let {
-                it.mousePress(InputEvent.BUTTON1_DOWN_MASK)
-                it.mouseRelease(InputEvent.BUTTON1_DOWN_MASK)
-            }
-            // Robot click triggers in-game attack logic automatically; no extra calls needed
-        } catch (e: Exception) {
-            ChatUtils.error("Robot left click failed, falling back to KeyBinding: ${e.message}")
-            leftClickKeyBinding()
-        }
-    }
-
     fun rClick(duration: Int) {
         if (CatDueller.bot?.toggled() == true) {
             if (!rClickDown) {
@@ -162,32 +162,24 @@ object Mouse {
         }
     }
 
+    /**
+     * Starts the left auto-click system.
+     * Clicks are performed at a rate determined by the configured CPS.
+     */
     fun startLeftAC() {
         if (CatDueller.bot?.toggled() == true) {
             leftAC = true
-            // Reset tick counter
             tickCounter = 0
-            ChatUtils.combatInfo("Started leftAC - simple tick-based CPS system initialized")
+            ChatUtils.combatInfo("Started leftAC")
         }
     }
+
 
     /**
-     * Force immediate left click, bypassing probability delay
+     * Stops the left auto-click system.
      */
-    fun forceImmediateLeftClick() {
-        if (CatDueller.bot?.toggled() == true) {
-            leftClick()
-            lastLeftClick = System.currentTimeMillis()
-            if (CatDueller.config?.combatLogs == true) {
-                ChatUtils.combatInfo("Force immediate left click executed - bypassed probability delay")
-            }
-        }
-    }
-
     fun stopLeftAC() {
-        // no need to check for toggled state here
         leftAC = false
-        // Reset tick counter
         tickCounter = 0
     }
 
@@ -216,18 +208,6 @@ object Mouse {
         }
     }
 
-    /**
-     * Start holding right click (using Robot)
-     */
-    fun startHoldRightClick() {
-        if (CatDueller.bot?.toggled() == true && CatDueller.config?.holdLeftClick == true) {
-            if (!isHoldingRightClick) {
-                isHoldingRightClick = true
-                robot?.mousePress(InputEvent.BUTTON3_DOWN_MASK)
-                ChatUtils.combatInfo("Started holding right click")
-            }
-        }
-    }
 
     /**
      * Stop holding right click (using Robot)
@@ -241,7 +221,8 @@ object Mouse {
     }
 
     /**
-     * Reset all mouse states (useful when bot is toggled off/on)
+     * Resets all mouse-related states to their default values.
+     * Should be called when the bot is toggled off or reset.
      */
     fun resetAllStates() {
         stopLeftAC()
@@ -254,41 +235,70 @@ object Mouse {
         setBlockingArrow(false)
         rClickDown = false
 
-        // Reset game end view rotation variables
         gameEndViewRotationActive = false
         gameEndTargetYaw = 0f
         gameEndTargetPitch = 0f
     }
 
-
+    /**
+     * Starts tracking the opponent with the player's aim.
+     */
     fun startTracking() {
         tracking = true
     }
 
+    /**
+     * Stops tracking the opponent.
+     */
     fun stopTracking() {
         tracking = false
     }
 
+    /**
+     * Returns whether target tracking is currently active.
+     */
     fun isTracking(): Boolean {
         return tracking
     }
 
+    /**
+     * Sets whether the player is currently blocking an arrow.
+     *
+     * @param blocking True if blocking an arrow, false otherwise.
+     */
     fun setBlockingArrow(blocking: Boolean) {
         _blockingArrow = blocking
     }
 
+    /**
+     * Returns whether the player is currently blocking an arrow.
+     */
     fun isBlockingArrow(): Boolean {
         return _blockingArrow
     }
 
+    /**
+     * Sets whether the player is using a projectile weapon.
+     *
+     * @param proj True if using a projectile, false otherwise.
+     */
     fun setUsingProjectile(proj: Boolean) {
         _usingProjectile = proj
     }
 
+    /**
+     * Returns whether the player is using a projectile weapon.
+     */
     fun isUsingProjectile(): Boolean {
         return _usingProjectile
     }
 
+    /**
+     * Sets whether the player is using a splash potion.
+     * Resets splash aim when usage ends.
+     *
+     * @param potion True if using a potion, false otherwise.
+     */
     fun setUsingPotion(potion: Boolean) {
         _usingPotion = potion
         if (!_usingPotion) {
@@ -296,43 +306,56 @@ object Mouse {
         }
     }
 
+    /**
+     * Returns whether the player is using a splash potion.
+     */
     fun isUsingPotion(): Boolean {
         return _usingPotion
     }
 
+    /**
+     * Sets whether the player is running away from the opponent.
+     * Clears cached running rotations when state changes.
+     *
+     * @param runningAway True if running away, false otherwise.
+     */
     fun setRunningAway(runningAway: Boolean) {
         _runningAway = runningAway
-        runningRotations = null // make sure to clear this, otherwise running away gets buggy asf
+        runningRotations = null
     }
 
+    /**
+     * Returns whether the player is running away from the opponent.
+     */
     fun isRunningAway(): Boolean {
         return _runningAway
     }
 
     /**
-     * Start game end view rotation: pitch to 0 (level), yaw random ±45 degrees
+     * Starts the game end view rotation animation.
+     * Levels the pitch to 0 and rotates yaw by a random +/- 45 degrees.
      */
     fun startGameEndViewRotation() {
         if (CatDueller.mc.thePlayer == null) return
 
         gameEndViewRotationActive = true
-        gameEndTargetPitch = 0f  // Level view
+        gameEndTargetPitch = 0f
 
-        // Random yaw rotation: current yaw ± 45 degrees
         val currentYaw = CatDueller.mc.thePlayer.rotationYaw
         val yawOffset = if (RandomUtils.randomBool()) 45f else -45f
         gameEndTargetYaw = currentYaw + yawOffset
     }
 
     /**
-     * Stop game end view rotation
+     * Stops the game end view rotation animation.
      */
     fun stopGameEndViewRotation() {
         gameEndViewRotationActive = false
     }
 
     /**
-     * Handle game end view rotation during tick
+     * Handles the game end view rotation animation each tick.
+     * Smoothly rotates toward the target yaw and pitch.
      */
     private fun handleGameEndViewRotation() {
         val player = CatDueller.mc.thePlayer ?: return
@@ -340,18 +363,14 @@ object Mouse {
         val currentYaw = player.rotationYaw
         val currentPitch = player.rotationPitch
 
-        // Calculate yaw difference (handle wrapping around 360 degrees)
         var yawDiff = gameEndTargetYaw - currentYaw
         while (yawDiff > 180) yawDiff -= 360
         while (yawDiff < -180) yawDiff += 360
 
-        // Calculate pitch difference
         val pitchDiff = gameEndTargetPitch - currentPitch
 
-        // Use fixed speed of 10 for game end view rotation
         val fixedSpeed = 10f
 
-        // Apply rotation limits
         val dyaw = if (abs(yawDiff) > fixedSpeed) {
             if (yawDiff > 0) fixedSpeed else -fixedSpeed
         } else {
@@ -364,23 +383,18 @@ object Mouse {
             pitchDiff
         }
 
-        // Apply rotation
         player.rotationYaw += dyaw
         player.rotationPitch += dpitch
 
-        // Stop rotation when close enough to target
         if (abs(yawDiff) < 1f && abs(pitchDiff) < 1f) {
             gameEndViewRotationActive = false
         }
     }
 
-    /**
-     * 檢查?�否??GUI ?��?（�?天室?�ESC ?�單等�?
-     */
-    private fun isGuiOpen(): Boolean {
-        return CatDueller.mc.currentScreen != null
-    }
 
+    /**
+     * Presses and holds the right mouse button.
+     */
     private fun rClickDown() {
         if (CatDueller.bot?.toggled() == true) {
             rClickDown = true
@@ -388,10 +402,16 @@ object Mouse {
         }
     }
 
+    /**
+     * Starts holding the right mouse button.
+     */
     fun startRightClick() {
         rClickDown()
     }
 
+    /**
+     * Releases the right mouse button.
+     */
     fun rClickUp() {
         if (CatDueller.bot?.toggled() == true) {
             rClickDown = false
@@ -399,30 +419,27 @@ object Mouse {
         }
     }
 
+    /**
+     * Tick event handler for mouse operations.
+     * Processes auto-clicking, key state management, and aim tracking.
+     *
+     * @param ev The client tick event.
+     */
     @SubscribeEvent
     fun onTick(ev: TickEvent.ClientTickEvent) {
         if (CatDueller.mc.thePlayer == null) return
 
-        // Execute clicks at tick START to align with vanilla reduce/motion
         if (ev.phase == TickEvent.Phase.START && CatDueller.bot?.toggled() == true) {
             if (leftAC) {
-                // Update tick counter
                 tickCounter++
 
-                // Simple tick-based left auto-click logic
                 if (!CatDueller.mc.thePlayer.isUsingItem) {
                     val targetCPS = CatDueller.config?.cps?.toDouble() ?: 12.0
-
-                    // Calculate base probability of clicking this tick
-                    // 20 TPS means each tick has targetCPS/20 chance of clicking
                     val baseProbability = targetCPS / 20.0
-
-                    // Add some randomness: ±25% variance
                     val variance = 0.10
                     val randomFactor = 1.0 + RandomUtils.randomDoubleInRange(-variance, variance)
                     val finalProbability = (baseProbability * randomFactor).coerceIn(0.0, 1.0)
 
-                    // Decide whether to click this tick
                     if (Math.random() < finalProbability) {
                         leftClick()
                         lastLeftClick = System.currentTimeMillis()
@@ -447,14 +464,11 @@ object Mouse {
             if (leftClickDur > 0) {
                 leftClickDur--
             } else {
-                // Only clear left click if bot is actively controlling it (leftAC is active)
                 if (leftAC && CatDueller.mc.gameSettings.keyBindAttack.isKeyDown) {
                     KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindAttack.keyCode, false)
                 }
             }
         } else {
-            // When bot is disabled, don't interfere with normal left click functionality
-            // Only clear if we were previously controlling the key state
             if (leftAC) {
                 leftAC = false
                 KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindAttack.keyCode, false)
@@ -462,19 +476,19 @@ object Mouse {
         }
 
         if (CatDueller.mc.thePlayer != null && CatDueller.bot?.toggled() == true) {
-            // Handle game end view rotation (highest priority)
             if (gameEndViewRotationActive) {
                 handleGameEndViewRotation()
             } else if (tracking && CatDueller.bot?.opponent() != null) {
-                // Normal tracking logic (original behavior)
                 applyRotationsImmediate()
             }
         }
     }
 
     /**
-     * Calculate the angle difference between current aim and target
-     * Returns the absolute angle difference in degrees
+     * Calculates the angle difference between current aim and the target entity.
+     *
+     * @param targetEntity The entity to calculate angle difference to.
+     * @return The combined Euclidean angle difference in degrees.
      */
     private fun getAngleDifference(targetEntity: Entity?): Double {
         if (targetEntity == null) return 0.0
@@ -487,20 +501,19 @@ object Mouse {
         val targetYaw = rotations[0]
         val targetPitch = rotations[1]
 
-        // Calculate yaw difference (handle wrapping around 360 degrees)
         var yawDiff = targetYaw - currentYaw
         while (yawDiff > 180) yawDiff -= 360
         while (yawDiff < -180) yawDiff += 360
 
-        // Calculate pitch difference
         val pitchDiff = targetPitch - currentPitch
 
-        // Return the combined angle difference (Euclidean distance in angle space)
         return kotlin.math.sqrt((yawDiff * yawDiff + pitchDiff * pitchDiff).toDouble())
     }
 
     /**
-     * Apply rotations immediately (original behavior for non-interpolation mode)
+     * Applies aim rotations immediately toward the opponent.
+     * Handles special cases for running away, potion usage, and projectile aiming.
+     * Uses smooth rotation with distance and angle-based speed adjustments.
      */
     private fun applyRotationsImmediate() {
         if (_runningAway) {
@@ -524,7 +537,6 @@ object Mouse {
                 }
                 rotations[1] = splashAim.toFloat()
             } else if (!_usingProjectile && CatDueller.config?.verticalMultipoint == true) {
-                // --- vertical multipoint logic (50 points) - only when enabled and NOT using projectiles ---
                 val player = CatDueller.mc.thePlayer
                 val opponent = CatDueller.bot?.opponent()
                 if (player != null && opponent != null) {
@@ -535,7 +547,7 @@ object Mouse {
                         opponentMinY + i * (opponentMaxY - opponentMinY) / 49.0
                     }
                     val targetY = candidateHeights.minByOrNull { h -> abs(playerEyeY - h) }
-                        ?: (opponentMinY + opponentMaxY) / 2.0
+                        ?: ((opponentMinY + opponentMaxY) / 2.0)
 
                     // Compute target pitch
                     val deltaX = opponent.posX - player.posX
@@ -543,13 +555,10 @@ object Mouse {
                     val deltaZ = opponent.posZ - player.posZ
                     val distanceXZ = kotlin.math.sqrt(deltaX * deltaX + deltaZ * deltaZ)
                     val targetPitch = (-Math.toDegrees(kotlin.math.atan2(deltaY, distanceXZ))).toFloat()
-                    rotations[1] = targetPitch // pitch
+                    rotations[1] = targetPitch
                 }
             }
-            // When vertical multipoint is disabled or using projectiles, keep the pitch from EntityUtils.getRotations() (original behavior)
-            // When using projectiles, keep the pitch calculated by EntityUtils.getRotations() for proper trajectory compensation
 
-            // --- horizontal + vertical smoothing with distance-based slowdown ---
             val lookRand = (CatDueller.config?.lookRand ?: 0).toDouble()
             var dyaw = ((rotations[0] - CatDueller.mc.thePlayer.rotationYaw) + RandomUtils.randomDoubleInRange(
                 -lookRand,
@@ -560,10 +569,9 @@ object Mouse {
                 lookRand
             )).toFloat()
 
-            // Distance-based slowing factor (skip for runningAway and splashAim)
             val opponent = CatDueller.bot?.opponent()
-            var distanceFactor = if (_runningAway || _usingPotion || opponent == null) {
-                1.0f  // No distance penalty for runningAway, splashAim, or null opponent
+            val distanceFactor = if (_runningAway || _usingPotion || opponent == null) {
+                1.0f
             } else {
                 when (EntityUtils.getDistanceNoY(CatDueller.mc.thePlayer, opponent)) {
                     in 0f..10f -> 1.0f
@@ -573,35 +581,31 @@ object Mouse {
                 }
             }
 
-            // Angle-based speed factor (closer to target = slower movement)
             val angleDifference = getAngleDifference(CatDueller.bot?.opponent())
             val angleFactor = when {
-                angleDifference <= 1.0 -> 0.3f      // Very close to target: 30% speed
-                angleDifference <= 5.0 -> 0.5f      // Close to target: 50% speed
-                angleDifference <= 15.0 -> 0.8f     // Medium distance: 80% speed
-                angleDifference <= 30.0 -> 1.0f     // Far from target: 100% speed
-                else -> 1.2f                        // Very far from target: 120% speed
+                angleDifference <= 1.0 -> 0.3f
+                angleDifference <= 5.0 -> 0.5f
+                angleDifference <= 15.0 -> 0.8f
+                angleDifference <= 30.0 -> 1.0f
+                else -> 1.2f
             }
 
-            // On-target slowdown factor (always enabled)
             val onTarget = CatDueller.mc.objectMouseOver != null &&
                     CatDueller.mc.objectMouseOver.typeOfHit == net.minecraft.util.MovingObjectPosition.MovingObjectType.ENTITY &&
                     CatDueller.mc.objectMouseOver.entityHit == CatDueller.bot?.opponent()
 
             val onTargetFactor = if (onTarget) 0.85f else 1.0f
 
-            // Combine all factors: distance * angle * onTarget
             val combinedFactor = distanceFactor * angleFactor * onTargetFactor
 
-            // Use fixed speed for running away, otherwise use config speed
             val maxRotH = if (_runningAway) {
-                30.0f  // Fixed horizontal speed for running away
+                30.0f
             } else {
                 (CatDueller.config?.lookSpeedHorizontal ?: 10).toFloat() * combinedFactor
             }
 
             val maxRotV = if (_runningAway) {
-                30.0f  // Fixed vertical speed for running away
+                30.0f
             } else {
                 (CatDueller.config?.lookSpeedVertical ?: 5).toFloat() * combinedFactor
             }
@@ -622,7 +626,6 @@ object Mouse {
                 }
             }
 
-            // Debug: Log rotation values to check if they're too high
             if (CatDueller.config?.combatLogs == true && (abs(dyaw) > 0.1f || abs(dpitch) > 0.1f)) {
                 ChatUtils.combatInfo(
                     "Immediate Mode - dyaw: ${

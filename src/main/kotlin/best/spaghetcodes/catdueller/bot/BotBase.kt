@@ -40,16 +40,40 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Base class for all bots
- * @param queueCommand Command to join a new game
- * @param quickRefresh MS for which to quickly refresh opponent entity
+ * Base class for all dueling bots providing core functionality for automated PvP.
+ *
+ * This class handles game state management, opponent tracking, combat events,
+ * session statistics, reconnection logic, and various automation features.
+ * Subclasses should override the protected methods to implement specific
+ * bot behaviors for different game modes.
+ *
+ * @property queueCommand The command used to join a new game queue (e.g., "/play sumo_duel")
+ * @property quickRefresh Duration in milliseconds for the initial quick refresh period when finding opponents
  */
 open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
+    /** Minecraft client instance for accessing game state */
     protected val mc: Minecraft = Minecraft.getMinecraft()
 
+    /** Whether the bot is currently active */
     private var toggled = false
+
+    /**
+     * Returns whether the bot is currently toggled on.
+     * @return true if the bot is active, false otherwise
+     */
     fun toggled() = toggled
+
+    /**
+     * Toggles the bot on or off and handles all associated state changes.
+     *
+     * When toggling off, this method stops all movements, cancels timers,
+     * clears tracking data, and resets combat variables.
+     * When toggling on, it resets hit select variables, sets session timing,
+     * generates randomized timings, and may start bot crasher mode.
+     *
+     * @param isManualToggle True if triggered by user action, false if automatic (e.g., after break)
+     */
     fun toggle(isManualToggle: Boolean = true) {
         // Check HWID authorization before allowing toggle
         if (!HWIDLock.isAuthorized()) {
@@ -165,180 +189,324 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         }
     }
 
+    // ================== Combat State Variables ==================
+
+    /** Entity ID of the last entity we attacked (for damage confirmation) */
     private var attackedID = -1
 
+    /** Mapping of stat keys for API lookups */
     private var statKeys: Map<String, String> = mapOf("wins" to "", "losses" to "", "ws" to "")
 
-    private var currentWinstreak = 0  // Local tracking of win streak
-    private var playerNick: String? = null  // Player nickname extracted from join messages
+    /** Current winstreak tracked locally during session */
+    private var currentWinstreak = 0
 
+    /** Player's nickname extracted from join messages (for nicked players) */
+    private var playerNick: String? = null
 
+    /** List of players already sent stats for (prevents duplicate stat lookups) */
     private var playersSent: ArrayList<String> = arrayListOf()
 
+    /** Reference to the current opponent entity */
     private var opponent: EntityPlayer? = null
+
+    /** Timer for periodically refreshing opponent entity reference */
     private var opponentTimer: Timer? = null
+
+    /** Flag to prevent multiple onFoundOpponent calls per game */
     private var calledFoundOpponent = false
 
+    /** Current combo count (consecutive hits on opponent) */
     protected var combo = 0
+
+    /** Opponent's current combo count (consecutive hits on us) */
     protected var opponentCombo = 0
+
+    /** Ticks since last successful hit on opponent */
     protected var ticksSinceHit = 0
 
-
+    /** Ticks since game started (for requeue timeout) */
     private var ticksSinceGameStart = 0
 
+    /** Last known opponent display name */
     private var lastOpponentName = ""
-    private var lastOpponentNameWithRank = ""  // Store opponent name with rank from chat
-    private var isOpponentNicked = false  // Store whether opponent is nicked
 
+    /** Opponent name with rank prefix from chat message */
+    private var lastOpponentNameWithRank = ""
+
+    /** Whether the current opponent is using a nickname */
+    private var isOpponentNicked = false
+
+    /** Flag to prevent multiple onGameEnd calls */
     private var calledGameEnd = false
+
+    /** Flag to prevent multiple onJoinGame calls */
     private var calledJoinGame = false
-    private var lastGameWasLoss = false  // Track if the last game was a loss
 
-    // Blink Tap variables
-    private var lastDistanceToOpponent = 999f  // Track distance for blink tap trigger
-    private var blinkTapTriggered = false  // Prevent multiple triggers
+    /** Whether the last game resulted in a loss (for delayed requeue) */
+    private var lastGameWasLoss = false
 
-    // Force requeue mechanism
-    private var gameEndTime = 0L  // time when game ended
-    private var forceRequeueScheduled = false  // whether force requeue is scheduled
-    private var forceRequeueAttempts = 0  // number of force requeue attempts made
-    private var preventForceRequeue = false  // prevent force requeue when preparing to disconnect
+    // ================== Blink Tap Variables ==================
 
-    // Reconnect timer for unexpected disconnections
+    /** Last recorded distance to opponent for blink tap trigger detection */
+    private var lastDistanceToOpponent = 999f
+
+    /** Prevents multiple blink tap triggers per engagement */
+    private var blinkTapTriggered = false
+
+    // ================== Force Requeue Variables ==================
+
+    /** Timestamp when the game ended (for force requeue timing) */
+    private var gameEndTime = 0L
+
+    /** Whether a force requeue has been scheduled */
+    private var forceRequeueScheduled = false
+
+    /** Number of force requeue attempts made */
+    private var forceRequeueAttempts = 0
+
+    /** Prevents force requeue when intentionally disconnecting */
+    private var preventForceRequeue = false
+
+    // ================== Reconnection Variables ==================
+
+    /** Timer for reconnection attempts after unexpected disconnect */
     private var reconnectTimer: Timer? = null
 
-    // Bot runtime tracking (separate from session stats)
-    private var botStartTime = 0L  // time when bot was started/resumed
+    /** Timestamp when bot was started (for dynamic break timing) */
+    private var botStartTime = 0L
 
-    // Dynamic break timing with variance
-    private var actualDisconnectMinutes = 0  // actual disconnect time with variance applied
-    private var actualReconnectWaitMinutes = 30  // actual wait time with variance applied
-    private var scheduledReconnectTime = 0L  // absolute time when we should reconnect (0 = not scheduled)
-    private var isDynamicBreakReconnect = false  // track if scheduled reconnect is for dynamic break
+    /** Actual disconnect time with variance applied (minutes) */
+    private var actualDisconnectMinutes = 0
 
-    // Lobby Sit mode variables
-    private var lobbySitActive = false  // whether lobby sit mode is active
-    private var lobbySitEndTime = 0L  // when lobby sit mode should end
-    private var lobbySitPhase = 0  // 0 = forward phase, 1 = backward phase
-    private var lobbySitPhaseStartTime = 0L  // when current phase started
-    private var lobbySitJumpTimer: Timer? = null  // timer for jump spam
+    /** Actual wait time before reconnect with variance applied (minutes) */
+    private var actualReconnectWaitMinutes = 30
 
-    // Internet stability monitoring variables
-    private var internetStabilityPaused = false  // whether requeuing is paused due to high ping
-    private var lastStablePingTime = 0L  // last time ping was below 250ms
-    private var pingCheckTimer: Timer? = null  // timer for continuous ping monitoring
+    /** Absolute timestamp for scheduled reconnect (0 = not scheduled) */
+    private var scheduledReconnectTime = 0L
 
-    // Disconnect reason tracking
-    private var lastDisconnectReason = "Unknown"  // Track the reason for last disconnect
+    /** Whether the scheduled reconnect is for a dynamic break */
+    private var isDynamicBreakReconnect = false
+
+    // ================== Lobby Sit Mode Variables ==================
+
+    /** Whether lobby sit mode is currently active */
+    private var lobbySitActive = false
+
+    /** Timestamp when lobby sit mode should end */
+    private var lobbySitEndTime = 0L
+
+    /** Current phase of lobby sit (0 = forward, 1 = backward) */
+    private var lobbySitPhase = 0
+
+    /** Timestamp when current lobby sit phase started */
+    private var lobbySitPhaseStartTime = 0L
+
+    /** Timer for jump spam during lobby sit mode */
+    private var lobbySitJumpTimer: Timer? = null
+
+    // ================== Internet Stability Variables ==================
+
+    /** Whether requeuing is paused due to high ping */
+    private var internetStabilityPaused = false
+
+    /** Timestamp of last stable ping reading */
+    private var lastStablePingTime = 0L
+
+    /** Timer for continuous ping monitoring */
+    private var pingCheckTimer: Timer? = null
+
+    /** Last disconnect reason for webhook reporting */
+    private var lastDisconnectReason = "Unknown"
 
     /**
-     * Set the disconnect reason for webhook reporting
+     * Sets the disconnect reason for webhook reporting.
+     * @param reason The reason for disconnection
      */
     private fun setDisconnectReason(reason: String) {
         lastDisconnectReason = reason
         ChatUtils.info("Disconnect reason set: $reason")
     }
 
+    // ================== Scoreboard Tracking Variables ==================
 
-    // Scoreboard opponent tracking
-    private var cachedOpponentName: String? = null  // Cached opponent name
-    private var lastScoreboardCheck = 0L  // Last time scoreboard was checked
-    private var winstreakChecked = false  // Track if winstreak has been checked this game
+    /** Cached opponent name from scoreboard */
+    private var cachedOpponentName: String? = null
 
-    // Current server tracking from scoreboard
-    private var currentServer: String? = null  // Current server ID extracted from scoreboard
+    /** Timestamp of last scoreboard check */
+    private var lastScoreboardCheck = 0L
 
-    protected var blatantToggled = false  // Track if blatant mode was toggled for current opponent
-    private var sessionBlacklist = mutableSetOf<String>()  // Session-only blacklist for auto-added players
-    private var beforeStartTime = 0L  // Track when beforeStart() was called
+    /** Whether winstreak has been checked this game */
+    private var winstreakChecked = false
 
-    // Bot Crasher Mode variables
-    private var gameStartTime = 0L  // Time when game started
-    private var botCrasherTimer: Timer? = null  // Timer for bot crasher mode
-    private var disconnectedPlayers = mutableListOf<String>()  // List of disconnected players to spam
-    private var spamTimer: Timer? = null  // Timer for spamming disconnected players
+    /** Current server ID extracted from scoreboard */
+    private var currentServer: String? = null
 
-    // Hit Select variables for being attacked state
-    // Note: Now only uses KB reduction mode
+    /** Whether blatant mode was toggled for current opponent */
+    protected var blatantToggled = false
 
-    // Big Break variables - simplified
-    private var bigBreakReconnectTime = 0L  // absolute time when big break ends (0 = not in big break)
+    /** Session-only blacklist for auto-added players (cleared on manual toggle off) */
+    private var sessionBlacklist = mutableSetOf<String>()
 
-    // Hit Select variables
-    private var lastCombatTime = 0L     // Last time we attacked or were attacked
+    /** Timestamp when beforeStart() was called */
+    private var beforeStartTime = 0L
 
-    // W-Tap variables
-    private var tapping = false         // Whether W-Tap is currently active
-    private var lastWTapTime = 0L       // Track last W-Tap time for 500ms cooldown
+    // ================== Bot Crasher Mode Variables ==================
 
-    // Rod retract timeout for immediate retraction on hit
+    /** Timestamp when current game started */
+    private var gameStartTime = 0L
+
+    /** Timer for bot crasher mode timeout */
+    private var botCrasherTimer: Timer? = null
+
+    /** List of disconnected players to spam with party invites */
+    private var disconnectedPlayers = mutableListOf<String>()
+
+    /** Timer for spamming disconnected players */
+    private var spamTimer: Timer? = null
+
+    // ================== Big Break Variables ==================
+
+    /** Absolute timestamp when big break ends (0 = not in big break) */
+    private var bigBreakReconnectTime = 0L
+
+    // ================== Hit Select Variables ==================
+
+    /** Last time combat occurred (attack or being attacked) */
+    private var lastCombatTime = 0L
+
+    // ================== W-Tap Variables ==================
+
+    /** Whether W-tap is currently in progress */
+    private var tapping = false
+
+    /** Timestamp of last W-tap for cooldown */
+    private var lastWTapTime = 0L
+
+    // ================== Rod Usage Variables ==================
+
+    /** Timer for rod retract timeout */
     var rodRetractTimeout: Timer? = null
 
-    // Track if rod was used defensively (due to opponent combo)
+    /** Whether rod was used defensively (due to opponent combo) */
     var isDefensiveRod: Boolean = false
 
-    // Track if opponent has used bow (to allow our bow usage)
+    // ================== Bow Tracking Variables ==================
+
+    /** Whether opponent has used bow this game */
     var opponentUsedBow: Boolean = false
 
-    // Track opponent's arrow usage
+    /** Number of arrows fired by opponent */
     var opponentArrowsFired: Int = 0
+
+    /** Whether opponent is currently drawing bow */
     var opponentIsDrawingBow: Boolean = false
+
+    /** Timestamp of last opponent bow check */
     private var lastOpponentBowCheck: Long = 0
 
-    // Track opponent movement direction
+    // ================== Movement Tracking Variables ==================
+
+    /** Whether opponent is moving toward us */
     var opponentIsApproaching: Boolean = false
+
+    /** Whether opponent is moving away from us */
     var opponentIsRetreating: Boolean = false
+
+    /** Last recorded distance to opponent */
     private var lastDistance: Float = 0f
+
+    /** Timestamp of last distance check */
     private var lastDistanceCheck: Long = 0
+
+    /** History of distance measurements for trend analysis */
     private val distanceHistory = mutableListOf<Float>()
 
-    // Damage statistics for Classic bot
+    // ================== Damage Statistics Variables ==================
+
+    /** Total damage dealt to opponent this game */
     private var damageDealtToOpponent: Double = 0.0
+
+    /** Total damage received from opponent this game */
     private var damageReceivedFromOpponent: Double = 0.0
 
-    // Track opponent's actual movement speed
-    var opponentActualSpeed = 0.13f  // Default to sprinting speed (blocks per tick)
+    // ================== Opponent Speed Tracking Variables ==================
+
+    /** Opponent's actual movement speed in blocks per tick */
+    var opponentActualSpeed = 0.13f
+
+    /** Last recorded position for opponent speed calculation */
     private var lastOpponentSpeedPos: Vec3? = null
 
-    // Track lateral movement (strafe direction)
-    var opponentStrafeDirection: Int = 0  // -1=left, 0=none, 1=right (relative to opponent)
-    var ourStrafeDirection: Int = 0       // -1=left, 0=none, 1=right (relative to us)
-    var isCounterStrafing: Boolean = false // true if both moving in same relative direction
+    // ================== Strafe Tracking Variables ==================
+
+    /** Opponent's strafe direction (-1=left, 0=none, 1=right) */
+    var opponentStrafeDirection: Int = 0
+
+    /** Our strafe direction (-1=left, 0=none, 1=right) */
+    var ourStrafeDirection: Int = 0
+
+    /** Whether both players are strafing in the same relative direction */
+    var isCounterStrafing: Boolean = false
+
+    /** Last recorded opponent position for strafe calculation */
     private var lastOpponentPos: Vec3? = null
+
+    /** Last recorded player position for strafe calculation */
     private var lastOurPos: Vec3? = null
+
+    /** Timestamp of last strafe check */
     private var lastStrafeCheck: Long = 0
 
+    /**
+     * Returns the current opponent entity.
+     * @return The opponent player entity, or null if not found
+     */
     fun opponent() = opponent
 
     /**
-     * Get counter strafe multiplier for projectile prediction
-     * @return Multiplier to apply for counter strafe prediction (1.0 = no bonus)
+     * Calculates the counter strafe multiplier for projectile prediction.
+     *
+     * When both players are strafing in the same relative direction,
+     * projectile prediction becomes more accurate and a bonus multiplier is applied.
+     *
+     * @return The multiplier to apply (1.0 = no bonus, configurable bonus when counter-strafing)
      */
     fun getCounterStrafeMultiplier(): Float {
         val multiplier = CatDueller.config?.counterStrafeBonus ?: 1.5f
         return if (isCounterStrafing) multiplier else 1.0f
     }
 
-    /********
-     * Methods to override
-     ********/
+    // ================== Overridable Methods ==================
 
+    /**
+     * Returns the display name for this bot type.
+     *
+     * Subclasses should override this to return their specific name
+     * (e.g., "Sumo", "Classic", "UHC").
+     *
+     * @return The bot's display name
+     */
     open fun getName(): String {
         return "Base"
     }
 
     /**
-     * Called when the bot attacks the opponent
-     * Triggered by the damage sound, not the clientside attack event
+     * Called when the bot successfully hits the opponent.
+     *
+     * This is triggered by the damage sound confirmation packet (S19PacketEntityStatus),
+     * not by the client-side attack event, ensuring the hit was actually registered.
+     * Subclasses can override to implement hit-specific behavior.
      */
     protected open fun onAttack() {
-        // Update combat time for hit select timeout logic
         lastCombatTime = System.currentTimeMillis()
     }
 
     /**
-     * Called when the bot is attacked
-     * Triggered by the damage sound, not the clientside attack event
+     * Called when the bot is hit by the opponent.
+     *
+     * This is triggered by the damage sound confirmation packet,
+     * ensuring the damage was actually received. Updates combat timing
+     * and hit tracking variables. Subclasses can override for custom behavior.
      */
     protected open fun onAttacked() {
         // Update combat time for hit select timeout logic
@@ -363,20 +531,28 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Called when the bot receives velocity (knockback)
-     * Triggered by S12PacketEntityVelocity - most accurate timing for jump reset
-     * @param motionX X velocity
-     * @param motionY Y velocity
-     * @param motionZ Z velocity
+     * Called when the bot receives velocity (knockback) from the server.
+     *
+     * This is triggered by S12PacketEntityVelocity and provides the most accurate
+     * timing for implementing jump reset mechanics. Subclasses can override to
+     * implement velocity-based combat techniques.
+     *
+     * @param motionX The X component of velocity
+     * @param motionY The Y component of velocity
+     * @param motionZ The Z component of velocity
      */
     protected open fun onVelocity(motionX: Int, motionY: Int, motionZ: Int) {
         // Base implementation does nothing - subclasses can override for jump reset
     }
 
-
     /**
-     * Determine if should start attacking
-     * Can be overridden by subclasses for additional checks
+     * Determines whether the bot should start attacking based on current conditions.
+     *
+     * Checks distance, line of sight, and player state. Subclasses can override
+     * to add mode-specific attack conditions.
+     *
+     * @param distance The current distance to the opponent
+     * @return true if the bot should attack, false otherwise
      */
     open fun shouldStartAttacking(distance: Float): Boolean {
         val player = mc.thePlayer ?: return false
@@ -405,21 +581,43 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         return canAttackResult
     }
 
-    // Hit Select variables (simplified implementation)
+    // ================== Hit Select State Variables ==================
+
+    /** Timestamp of last attack for hit select timing */
     private var hitSelectAttackTime = -1L
+
+    /** Whether the bot should attack based on hit select logic */
     private var currentShouldAttack = false
-    private var isKbReductionAttack = false  // Track if current attack is due to KB reduction
-    private var lastHitByOpponentTime = -1L  // Track when we were last hit by opponent
-    private var waitingForHitLaterDelay = false  // Track if we're waiting for hit later delay
 
-    // Wait For First Hit variables
-    private var waitingForFirstHit = false  // Track if we're waiting for opponent's first hit
-    private var crosshairOnOpponentTime = -1L  // Track when crosshair first aimed at opponent
-    private var hasBeenHitOnce = false  // Track if we've been hit at least once this game
+    /** Whether current attack is triggered by KB reduction logic */
+    private var isKbReductionAttack = false
 
+    /** Timestamp when we were last hit by opponent */
+    private var lastHitByOpponentTime = -1L
+
+    /** Whether we're waiting for hit later delay */
+    private var waitingForHitLaterDelay = false
+
+    // ================== Wait For First Hit Variables ==================
+
+    /** Whether we're waiting for opponent's first hit before attacking */
+    private var waitingForFirstHit = false
+
+    /** Timestamp when crosshair first aimed at opponent */
+    private var crosshairOnOpponentTime = -1L
+
+    /** Whether we've been hit at least once this game */
+    private var hasBeenHitOnce = false
 
     /**
-     * Check if bot can swing - controls swing animation based on hit select and missed hits cancel rate
+     * Determines whether the bot can swing based on hit select and missed hits cancel rate.
+     *
+     * This method controls the swing animation timing based on:
+     * - Hit select timing logic for optimal hit registration
+     * - Missed hits cancel rate for crosshair misalignment
+     * - Wait for first hit feature
+     *
+     * @return true if the bot should swing, false otherwise
      */
     open fun canSwing(): Boolean {
         if (!toggled()) return false
@@ -480,14 +678,21 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Check if bot can attack - same as canSwing for consistency
+     * Determines whether the bot can attack.
+     *
+     * This method delegates to [canSwing] for consistency across attack checks.
+     *
+     * @return true if the bot can attack, false otherwise
      */
     open fun canAttack(): Boolean {
         return canSwing()
     }
 
     /**
-     * Check if it's time for scheduled reconnect (dynamic break)
+     * Checks if it's time for a scheduled dynamic break reconnect.
+     *
+     * This method handles long-term reconnect scheduling for dynamic breaks,
+     * monitoring the scheduled time and initiating reconnection when reached.
      */
     private fun checkScheduledReconnect() {
         // Only handle dynamic break reconnects (long-term), unexpected disconnects use timers
@@ -532,7 +737,11 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Check if big break should end
+     * Checks if the big break period should end and handles reconnection.
+     *
+     * Big breaks are scheduled time periods (e.g., 13:00-17:00) where the bot
+     * disconnects and waits. This method monitors the end time and initiates
+     * reconnection when the break period ends.
      */
     private fun checkBigBreakReconnect() {
         if (bigBreakReconnectTime > 0L) {
@@ -602,7 +811,14 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Update hit select logic - called every tick (equivalent to onPreUpdate)
+     * Updates hit select timing logic every tick.
+     *
+     * Hit select implements a 500ms attack cycle with configurable delay windows
+     * to optimize hit registration. This method determines when attacks should
+     * be allowed based on:
+     * - Time since last attack
+     * - KB reduction opportunities (hurtTime > 6)
+     * - Hit later in trades delay
      */
     private fun updateHitSelect() {
         if (!toggled()) return
@@ -619,7 +835,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         // Reset KB reduction flag
         isKbReductionAttack = false
 
-        // 1. 首先在還沒進入循環前允許攻擊
+        // First attack is always allowed before entering the cycle
         if (hitSelectAttackTime == -1L) {
             currentShouldAttack = true
             if (CatDueller.config?.combatLogs == true) {
@@ -628,28 +844,28 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             return
         }
 
-        // 2. KB reduction: hurtTime > 6 時允許攻擊
+        // KB reduction: Allow attack when hurtTime > 6 and airborne for reduced knockback
         if (player.hurtTime > 6 && !player.onGround) {
             currentShouldAttack = true
-            isKbReductionAttack = true  // Mark this as KB reduction attack
+            isKbReductionAttack = true
             if (CatDueller.config?.combatLogs == true) {
                 ChatUtils.combatInfo("Hit Select (KB Reduction): hurtTime > 6 - allowing attack (won't record time)")
             }
             return
         }
 
-        // 3. 檢查 500ms 循環邏輯
+        // Check 500ms cycle timing logic
         val hitSelectDelay = CatDueller.config?.hitSelectDelay ?: 350
         val timeSinceLastAttack = currentTime - hitSelectAttackTime
         val hitLaterDelay = CatDueller.config?.hitLaterInTrades ?: 0
 
         if (timeSinceLastAttack < hitSelectDelay) {
-            // 在 delay 期間內 - 暫停攻擊
+            // Within delay period - pause attacks
             currentShouldAttack = false
-            waitingForHitLaterDelay = false  // Reset waiting flag
+            waitingForHitLaterDelay = false
 
         } else if (timeSinceLastAttack < 500) {
-            // delay 後到 500ms 前 - 檢查 Hit Later In Trades 邏輯
+            // Between delay and 500ms - check Hit Later In Trades logic
 
             if (hitLaterDelay > 0) {
                 // Hit Later In Trades enabled
@@ -686,15 +902,18 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
             }
         } else {
-            // 500ms 後 - 開始新循環，允許攻擊並重置時間
+            // After 500ms - start new cycle, allow attack and reset time
             currentShouldAttack = true
-            hitSelectAttackTime = -1L  // 重置，讓下次攻擊時重新記錄時間
+            hitSelectAttackTime = -1L
             waitingForHitLaterDelay = false
         }
     }
 
     /**
-     * Update wait for first hit logic - called every tick
+     * Updates the wait for first hit logic every tick.
+     *
+     * This feature prevents attacking until the opponent attacks first,
+     * with a configurable timeout. Useful for defensive playstyles.
      */
     private fun updateWaitForFirstHit() {
         if (!toggled()) return
@@ -785,11 +1004,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Called when the game starts
+     * Called when the game starts (opponent information displayed).
+     *
+     * This method is called after the countdown ends and the game begins.
+     * Resets game-specific variables and initializes tracking systems.
+     * Subclasses can override to add mode-specific game start behavior.
      */
     protected open fun onGameStart() {
-
-        // Reset winstreak check flag for new game
         winstreakChecked = false
 
         // Reset game variables
@@ -832,7 +1053,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Reset variables for new game
+     * Resets all game-specific variables for a new game.
+     *
+     * This includes combat timing, hit tracking, bow usage,
+     * movement tracking, speed tracking, and strafe tracking.
      */
     private fun resetGameVariables() {
         lastPlayerHurtTime = 0
@@ -876,10 +1100,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Called when the game ends
+     * Called when the game ends (game result displayed).
+     *
+     * Records game end time, cancels bot crasher timers, and schedules
+     * force requeue if enabled. Subclasses can override to add
+     * mode-specific game end behavior.
      */
     protected open fun onGameEnd() {
-        // Record game end time for force requeue mechanism
         gameEndTime = System.currentTimeMillis()
         forceRequeueScheduled = false
         forceRequeueAttempts = 0  // Reset attempt counter
@@ -929,10 +1156,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Called when the bot joins a game
+     * Called when the bot joins a game queue.
+     *
+     * This is triggered when a player join message is detected.
+     * Cancels any pending force requeue and resets game variables.
+     * Subclasses can override to add mode-specific join behavior.
      */
     protected open fun onJoinGame() {
-        // Cancel force requeue since we successfully joined a game
         if (gameEndTime > 0L) {
             System.currentTimeMillis() - gameEndTime
 
@@ -964,7 +1194,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Called when the game almost starts (4s)
+     * Called when the game is about to start (4 seconds remaining).
+     *
+     * Sends server information to guild chat or DM if configured.
+     * Subclasses can override to add pre-game preparation logic.
      */
     protected open fun onGameAlmostStart() {
         // Send server to guild if enabled
@@ -989,10 +1222,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Called before the game starts (1s)
+     * Called just before the game starts (1 second remaining).
+     *
+     * Resets hit select and wait for first hit variables.
+     * Notifies MovementRecorder to stop any playback.
+     * Subclasses should override to implement mode-specific start behavior.
      */
     protected open fun beforeStart() {
-        // Reset Hit Select variables before game starts
         hitSelectAttackTime = -1L
         currentShouldAttack = false
         isKbReductionAttack = false
@@ -1010,10 +1246,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Check if we need to force requeue after requeue delay + 1 second
+     * Checks if force requeue should be executed.
+     *
+     * Force requeue sends the queue command if normal requeue failed
+     * after the expected delay period plus a buffer.
      */
     private fun checkForceRequeue() {
-        // Only proceed if force requeue is enabled and not prevented
         if (CatDueller.config?.forceRequeue != true) return
         if (preventForceRequeue) {
             ChatUtils.info("Force requeue prevented - preparing to disconnect")
@@ -1051,10 +1289,11 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Execute force requeue and schedule next attempt if needed
+     * Executes the force requeue command.
+     *
+     * Sends the queue command if not currently in a game.
      */
     private fun executeForceRequeue() {
-        // Only proceed if force requeue is enabled and not prevented
         if (CatDueller.config?.forceRequeue != true) return
         if (preventForceRequeue) {
             ChatUtils.info("Force requeue execution prevented - preparing to disconnect")
@@ -1069,10 +1308,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
 
     /**
-     * Called when the opponent entity is found
+     * Called when the opponent entity is successfully located.
+     *
+     * Cancels force requeue and checks if the opponent is blacklisted
+     * for blatant mode toggling. Subclasses can override for additional
+     * opponent-specific initialization.
      */
     protected open fun onFoundOpponent() {
-        // Cancel force requeue since we found an opponent (successful requeue)
         if (gameEndTime > 0L) {
             System.currentTimeMillis() - gameEndTime
         }
@@ -1094,18 +1336,25 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Override this method to disable opponent speed tracking for performance
-     * Default: true (enabled for projectile-based bots)
+     * Determines whether opponent speed should be tracked.
+     *
+     * Subclasses can override to disable speed tracking for performance
+     * optimization when projectile prediction is not needed.
+     *
+     * @return true if opponent speed should be tracked (default), false otherwise
      */
     protected open fun shouldTrackOpponentSpeed(): Boolean {
         return true
     }
 
     /**
-     * Called every tick
+     * Called every game tick while the bot is active.
+     *
+     * Updates winstreak from scoreboard, tracks opponent bow usage,
+     * movement direction, strafe patterns, and blink tap logic.
+     * Subclasses can override to add mode-specific tick behavior.
      */
     protected open fun onTick() {
-        // Only run when bot is toggled on to prevent performance issues
         if (!toggled()) return
 
         // Check winstreak from scoreboard once per game when in PLAYING state
@@ -1130,10 +1379,14 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         performPeriodicCleanup()
     }
 
+    /** Timestamp of last memory cleanup */
     private var lastCleanupTime = 0L
 
     /**
-     * Perform periodic cleanup to prevent memory leaks
+     * Performs periodic memory cleanup to prevent leaks.
+     *
+     * Runs every 5 minutes to trim collection sizes and
+     * suggest garbage collection.
      */
     private fun performPeriodicCleanup() {
         val currentTime = System.currentTimeMillis()
@@ -1170,7 +1423,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
 
     /**
-     * Track opponent's bow usage and arrow count
+     * Tracks the opponent's bow usage and arrow count.
+     *
+     * Monitors whether the opponent is holding and drawing a bow,
+     * and counts arrows fired based on draw state transitions.
      */
     private fun trackOpponentBowUsage() {
         if (opponent() == null || mc.theWorld == null) return
@@ -1247,19 +1503,14 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
             lastOpponentBowCheck = currentTime
         }
-
-        // Count arrows in world (alternative method) - DISABLED for performance
-        // This was causing game freeze due to expensive entity iteration every 100ms
-        // val arrowCount = mc.theWorld.loadedEntityList
-        //     .filterIsInstance<EntityArrow>()
-        //     .count { arrow -> 
-        //         // Check if arrow belongs to opponent (rough estimation based on distance)
-        //         opponent()!!.getDistanceToEntity(arrow) < 5.0f
-        //     }
     }
 
     /**
-     * Track opponent's movement direction (approaching or retreating)
+     * Tracks the opponent's movement direction relative to us.
+     *
+     * Uses a history of distance measurements to determine if the opponent
+     * is approaching, retreating, or stationary. Also tracks opponent's
+     * actual movement speed for projectile prediction.
      */
     private fun trackOpponentMovement() {
         if (opponent() == null || mc.thePlayer == null) return
@@ -1378,7 +1629,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Track strafe directions of both players for better projectile prediction
+     * Tracks strafe directions of both players for projectile prediction.
+     *
+     * Calculates lateral movement relative to each player's facing direction
+     * and determines if counter-strafing is occurring (both moving same relative direction).
      */
     private fun trackStrafeMovement() {
         if (opponent() == null || mc.thePlayer == null) return
@@ -1412,7 +1666,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
                 ourStrafeDirection = when {
                     ourStrafeAmount > 0.05 -> 1  // we moving right
-                    ourStrafeAmount < -0.05 -> -1 // we moving left
+                    ourStrafeAmount < -0.05 -> -1 // we're moving left
                     else -> 0 // no significant strafe
                 }
 
@@ -1440,16 +1694,23 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Update blink tap logic - trigger key press when entering specified distance
-     */
-    /**
-     * Override this method in subclasses to disable Blink Tap under certain conditions
+     * Determines whether Blink Tap should be disabled.
+     *
+     * Subclasses can override to disable Blink Tap under specific conditions
+     * (e.g., when using certain abilities or in specific game states).
+     *
      * @return true if Blink Tap should be disabled, false otherwise
      */
     protected open fun shouldDisableBlinkTap(): Boolean {
         return false
     }
 
+    /**
+     * Updates Blink Tap logic - triggers a key press when entering a specified distance.
+     *
+     * Blink Tap is used to activate abilities (e.g., blink/teleport) when first
+     * closing distance with the opponent. Optionally triggers a second press after a delay.
+     */
     private fun updateBlinkTap() {
         if (CatDueller.config?.blinkTap != true) return
 
@@ -1495,32 +1756,45 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
 
+    /** Last recorded hurtTime for the player */
     private var lastPlayerHurtTime = 0
+
+    /** Last recorded hurtTime for the opponent */
     private var lastOpponentHurtTime = 0
 
-
     /**
-     * Called when a packet is received
-     * @param packet The received packet
+     * Called when a network packet is received.
+     *
+     * Subclasses can override to handle specific packets for custom behavior.
+     *
+     * @param packet The received network packet
      * @return true to continue processing, false to stop processing
      */
     protected open fun onPacketReceived(packet: Packet<*>): Boolean {
-        return true  // Default allows continued processing
+        return true
     }
 
+    // ================== Protected Methods ==================
 
-    /********
-     * Protected Methods
-     ********/
-
+    /**
+     * Sets the stat keys for API lookups.
+     * @param keys Map of stat key names to their API identifiers
+     */
     protected fun setStatKeys(keys: Map<String, String>) {
         statKeys = keys
     }
 
-    /********
-     * Base Methods
-     ********/
+    // ================== Packet Handling ==================
 
+    /**
+     * Processes incoming network packets for game events.
+     *
+     * Handles disconnect packets, velocity packets for jump reset,
+     * entity status packets for attack confirmation, and title packets
+     * for game result detection.
+     *
+     * @param packet The received network packet
+     */
     fun onPacket(packet: Packet<*>) {
         if (toggled) {
             when (packet) {
@@ -1890,6 +2164,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         }
     }
 
+    /**
+     * Handles the attack entity event to record attack timing for hit select.
+     * @param ev The attack entity event
+     */
     @SubscribeEvent
     fun onAttackEntityEvent(ev: AttackEntityEvent) {
         if (toggled() && ev.entity == mc.thePlayer) {
@@ -1903,29 +2181,30 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         }
     }
 
+    /**
+     * Handles client tick events for periodic updates and keybind handling.
+     *
+     * Runs at both START and END phases:
+     * - START: Updates hit select and wait for first hit logic
+     * - END: Handles reconnects, lobby sit, movement recorder, and requeue timeout
+     *
+     * @param ev The client tick event
+     */
     @SubscribeEvent
     fun onClientTick(ev: ClientTickEvent) {
-        // Execute hit select updates at tick START to ensure Mouse.leftAC can see updated values immediately
         if (ev.phase == TickEvent.Phase.START) {
-            updateHitSelect() // Update hit select logic at START phase
-            updateWaitForFirstHit() // Update wait for first hit logic at START phase
+            updateHitSelect()
+            updateWaitForFirstHit()
         }
 
-        // Execute other logic at default phase (END)
         if (ev.phase == TickEvent.Phase.END) {
-            // Check scheduled reconnect time first - critical for reconnection
             checkScheduledReconnect()
-
-            // Check big break reconnect time
             checkBigBreakReconnect()
-
-            // Check lobby sit mode
             checkLobbySitMode()
 
             registerPacketListener()
             onTick()
 
-            // Update MovementRecorder every tick
             MovementRecorder.onTick()
 
             if (StateManager.state != StateManager.States.PLAYING) {
@@ -1947,7 +2226,6 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             if (distance > 5 && (combo != 0 || opponentCombo != 0)) {
                 combo = 0
                 opponentCombo = 0
-
             }
         }
 
@@ -1956,22 +2234,25 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             ChatUtils.info("Cat Dueller has been toggled ${if (toggled()) "${EnumChatFormatting.GREEN}on" else "${EnumChatFormatting.RED}off"}")
             if (toggled()) {
                 ChatUtils.info("Current selected bot: ${EnumChatFormatting.GREEN}${getName()}")
-
-                // Disable pause on lost focus to prevent ESC menu from opening
                 disablePauseOnLostFocus()
-
                 joinGame()
             }
         }
     }
 
 
+    /**
+     * Handles chat messages for game state detection and automation features.
+     *
+     * Processes player join messages, game start/end detection, guild/DM dodge,
+     * bot crasher mode, anti-ragebait, and damage statistics parsing.
+     *
+     * @param ev The chat received event
+     */
     @SubscribeEvent
     fun onChat(ev: ClientChatReceivedEvent) {
         val unformatted = ev.message.unformattedText
         val formatted = ev.message.formattedText
-
-
 
         if (toggled() && mc.thePlayer != null) {
 
@@ -2097,6 +2378,14 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         }
     }
 
+    /**
+     * Handles world join events to reset bot state.
+     *
+     * Clears all movements, resets variables, and updates server info
+     * when the player joins a new world.
+     *
+     * @param ev The entity join world event
+     */
     @SubscribeEvent
     fun onJoinWorld(ev: EntityJoinWorldEvent) {
         if (CatDueller.mc.thePlayer != null && ev.entity == CatDueller.mc.thePlayer) {
@@ -2119,6 +2408,14 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         }
     }
 
+    /**
+     * Handles successful server connection events.
+     *
+     * Cancels reconnect timer, sends webhook notification, and starts
+     * queuing for a game after a random delay.
+     *
+     * @param ev The client connected to server event
+     */
     @SubscribeEvent
     fun onConnect(ev: ClientConnectedToServerEvent) {
         if (toggled()) {
@@ -2169,6 +2466,14 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         }
     }
 
+    /**
+     * Handles unexpected disconnection events.
+     *
+     * Attempts to capture the disconnect reason, sends webhook notification,
+     * and schedules reconnection attempts if the bot was enabled.
+     *
+     * @param ev The client disconnection event
+     */
     @SubscribeEvent
     fun onDisconnect(ev: ClientDisconnectionFromServerEvent) {
         println("onDisconnect event triggered - Bot toggled: ${toggled()}")
@@ -2311,10 +2616,14 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         }
     }
 
-    /********
-     * Private Methods
-     ********/
+    // ================== Private Methods ==================
 
+    /**
+     * Resets all game-related variables to their initial state.
+     *
+     * Called when joining a new world or when the game ends.
+     * Clears opponent tracking, combo counts, and resets all flags.
+     */
     private fun resetVars() {
         playersSent.clear()
         calledFoundOpponent = false
@@ -2334,19 +2643,19 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         lastGameWasLoss = false  // Reset loss status
         lastDistanceToOpponent = 999f  // Reset blink tap distance
         blinkTapTriggered = false  // Reset blink tap trigger
-        // Note: sessionBlacklist is NOT cleared here - it persists during the session
-
-        // Reset damage statistics for new game
         damageDealtToOpponent = 0.0
         damageReceivedFromOpponent = 0.0
 
-        // Reset mouse states to prevent NPE during game transitions
         Mouse.resetAllStates()
-
     }
 
     /**
-     * Check for damage statistics messages in chat (Classic bot only)
+     * Parses damage statistics from chat messages.
+     *
+     * Extracts damage dealt and received values from the game end summary
+     * for webhook reporting. Only used by Classic bot.
+     *
+     * @param message The chat message to parse
      */
     private fun checkDamageStatistics(message: String) {
         try {
@@ -2377,10 +2686,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Check and sync winstreak from scoreboard
+     * Synchronizes the local winstreak with the scoreboard value.
+     *
+     * Reads the "Overall Winstreak" from the sidebar scoreboard and updates
+     * the local winstreak if different. May trigger clip losses if configured.
      */
     private fun checkWinstreakFromScoreboard() {
-
         val scoreboard = mc.theWorld?.scoreboard ?: return
         val objective = scoreboard.getObjectiveInDisplaySlot(1) ?: return // Sidebar
 
@@ -2432,7 +2743,11 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Generate random keyboard spam
+     * Generates random alphanumeric characters for message uniqueness.
+     *
+     * Used to append random text to guild messages to avoid spam detection.
+     *
+     * @return A random string of 5-12 alphanumeric characters
      */
     private fun generateRandomKeyboardSpam(): String {
         val chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -2443,7 +2758,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Update current server from scoreboard - now called only once after joining world
+     * Extracts the current server ID from the sidebar scoreboard.
+     *
+     * Parses the scoreboard to find the server identifier (e.g., "m182BH")
+     * for guild dodge and DM dodge functionality.
      */
     private fun updateCurrentServerFromScoreboard() {
         val scoreboard = mc.theWorld?.scoreboard ?: return
@@ -2483,14 +2801,15 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Check if GUI is open (chat, ESC menu, etc.)
+     * Checks if any GUI screen is currently open.
+     * @return true if a GUI is open, false otherwise
      */
     private fun isGuiOpen(): Boolean {
         return mc.currentScreen != null
     }
 
     /**
-     * Force send requeue command, works even when GUI is open
+     * Force sends the requeue command regardless of current state.
      */
     private fun forceRequeue() {
         try {
@@ -2502,7 +2821,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Check if player is in blacklist (either config or session)
+     * Checks if a player is on the blacklist.
+     *
+     * Checks both the session blacklist (auto-added from losses) and
+     * the config blacklist (manually configured).
+     *
+     * @param playerName The player name to check
+     * @return true if the player is blacklisted, false otherwise
      */
     private fun isPlayerBlacklisted(playerName: String): Boolean {
         // Check session blacklist (auto-added players)
@@ -2516,7 +2841,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Add player to session blacklist (temporary, not saved to config)
+     * Adds a player to the session blacklist.
+     *
+     * Session blacklist is temporary and cleared on manual toggle off.
+     * Limited to 100 entries to prevent memory issues.
+     *
+     * @param playerName The player name to add
      */
     private fun addPlayerToSessionBlacklist(playerName: String) {
         if (playerName.isBlank()) return
@@ -2536,7 +2866,11 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Simulate key press using Robot
+     * Simulates a key press using Java's Robot class.
+     *
+     * Used for triggering external mod keybinds (e.g., blatant mode, clipping).
+     *
+     * @param keyName The name of the key to press (e.g., "F8", "Q")
      */
     protected fun simulateKeyPress(keyName: String) {
         try {
@@ -2559,7 +2893,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Convert key name to KeyEvent code
+     * Converts a key name string to its corresponding KeyEvent code.
+     *
+     * @param keyName The name of the key (e.g., "F1", "SPACE", "Q")
+     * @return The KeyEvent constant, or -1 if not found
      */
     protected fun getKeyCodeFromName(keyName: String): Int {
         return when (keyName.uppercase()) {
@@ -2612,7 +2949,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Handle guild dodge messages
+     * Handles guild chat messages for dodge functionality.
+     *
+     * Parses guild messages containing server IDs and compares with
+     * the current server. If matched, requeues to avoid the game.
+     *
+     * @param message The chat message to process
      */
     private fun handleGuildDodge(message: String) {
         try {
@@ -2708,7 +3050,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Handle DM dodge messages
+     * Handles direct message chat for dodge functionality.
+     *
+     * Parses DMs containing server IDs and compares with the current server.
+     * If matched, requeues to avoid the game. Also handles auto-reply.
+     *
+     * @param message The chat message to process
      */
     private fun handleDMDodge(message: String) {
         try {
@@ -2818,6 +3165,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         }
     }
 
+    /**
+     * Handles the game start event.
+     *
+     * Sends the start message, begins opponent entity polling,
+     * and calls [onGameStart] for subclass handling.
+     */
     private fun gameStart() {
         beforeStartTime = 0L
 
@@ -3763,7 +4116,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      * Responds to ": L" or ": l" messages with random L spam
      */
     private fun handleAntiRagebait(message: String) {
-        // Check if message ends with ": L" or ": l" (case sensitive, no trailing characters)
+        // Check if message ends with ": L" or ": l" (case-sensitive, no trailing characters)
         if (message.endsWith(": L") || message.endsWith(": l")) {
             // Generate random number of L's between 3 and 10
             val lCount = RandomUtils.randomIntInRange(3, 10)
