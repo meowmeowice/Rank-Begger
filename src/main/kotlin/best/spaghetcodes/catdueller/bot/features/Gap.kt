@@ -3,9 +3,9 @@ package best.spaghetcodes.catdueller.bot.features
 import best.spaghetcodes.catdueller.bot.player.Inventory
 import best.spaghetcodes.catdueller.bot.player.Mouse
 import best.spaghetcodes.catdueller.bot.player.Movement
-import best.spaghetcodes.catdueller.utils.ChatUtils
-import best.spaghetcodes.catdueller.utils.RandomUtils
-import best.spaghetcodes.catdueller.utils.TimeUtils
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 
 /**
  * Interface providing golden apple (gap) consumption functionality.
@@ -44,31 +44,31 @@ interface Gap {
         fun gap() {
             Mouse.stopLeftAC()
             if (Inventory.setInvItem("gold")) {
-                ChatUtils.info("About to gap")
-                val r = RandomUtils.randomIntInRange(2100, 2200)
+                ChatUtil.info("About to gap")
+                val r = RandomUtil.randomIntInRange(2100, 2200)
                 Mouse.rClick(r)
 
-                TimeUtils.setTimeout(fun() {
+                TimerUtil.setTimeout(fun() {
                     Inventory.setInvItem("sword")
 
-                    TimeUtils.setTimeout(fun() {
+                    TimerUtil.setTimeout(fun() {
                         Mouse.setRunningAway(false)
-                    }, RandomUtils.randomIntInRange(40, 70))
-                }, r + RandomUtils.randomIntInRange(40, 70))
+                    }, RandomUtil.randomIntInRange(40, 70))
+                }, r + RandomUtil.randomIntInRange(40, 70))
             }
         }
 
         val time = when (distance) {
-            in 0f..7f -> RandomUtils.randomIntInRange(2200, 2600)
-            in 7f..15f -> RandomUtils.randomIntInRange(1700, 2200)
-            else -> RandomUtils.randomIntInRange(1400, 1700)
+            in 0f..7f -> RandomUtil.randomIntInRange(2200, 2600)
+            in 7f..15f -> RandomUtil.randomIntInRange(1700, 2200)
+            else -> RandomUtil.randomIntInRange(1400, 1700)
         }
         if (run && !facingAway) {
             Mouse.setUsingProjectile(false)
             Mouse.setRunningAway(true)
             Movement.startJumping()
 
-            TimeUtils.setTimeout(fun() { gap() }, time)
+            TimerUtil.setTimeout(fun() { gap() }, time)
         } else {
             gap()
         }

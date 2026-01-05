@@ -1,10 +1,10 @@
 package best.spaghetcodes.catdueller.bot.player
 
 import best.spaghetcodes.catdueller.CatDueller
-import best.spaghetcodes.catdueller.utils.ChatUtils
-import best.spaghetcodes.catdueller.utils.EntityUtils
-import best.spaghetcodes.catdueller.utils.RandomUtils
-import best.spaghetcodes.catdueller.utils.TimeUtils
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.game.EntityUtil
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 import net.minecraft.client.Minecraft
 import net.minecraft.client.settings.KeyBinding
 import net.minecraft.entity.Entity
@@ -36,7 +36,7 @@ object Mouse {
         try {
             Robot()
         } catch (e: Exception) {
-            ChatUtils.info("Failed to initialize Robot in Mouse: ${e.message}")
+            ChatUtil.info("Failed to initialize Robot in Mouse: ${e.message}")
             null
         }
     }
@@ -92,7 +92,7 @@ object Mouse {
                 arrayOf("clickMouse", "func_147116_af")
             ).apply { isAccessible = true }
         } catch (e: Exception) {
-            ChatUtils.error("Failed to find clickMouse method: ${e.message}")
+            ChatUtil.error("Failed to find clickMouse method: ${e.message}")
             null
         }
     }
@@ -105,7 +105,7 @@ object Mouse {
         try {
             clickMouseMethod?.invoke(Minecraft.getMinecraft())
         } catch (e: Exception) {
-            ChatUtils.error("Failed to invoke clickMouse: ${e.message}")
+            ChatUtil.error("Failed to invoke clickMouse: ${e.message}")
             CatDueller.mc.thePlayer.swingItem()
             KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindAttack.keyCode, true)
             if (CatDueller.mc.objectMouseOver != null && CatDueller.mc.objectMouseOver.entityHit != null) {
@@ -128,11 +128,11 @@ object Mouse {
             if (CatDueller.bot?.canSwing() == true) {
                 invokeClickMouse()
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("leftClick() executed")
+                    ChatUtil.combatInfo("leftClick() executed")
                 }
             } else {
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("leftClick() blocked - canSwing() returned false")
+                    ChatUtil.combatInfo("leftClick() blocked - canSwing() returned false")
                 }
             }
         } else {
@@ -143,7 +143,7 @@ object Mouse {
                     mc.thePlayer.isUsingItem -> "player is using item"
                     else -> "unknown reason"
                 }
-                ChatUtils.combatInfo("leftClick() blocked - $reason")
+                ChatUtil.combatInfo("leftClick() blocked - $reason")
             }
         }
     }
@@ -157,7 +157,7 @@ object Mouse {
         if (CatDueller.bot?.toggled() == true) {
             if (!rClickDown) {
                 rClickDown()
-                TimeUtils.setTimeout(this::rClickUp, duration)
+                TimerUtil.setTimeout(this::rClickUp, duration)
             }
         }
     }
@@ -170,7 +170,7 @@ object Mouse {
         if (CatDueller.bot?.toggled() == true) {
             leftAC = true
             tickCounter = 0
-            ChatUtils.combatInfo("Started leftAC")
+            ChatUtil.combatInfo("Started leftAC")
         }
     }
 
@@ -192,7 +192,7 @@ object Mouse {
             if (!isHoldingClick) {
                 isHoldingClick = true
                 robot?.mousePress(InputEvent.BUTTON1_DOWN_MASK)
-                ChatUtils.combatInfo("Started holding left click")
+                ChatUtil.combatInfo("Started holding left click")
             }
         }
     }
@@ -204,7 +204,7 @@ object Mouse {
         if (isHoldingClick) {
             isHoldingClick = false
             robot?.mouseRelease(InputEvent.BUTTON1_DOWN_MASK)
-            ChatUtils.combatInfo("Stopped holding left click")
+            ChatUtil.combatInfo("Stopped holding left click")
         }
     }
 
@@ -216,7 +216,7 @@ object Mouse {
         if (isHoldingRightClick) {
             isHoldingRightClick = false
             robot?.mouseRelease(InputEvent.BUTTON3_DOWN_MASK)
-            ChatUtils.combatInfo("Stopped holding right click")
+            ChatUtil.combatInfo("Stopped holding right click")
         }
     }
 
@@ -342,7 +342,7 @@ object Mouse {
         gameEndTargetPitch = 0f
 
         val currentYaw = CatDueller.mc.thePlayer.rotationYaw
-        val yawOffset = if (RandomUtils.randomBool()) 45f else -45f
+        val yawOffset = if (RandomUtil.randomBool()) 45f else -45f
         gameEndTargetYaw = currentYaw + yawOffset
     }
 
@@ -437,7 +437,7 @@ object Mouse {
                     val targetCPS = CatDueller.config?.cps?.toDouble() ?: 12.0
                     val baseProbability = targetCPS / 20.0
                     val variance = 0.10
-                    val randomFactor = 1.0 + RandomUtils.randomDoubleInRange(-variance, variance)
+                    val randomFactor = 1.0 + RandomUtil.randomDoubleInRange(-variance, variance)
                     val finalProbability = (baseProbability * randomFactor).coerceIn(0.0, 1.0)
 
                     if (Math.random() < finalProbability) {
@@ -445,7 +445,7 @@ object Mouse {
                         lastLeftClick = System.currentTimeMillis()
 
                         if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo(
+                            ChatUtil.combatInfo(
                                 "Tick START click: probability=${
                                     String.format(
                                         "%.3f",
@@ -494,7 +494,7 @@ object Mouse {
         if (targetEntity == null) return 0.0
 
         val player = CatDueller.mc.thePlayer ?: return 0.0
-        val rotations = EntityUtils.getRotations(player, targetEntity, false) ?: return 0.0
+        val rotations = EntityUtil.getRotations(player, targetEntity, false) ?: return 0.0
 
         val currentYaw = player.rotationYaw
         val currentPitch = player.rotationPitch
@@ -520,20 +520,20 @@ object Mouse {
             _usingProjectile = false
         }
 
-        var rotations = EntityUtils.getRotations(CatDueller.mc.thePlayer, CatDueller.bot?.opponent(), false)
+        var rotations = EntityUtil.getRotations(CatDueller.mc.thePlayer, CatDueller.bot?.opponent(), false)
 
         if (rotations != null) {
             if (_runningAway) {
                 if (runningRotations == null) {
                     runningRotations = rotations
-                    runningRotations!![0] += 180 + RandomUtils.randomDoubleInRange(-5.0, 5.0).toFloat()
+                    runningRotations!![0] += 180 + RandomUtil.randomDoubleInRange(-5.0, 5.0).toFloat()
                 }
                 rotations = runningRotations!!
             }
 
             if (_usingPotion) {
                 if (splashAim == 0.0) {
-                    splashAim = RandomUtils.randomDoubleInRange(80.0, 90.0)
+                    splashAim = RandomUtil.randomDoubleInRange(80.0, 90.0)
                 }
                 rotations[1] = splashAim.toFloat()
             } else if (!_usingProjectile && CatDueller.config?.verticalMultipoint == true) {
@@ -560,11 +560,11 @@ object Mouse {
             }
 
             val lookRand = (CatDueller.config?.lookRand ?: 0).toDouble()
-            var dyaw = ((rotations[0] - CatDueller.mc.thePlayer.rotationYaw) + RandomUtils.randomDoubleInRange(
+            var dyaw = ((rotations[0] - CatDueller.mc.thePlayer.rotationYaw) + RandomUtil.randomDoubleInRange(
                 -lookRand,
                 lookRand
             )).toFloat()
-            var dpitch = ((rotations[1] - CatDueller.mc.thePlayer.rotationPitch) + RandomUtils.randomDoubleInRange(
+            var dpitch = ((rotations[1] - CatDueller.mc.thePlayer.rotationPitch) + RandomUtil.randomDoubleInRange(
                 -lookRand,
                 lookRand
             )).toFloat()
@@ -573,7 +573,7 @@ object Mouse {
             val distanceFactor = if (_runningAway || _usingPotion || opponent == null) {
                 1.0f
             } else {
-                when (EntityUtils.getDistanceNoY(CatDueller.mc.thePlayer, opponent)) {
+                when (EntityUtil.getDistanceNoY(CatDueller.mc.thePlayer, opponent)) {
                     in 0f..10f -> 1.0f
                     in 10f..20f -> 0.6f
                     in 20f..30f -> 0.4f
@@ -627,7 +627,7 @@ object Mouse {
             }
 
             if (CatDueller.config?.combatLogs == true && (abs(dyaw) > 0.1f || abs(dpitch) > 0.1f)) {
-                ChatUtils.combatInfo(
+                ChatUtil.combatInfo(
                     "Immediate Mode - dyaw: ${
                         String.format(
                             "%.2f",

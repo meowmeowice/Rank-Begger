@@ -1,8 +1,8 @@
 package best.spaghetcodes.catdueller.commands
 
 import best.spaghetcodes.catdueller.CatDueller
-import best.spaghetcodes.catdueller.bot.Session
-import best.spaghetcodes.catdueller.utils.ChatUtils
+import best.spaghetcodes.catdueller.bot.state.Session
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
 import gg.essential.api.EssentialAPI
 import gg.essential.api.commands.Command
 import gg.essential.api.commands.DefaultHandler
@@ -23,10 +23,10 @@ class ConfigCommand : Command("CatDueller") {
      */
     @DefaultHandler
     fun handle() {
-        ChatUtils.info("CatDueller Commands:")
-        ChatUtils.info("/catdueller - Open config GUI")
-        ChatUtils.info("/catdueller session [reset|show] - Manage session statistics")
-        ChatUtils.info("Opening config GUI...")
+        ChatUtil.info("CatDueller Commands:")
+        ChatUtil.info("/catdueller - Open config GUI")
+        ChatUtil.info("/catdueller session [reset|show] - Manage session statistics")
+        ChatUtil.info("Opening config GUI...")
         EssentialAPI.getGuiUtil().openScreen(CatDueller.config?.gui())
     }
 
@@ -47,7 +47,7 @@ class ConfigCommand : Command("CatDueller") {
             }
 
             else -> {
-                ChatUtils.info("Usage: /catdueller session [reset|show]")
+                ChatUtil.info("Usage: /catdueller session [reset|show]")
             }
         }
     }
@@ -61,7 +61,7 @@ class ConfigCommand : Command("CatDueller") {
         Session.wins = 0
         Session.losses = 0
         Session.startTime = System.currentTimeMillis()
-        ChatUtils.info("Session statistics have been reset!")
+        ChatUtil.info("Session statistics have been reset!")
     }
 
     /**
@@ -84,6 +84,6 @@ class ConfigCommand : Command("CatDueller") {
             0
         }
 
-        ChatUtils.info(Session.getSession(winstreak))
+        ChatUtil.info(Session.getSession(winstreak))
     }
 }

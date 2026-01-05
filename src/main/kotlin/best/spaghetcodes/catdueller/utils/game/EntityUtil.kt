@@ -1,19 +1,15 @@
-package best.spaghetcodes.catdueller.utils
+package best.spaghetcodes.catdueller.utils.game
 
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.player.Mouse
-import best.spaghetcodes.catdueller.utils.Extensions.getVelocity
-import best.spaghetcodes.catdueller.utils.Extensions.scale
+import best.spaghetcodes.catdueller.utils.game.ExtensionUtil.getVelocity
+import best.spaghetcodes.catdueller.utils.game.ExtensionUtil.scale
 import net.minecraft.entity.Entity
 import net.minecraft.entity.player.EntityPlayer
 import net.minecraft.potion.Potion
 import net.minecraft.util.MathHelper
 import net.minecraft.util.Vec3
-import kotlin.math.abs
-import kotlin.math.acos
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
+import kotlin.math.*
 
 /**
  * Utility object for entity-related calculations and operations.
@@ -21,7 +17,7 @@ import kotlin.math.sin
  * Provides methods for finding opponent entities, calculating rotations needed
  * to aim at targets, computing distances, and determining entity movement directions.
  */
-object EntityUtils {
+object EntityUtil {
 
     /**
      * Finds the opponent player entity in the current world.
@@ -172,7 +168,7 @@ object EntityUtils {
                     // For bow/rod, use actual velocity but apply prediction compensation
                     val actualVelocity = target.getVelocity()
                     val currentSpeed =
-                        kotlin.math.sqrt(actualVelocity.xCoord * actualVelocity.xCoord + actualVelocity.zCoord * actualVelocity.zCoord)
+                        sqrt(actualVelocity.xCoord * actualVelocity.xCoord + actualVelocity.zCoord * actualVelocity.zCoord)
 
                     // Check if we're using bow or rod for different speed calculations
                     val isUsingBow =
@@ -185,7 +181,7 @@ object EntityUtils {
                         val trackedSpeed = CatDueller.bot?.opponentActualSpeed ?: 0.13f
                         if (currentSpeed > 0.005) {  // If target is moving (threshold to avoid micro-movements)
                             // Moving target: no minimum, maximum 0.15 speed
-                            kotlin.math.min(trackedSpeed, 0.15f)
+                            min(trackedSpeed, 0.15f)
                         } else {
                             // Stationary target: no prediction (0.0 speed)
                             0.0f

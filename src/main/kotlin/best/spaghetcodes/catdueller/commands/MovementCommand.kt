@@ -1,7 +1,7 @@
 package best.spaghetcodes.catdueller.commands
 
-import best.spaghetcodes.catdueller.bot.MovementRecorder
-import best.spaghetcodes.catdueller.utils.ChatUtils
+import best.spaghetcodes.catdueller.bot.player.MovementRecorder
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
 import gg.essential.api.commands.Command
 import gg.essential.api.commands.DefaultHandler
 import gg.essential.api.commands.SubCommand
@@ -21,11 +21,11 @@ class MovementCommand : Command("movement") {
      */
     @DefaultHandler
     fun handle() {
-        ChatUtils.info("Lobby Movement Recording Commands:")
-        ChatUtils.info("/movement record - Enable auto record lobby movement")
-        ChatUtils.info("/movement stop - Disable auto record lobby movement")
-        ChatUtils.info("/movement list - List all recorded patterns")
-        ChatUtils.info("/movement delete <name> - Delete a pattern")
+        ChatUtil.info("Lobby Movement Recording Commands:")
+        ChatUtil.info("/movement record - Enable auto record lobby movement")
+        ChatUtil.info("/movement stop - Disable auto record lobby movement")
+        ChatUtil.info("/movement list - List all recorded patterns")
+        ChatUtil.info("/movement delete <name> - Delete a pattern")
     }
 
     /**
@@ -46,7 +46,7 @@ class MovementCommand : Command("movement") {
     @SubCommand("delete")
     fun deletePattern(name: String) {
         if (name.isBlank()) {
-            ChatUtils.info("Please provide a pattern name to delete!")
+            ChatUtil.info("Please provide a pattern name to delete!")
             return
         }
 

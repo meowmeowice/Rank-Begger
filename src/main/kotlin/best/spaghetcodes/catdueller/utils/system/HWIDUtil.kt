@@ -1,5 +1,6 @@
-package best.spaghetcodes.catdueller.utils
+package best.spaghetcodes.catdueller.utils.system
 
+import best.spaghetcodes.catdueller.utils.system.HWIDUtil.FALLBACK_ID
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
@@ -18,7 +19,7 @@ import java.util.regex.Pattern
  * This implementation is based on the node-machine-id functionality and
  * formats the ID as a UUID-compatible string.
  */
-object MachineID {
+object HWIDUtil {
 
     /** Fallback UUID used when the machine ID cannot be retrieved. */
     private const val FALLBACK_ID = "0ed5c84c-3e16-4c44-927d-2d76d5cac79d"
@@ -43,7 +44,7 @@ object MachineID {
             if (rawId.isNullOrEmpty()) {
                 FALLBACK_ID
             } else {
-                formatAsCubelifyId(rawId)
+                formatMachineId(rawId)
             }
         } catch (_: Exception) {
             FALLBACK_ID
@@ -147,7 +148,7 @@ object MachineID {
      * @param rawId The raw machine ID string to format.
      * @return The formatted UUID string.
      */
-    private fun formatAsCubelifyId(rawId: String): String {
+    private fun formatMachineId(rawId: String): String {
         var hex = rawId.replace("-", "").lowercase()
 
         hex = if (hex.length < 32) {

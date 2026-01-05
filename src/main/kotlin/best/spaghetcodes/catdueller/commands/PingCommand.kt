@@ -1,7 +1,7 @@
 package best.spaghetcodes.catdueller.commands
 
 import best.spaghetcodes.catdueller.CatDueller
-import best.spaghetcodes.catdueller.utils.ChatUtils
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
 import gg.essential.api.commands.Command
 import gg.essential.api.commands.DefaultHandler
 
@@ -26,13 +26,13 @@ class PingCommand : Command("ping") {
             val pingStatus = bot.getPingStatus()
             val ping = bot.getServerPing()
 
-            ChatUtils.info("Current ping: $pingStatus")
+            ChatUtil.info("Current ping: $pingStatus")
 
             if (!(ping >= 0)) {
-                ChatUtils.info("Cant get ping")
+                ChatUtil.info("Cant get ping")
             }
         } else {
-            ChatUtils.info("Bot is not initialized")
+            ChatUtil.info("Bot is not initialized")
         }
     }
 }

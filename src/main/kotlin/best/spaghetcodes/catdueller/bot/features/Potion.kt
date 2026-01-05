@@ -2,9 +2,9 @@ package best.spaghetcodes.catdueller.bot.features
 
 import best.spaghetcodes.catdueller.bot.player.Inventory
 import best.spaghetcodes.catdueller.bot.player.Mouse
-import best.spaghetcodes.catdueller.utils.ChatUtils
-import best.spaghetcodes.catdueller.utils.RandomUtils
-import best.spaghetcodes.catdueller.utils.TimeUtils
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 
 /**
  * Interface providing potion usage functionality for combat healing.
@@ -35,35 +35,35 @@ interface Potion {
         fun pot(dmg: Int) {
             Mouse.stopLeftAC()
             if (Inventory.setInvItemByDamage(dmg)) {
-                ChatUtils.info("About to splash $dmg")
-                TimeUtils.setTimeout(fun() {
+                ChatUtil.info("About to splash $dmg")
+                TimerUtil.setTimeout(fun() {
                     Mouse.setUsingPotion(true)
 
-                    TimeUtils.setTimeout(fun() {
-                        val r = RandomUtils.randomIntInRange(80, 120)
+                    TimerUtil.setTimeout(fun() {
+                        val r = RandomUtil.randomIntInRange(80, 120)
                         Mouse.rClick(r)
 
-                        TimeUtils.setTimeout(fun() {
+                        TimerUtil.setTimeout(fun() {
                             Mouse.setUsingPotion(false)
-                            TimeUtils.setTimeout(fun() {
+                            TimerUtil.setTimeout(fun() {
                                 Inventory.setInvItem("sword")
 
-                                TimeUtils.setTimeout(fun() {
+                                TimerUtil.setTimeout(fun() {
                                     Mouse.setRunningAway(false)
-                                }, RandomUtils.randomIntInRange(500, 700))
-                            }, RandomUtils.randomIntInRange(80, 120))
-                        }, r + RandomUtils.randomIntInRange(80, 120))
-                    }, RandomUtils.randomIntInRange(100, 200))
-                }, RandomUtils.randomIntInRange(50, 100))
+                                }, RandomUtil.randomIntInRange(500, 700))
+                            }, RandomUtil.randomIntInRange(80, 120))
+                        }, r + RandomUtil.randomIntInRange(80, 120))
+                    }, RandomUtil.randomIntInRange(100, 200))
+                }, RandomUtil.randomIntInRange(50, 100))
             }
         }
 
         if (run && !facingAway) {
             Mouse.setUsingProjectile(false)
             Mouse.setRunningAway(true)
-            TimeUtils.setTimeout(fun() {
+            TimerUtil.setTimeout(fun() {
                 pot(damage)
-            }, RandomUtils.randomIntInRange(300, 500))
+            }, RandomUtil.randomIntInRange(300, 500))
         } else {
             pot(damage)
         }
@@ -84,28 +84,28 @@ interface Potion {
         fun pot(dmg: Int) {
             Mouse.stopLeftAC()
             if (Inventory.setInvItemByDamage(dmg)) {
-                ChatUtils.info("About to use $dmg")
-                TimeUtils.setTimeout(fun() {
-                    val r = RandomUtils.randomIntInRange(1900, 2050)
+                ChatUtil.info("About to use $dmg")
+                TimerUtil.setTimeout(fun() {
+                    val r = RandomUtil.randomIntInRange(1900, 2050)
                     Mouse.rClick(r)
-                    TimeUtils.setTimeout(fun() {
+                    TimerUtil.setTimeout(fun() {
                         Inventory.setInvItem("sword")
-                        TimeUtils.setTimeout(fun() {
+                        TimerUtil.setTimeout(fun() {
                             Mouse.setRunningAway(false)
-                        }, RandomUtils.randomIntInRange(500, 700))
-                    }, r + RandomUtils.randomIntInRange(80, 120))
-                }, RandomUtils.randomIntInRange(200, 400))
+                        }, RandomUtil.randomIntInRange(500, 700))
+                    }, r + RandomUtil.randomIntInRange(80, 120))
+                }, RandomUtil.randomIntInRange(200, 400))
             } else {
-                ChatUtils.error("No $dmg potion in inventory")
+                ChatUtil.error("No $dmg potion in inventory")
             }
         }
 
         if (run && !facingAway) {
             Mouse.setUsingProjectile(false)
             Mouse.setRunningAway(true)
-            TimeUtils.setTimeout(fun() {
+            TimerUtil.setTimeout(fun() {
                 pot(damage)
-            }, RandomUtils.randomIntInRange(300, 500))
+            }, RandomUtil.randomIntInRange(300, 500))
         } else {
             pot(damage)
         }

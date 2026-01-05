@@ -1,7 +1,7 @@
-package best.spaghetcodes.catdueller.utils
+package best.spaghetcodes.catdueller.utils.game
 
 import best.spaghetcodes.catdueller.CatDueller
-import best.spaghetcodes.catdueller.events.packet.PacketEvent
+import best.spaghetcodes.catdueller.events.PacketEvent
 import net.minecraft.client.Minecraft
 import net.minecraft.network.play.server.S2APacketParticles
 import net.minecraft.util.EnumParticleTypes
@@ -16,7 +16,7 @@ import kotlin.math.sqrt
  * Used for detecting combat-related particles such as hit indicators, critical hits,
  * and other server-spawned effects that may require dodge responses.
  */
-object ParticleDetector {
+object ParticleUtil {
 
     /** Thread-safe map storing recent particles with their spawn timestamps. */
     private val recentParticles = ConcurrentHashMap<ParticleInfo, Long>()
@@ -85,6 +85,7 @@ object ParticleDetector {
                             particleType = value
                             if (debugMode) println("[ParticleDetector]     -> Particle type: ${value.particleName}")
                         }
+
                         value is String && particleType == null -> {
                             particleType = try {
                                 EnumParticleTypes.values().find {
@@ -97,6 +98,7 @@ object ParticleDetector {
                                 println("[ParticleDetector]     -> Particle type from string: ${particleType.particleName}")
                             }
                         }
+
                         value is Float || value is Double -> {
                             val doubleValue = when (value) {
                                 is Float -> value.toDouble()

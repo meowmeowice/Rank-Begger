@@ -1,7 +1,7 @@
 package best.spaghetcodes.catdueller.core
 
-import best.spaghetcodes.catdueller.utils.ChatUtils
-import best.spaghetcodes.catdueller.utils.MachineID
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
+import best.spaghetcodes.catdueller.utils.system.HWIDUtil
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -61,19 +61,19 @@ object HWIDLock {
             println("[HWIDLock] Authorization result: $isAuthorized")
 
             if (isAuthorized) {
-                ChatUtils.info("HWID verification successful")
+                ChatUtil.info("HWID verification successful")
                 println("[HWIDLock] HWID verification successful")
             } else {
-                ChatUtils.info("HWID verification failed")
-                ChatUtils.info("Your HWID: $currentHWID")
-                ChatUtils.error("This module is not authorized for your hardware")
+                ChatUtil.info("HWID verification failed")
+                ChatUtil.info("Your HWID: $currentHWID")
+                ChatUtil.error("This module is not authorized for your hardware")
                 println("[HWIDLock] HWID verification failed - HWID: $currentHWID")
             }
 
             return isAuthorized
         } catch (e: Exception) {
             val errorMsg = "HWID verification error: ${e.message}"
-            ChatUtils.error(errorMsg)
+            ChatUtil.error(errorMsg)
             println("[HWIDLock] $errorMsg")
             e.printStackTrace()
             return false
@@ -109,20 +109,20 @@ object HWIDLock {
     private fun generateHWID(): String {
         try {
             println("[HWIDLock] Generating HWID using MachineID utility...")
-            val machineId = MachineID.getMachineId()
+            val machineId = HWIDUtil.getMachineId()
             println("[HWIDLock] MachineID generated: $machineId")
 
             val hwid = machineId.uppercase()
 
-            ChatUtils.info("Using cross-platform Machine ID as HWID")
+            ChatUtil.info("Using cross-platform Machine ID as HWID")
             println("[HWIDLock] Final HWID: $hwid")
 
             return hwid
         } catch (e: Exception) {
             val errorMsg = "Error getting Machine ID: ${e.message}"
-            ChatUtils.error(errorMsg)
-            ChatUtils.error("Machine ID generation failed")
-            ChatUtils.error("Please contact support")
+            ChatUtil.error(errorMsg)
+            ChatUtil.error("Machine ID generation failed")
+            ChatUtil.error("Please contact support")
             println("[HWIDLock] $errorMsg")
             e.printStackTrace()
 
@@ -144,7 +144,7 @@ object HWIDLock {
     private fun checkHWIDAuthorization(hwid: String): Boolean {
         if (hwid.startsWith("HWID_ERROR")) {
             println("[HWIDLock] HWID generation failed - denying access")
-            ChatUtils.error("HWID generation failed - cannot verify authorization")
+            ChatUtil.error("HWID generation failed - cannot verify authorization")
             return false
         }
 
@@ -157,12 +157,12 @@ object HWIDLock {
         val isInEmergencyList = EMERGENCY_LOCAL_WHITELIST.contains(hwid.uppercase())
         if (isInEmergencyList) {
             println("[HWIDLock] HWID found in emergency local whitelist")
-            ChatUtils.info("Using emergency local whitelist - online verification failed")
+            ChatUtil.info("Using emergency local whitelist - online verification failed")
             return true
         }
 
         println("[HWIDLock] All whitelist checks failed - access denied")
-        ChatUtils.error("Cannot connect to whitelist server and HWID not in emergency list - access denied")
+        ChatUtil.error("Cannot connect to whitelist server and HWID not in emergency list - access denied")
         return false
     }
 

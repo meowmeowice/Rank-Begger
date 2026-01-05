@@ -3,8 +3,8 @@ package best.spaghetcodes.catdueller.bot.features
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.player.Inventory
 import best.spaghetcodes.catdueller.bot.player.Mouse
-import best.spaghetcodes.catdueller.utils.RandomUtils
-import best.spaghetcodes.catdueller.utils.TimeUtils
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 import net.minecraft.client.Minecraft
 
 /**
@@ -48,20 +48,20 @@ interface Rod {
         Mouse.setUsingProjectile(true)
         CatDueller.bot?.isDefensiveRod = isDefensive
 
-        TimeUtils.setTimeout(fun() {
+        TimerUtil.setTimeout(fun() {
             Inventory.setInvItem("sword")
-            TimeUtils.setTimeout(fun() {
+            TimerUtil.setTimeout(fun() {
                 Inventory.setInvItem("rod")
-                TimeUtils.setTimeout(fun() {
-                    val r = RandomUtils.randomIntInRange(100, 200)
+                TimerUtil.setTimeout(fun() {
+                    val r = RandomUtil.randomIntInRange(100, 200)
                     Mouse.rClick(r)
 
-                    CatDueller.bot?.rodRetractTimeout = TimeUtils.setTimeout(fun() {
+                    CatDueller.bot?.rodRetractTimeout = TimerUtil.setTimeout(fun() {
                         retractRod()
-                    }, r + RandomUtils.randomIntInRange(100, 200))
-                }, RandomUtils.randomIntInRange(50, 90))
-            }, RandomUtils.randomIntInRange(30, 60))
-        }, RandomUtils.randomIntInRange(10, 30))
+                    }, r + RandomUtil.randomIntInRange(100, 200))
+                }, RandomUtil.randomIntInRange(50, 90))
+            }, RandomUtil.randomIntInRange(30, 60))
+        }, RandomUtil.randomIntInRange(10, 30))
     }
 
     /**
@@ -83,9 +83,9 @@ interface Rod {
         val wasTracking = Mouse.isTracking()
         if (wasTracking) {
             Mouse.stopTracking()
-            TimeUtils.setTimeout({
+            TimerUtil.setTimeout({
                 Mouse.startTracking()
-            }, RandomUtils.randomIntInRange(100, 200))
+            }, RandomUtil.randomIntInRange(100, 200))
         }
 
         CatDueller.bot?.rodRetractTimeout = null

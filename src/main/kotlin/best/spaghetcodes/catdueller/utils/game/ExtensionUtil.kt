@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.utils
+package best.spaghetcodes.catdueller.utils.game
 
 import net.minecraft.entity.Entity
 import net.minecraft.util.Vec3
@@ -9,7 +9,7 @@ import net.minecraft.util.Vec3
  * Provides additional utility methods for Vec3 and Entity classes
  * to simplify common vector and entity operations.
  */
-object Extensions {
+object ExtensionUtil {
 
     /**
      * Scales all components of this vector by the given factor.

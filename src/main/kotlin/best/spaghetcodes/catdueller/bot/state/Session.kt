@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.bot
+package best.spaghetcodes.catdueller.bot.state
 
 import net.minecraft.util.EnumChatFormatting
 import java.math.RoundingMode

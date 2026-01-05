@@ -2,13 +2,17 @@ package best.spaghetcodes.catdueller.bot.impl
 
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.BotBase
-import best.spaghetcodes.catdueller.bot.StateManager
 import best.spaghetcodes.catdueller.bot.features.MovePriority
 import best.spaghetcodes.catdueller.bot.player.Combat
 import best.spaghetcodes.catdueller.bot.player.Inventory
 import best.spaghetcodes.catdueller.bot.player.Mouse
 import best.spaghetcodes.catdueller.bot.player.Movement
-import best.spaghetcodes.catdueller.utils.*
+import best.spaghetcodes.catdueller.bot.state.StateManager
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.game.EntityUtil
+import best.spaghetcodes.catdueller.utils.game.WorldUtil
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 import net.minecraft.init.Blocks
 import net.minecraft.util.Vec3
 import java.util.*
@@ -117,9 +121,9 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
             } else {
                 Inventory.setInvItem("sword")
             }
-            fishTimer = TimeUtils.setTimeout(fun() {
+            fishTimer = TimerUtil.setTimeout(fun() {
                 fishFunc(!fish)
-            }, RandomUtils.randomIntInRange(10000, 20000))
+            }, RandomUtil.randomIntInRange(10000, 20000))
         }
     }
 
@@ -128,12 +132,12 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
      * Stops all movement and cancels the fish timer.
      */
     override fun onGameEnd() {
-        TimeUtils.setTimeout(fun() {
+        TimerUtil.setTimeout(fun() {
             Movement.clearAll()
             Mouse.stopLeftAC()
             Combat.stopRandomStrafe()
             fishTimer?.cancel()
-        }, RandomUtils.randomIntInRange(100, 300))
+        }, RandomUtil.randomIntInRange(100, 300))
     }
 
     /**
@@ -143,9 +147,9 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
     override fun onAttack() {
         if (CatDueller.config?.enableWTap == true) {
             tapping = true
-            ChatUtils.info("W-Tap")
+            ChatUtil.info("W-Tap")
             Combat.wTap(100)
-            TimeUtils.setTimeout(fun() {
+            TimerUtil.setTimeout(fun() {
                 tapping = false
             }, 100)
         }
@@ -162,12 +166,12 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
      */
     override fun onTick() {
         if (mc.thePlayer != null) {
-            if (WorldUtils.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && mc.thePlayer.onGround) {
-                Movement.singleJump(RandomUtils.randomIntInRange(150, 250))
+            if (WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && mc.thePlayer.onGround) {
+                Movement.singleJump(RandomUtil.randomIntInRange(150, 250))
             }
         }
         if (opponent() != null && mc.theWorld != null && mc.thePlayer != null) {
-            val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
+            val distance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
 
             if (distance < (CatDueller.config?.maxDistanceLook ?: 150)) {
                 Mouse.startTracking()
@@ -182,7 +186,7 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
             }
 
             if (combo >= 3 && distance >= 3.2 && mc.thePlayer.onGround) {
-                Movement.singleJump(RandomUtils.randomIntInRange(100, 150))
+                Movement.singleJump(RandomUtil.randomIntInRange(100, 150))
             }
 
             if (distance < 1.5 || (distance < 2.7 && combo >= 1)) {
@@ -197,18 +201,18 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
             val clear = false
             var randomStrafe = false
 
-            if (!EntityUtils.entityFacingAway(mc.thePlayer, opponent()!!)) {
+            if (!EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)) {
                 if (distance in 15f..8f) {
                     randomStrafe = true
                 } else {
                     if (distance in 4f..8f) {
-                        if (EntityUtils.entityMovingLeft(mc.thePlayer, opponent()!!)) {
+                        if (EntityUtil.entityMovingLeft(mc.thePlayer, opponent()!!)) {
                             movePriority[1] += 1
                         } else {
                             movePriority[0] += 1
                         }
                     } else if (distance < 4) {
-                        val rotations = EntityUtils.getRotations(opponent()!!, mc.thePlayer, false)
+                        val rotations = EntityUtil.getRotations(opponent()!!, mc.thePlayer, false)
                         if (rotations != null) {
                             if (rotations[0] < 0) {
                                 movePriority[1] += 5
@@ -219,7 +223,7 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
                     }
                 }
             } else {
-                if (WorldUtils.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
+                if (WorldUtil.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
                     movePriority[0] += 4
                 } else {
                     movePriority[1] += 4

@@ -1,7 +1,7 @@
 package best.spaghetcodes.catdueller.bot.player
 
-import best.spaghetcodes.catdueller.utils.RandomUtils
-import best.spaghetcodes.catdueller.utils.TimeUtils
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 
 /**
  * Handles combat-related movement techniques such as W-tapping, sprint resetting,
@@ -26,7 +26,7 @@ object Combat {
      */
     fun wTap(duration: Int) {
         Movement.stopForward()
-        TimeUtils.setTimeout(Movement::startForward, duration)
+        TimerUtil.setTimeout(Movement::startForward, duration)
     }
 
     /**
@@ -37,7 +37,7 @@ object Combat {
      */
     fun sprintReset(duration: Int) {
         Movement.stopSprinting()
-        TimeUtils.setTimeout(Movement::startSprinting, duration)
+        TimerUtil.setTimeout(Movement::startSprinting, duration)
     }
 
     /**
@@ -73,7 +73,7 @@ object Combat {
     private fun randomStrafeFunc() {
         if (randomStrafe) {
             if (!(Movement.left() || Movement.right())) {
-                if (RandomUtils.randomBool()) {
+                if (RandomUtil.randomBool()) {
                     Movement.startLeft()
                 } else {
                     Movement.startRight()
@@ -81,7 +81,7 @@ object Combat {
             } else {
                 Movement.swapLeftRight()
             }
-            TimeUtils.setTimeout(this::randomStrafeFunc, RandomUtils.randomIntInRange(randomStrafeMin, randomStrafeMax))
+            TimerUtil.setTimeout(this::randomStrafeFunc, RandomUtil.randomIntInRange(randomStrafeMin, randomStrafeMax))
         }
     }
 

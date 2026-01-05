@@ -1,5 +1,6 @@
-package best.spaghetcodes.catdueller.utils
+package best.spaghetcodes.catdueller.utils.system
 
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
 import java.util.*
 
 /**
@@ -9,7 +10,7 @@ import java.util.*
  * indicates the UUID version. Version 4 UUIDs are randomly generated and indicate
  * legitimate accounts, while version 2 UUIDs suggest a nicked/modified player.
  */
-object UUIDChecker {
+object UUIDUtil {
 
     /**
      * Determines whether a UUID indicates a nicked (disguised) player.
@@ -34,7 +35,7 @@ object UUIDChecker {
                 false
             }
         } catch (e: Exception) {
-            ChatUtils.info("Error checking UUID format: ${e.message}")
+            ChatUtil.info("Error checking UUID format: ${e.message}")
             false
         }
     }

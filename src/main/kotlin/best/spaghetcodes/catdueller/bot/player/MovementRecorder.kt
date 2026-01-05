@@ -1,7 +1,6 @@
-package best.spaghetcodes.catdueller.bot
+package best.spaghetcodes.catdueller.bot.player
 
-import best.spaghetcodes.catdueller.bot.player.Movement
-import best.spaghetcodes.catdueller.utils.ChatUtils
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import net.minecraft.client.Minecraft
@@ -9,6 +8,7 @@ import net.minecraft.client.settings.KeyBinding
 import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
+import kotlin.math.abs
 import kotlin.random.Random
 
 /**
@@ -99,7 +99,7 @@ object MovementRecorder {
      */
     fun startRecording(patternName: String) {
         if (isRecording) {
-            ChatUtils.info("Already recording! Stop current recording first.")
+            ChatUtil.info("Already recording! Stop current recording first.")
             return
         }
 
@@ -114,8 +114,8 @@ object MovementRecorder {
 
         // Click recording enabled
 
-        ChatUtils.info("Started recording movement pattern: $patternName")
-        ChatUtils.info("Move around in lobby, then use /catdueller stoprecord to finish")
+        ChatUtil.info("Started recording movement pattern: $patternName")
+        ChatUtil.info("Move around in lobby, then use /catdueller stoprecord to finish")
     }
 
     /**
@@ -123,7 +123,7 @@ object MovementRecorder {
      */
     fun stopRecording() {
         if (!isRecording) {
-            ChatUtils.info("Not currently recording!")
+            ChatUtil.info("Not currently recording!")
             return
         }
 
@@ -131,7 +131,7 @@ object MovementRecorder {
         val duration = getCurrentTick() - recordingStartTick
 
         if (currentRecording.isEmpty()) {
-            ChatUtils.info("No movement data recorded!")
+            ChatUtil.info("No movement data recorded!")
             return
         }
 
@@ -139,7 +139,7 @@ object MovementRecorder {
         patterns.add(pattern)
         savePatterns()
 
-        ChatUtils.info("Saved movement pattern '$recordingName' with ${currentRecording.size} frames (${duration} ticks)")
+        ChatUtil.info("Saved movement pattern '$recordingName' with ${currentRecording.size} frames (${duration} ticks)")
         currentRecording.clear()
     }
 
@@ -148,19 +148,19 @@ object MovementRecorder {
      */
     fun startRandomPlayback(): Boolean {
         if (patterns.isEmpty()) {
-            ChatUtils.info("No movement patterns available! Record some first.")
+            ChatUtil.info("No movement patterns available! Record some first.")
             return false
         }
 
         if (isRecording) {
-            ChatUtils.info("Cannot playback while recording!")
+            ChatUtil.info("Cannot playback while recording!")
             return false
         }
 
         // Use explicit random selection to ensure it works properly
         val randomIndex = Random.nextInt(patterns.size)
         val randomPattern = patterns[randomIndex]
-        ChatUtils.info("Randomly selected pattern: ${randomPattern.name} (${randomIndex + 1}/${patterns.size})")
+        ChatUtil.info("Randomly selected pattern: ${randomPattern.name} (${randomIndex + 1}/${patterns.size})")
         return startPlayback(randomPattern)
     }
 
@@ -169,7 +169,7 @@ object MovementRecorder {
      */
     fun startPlayback(pattern: MovementPattern): Boolean {
         if (isRecording) {
-            ChatUtils.info("Cannot playback while recording!")
+            ChatUtil.info("Cannot playback while recording!")
             return false
         }
 
@@ -195,7 +195,7 @@ object MovementRecorder {
             recordingStartPitch = pattern.frames[0].pitch
         }
 
-        ChatUtils.info("Started playing movement pattern: ${pattern.name}")
+        ChatUtil.info("Started playing movement pattern: ${pattern.name}")
         return true
     }
 
@@ -216,7 +216,7 @@ object MovementRecorder {
         KeyBinding.setKeyBindState(mc.gameSettings.keyBindAttack.keyCode, false)
         KeyBinding.setKeyBindState(mc.gameSettings.keyBindUseItem.keyCode, false)
 
-        ChatUtils.info("Stopped movement playback")
+        ChatUtil.info("Stopped movement playback")
     }
 
     /**
@@ -285,8 +285,8 @@ object MovementRecorder {
                 val targetPitch = playbackStartPitch + recordingPitchDelta
 
                 // Calculate rotation changes from last applied rotation
-                val yawChange = kotlin.math.abs(targetYaw - lastPlaybackYaw)
-                val pitchChange = kotlin.math.abs(targetPitch - lastPlaybackPitch)
+                val yawChange = abs(targetYaw - lastPlaybackYaw)
+                val pitchChange = abs(targetPitch - lastPlaybackPitch)
 
                 // Apply rotation limiting - skip if change is too large
                 if (yawChange <= maxRotationPerTick && pitchChange <= maxRotationPerTick) {
@@ -298,7 +298,7 @@ object MovementRecorder {
                 } else {
                     // Log when rotation is skipped due to being too large
                     if (yawChange > maxRotationPerTick || pitchChange > maxRotationPerTick) {
-                        ChatUtils.combatInfo("MovementRecorder: Skipped large rotation change (yaw: ${yawChange.toInt()}°, pitch: ${pitchChange.toInt()}°)")
+                        ChatUtil.combatInfo("MovementRecorder: Skipped large rotation change (yaw: ${yawChange.toInt()}°, pitch: ${pitchChange.toInt()}°)")
                     }
                 }
             }
@@ -326,7 +326,7 @@ object MovementRecorder {
                 gson.toJson(patterns, writer)
             }
         } catch (e: Exception) {
-            ChatUtils.info("Failed to save movement patterns: ${e.message}")
+            ChatUtil.info("Failed to save movement patterns: ${e.message}")
         }
     }
 
@@ -346,18 +346,18 @@ object MovementRecorder {
                     val loadedPatterns: List<MovementPattern> = gson.fromJson(jsonText, type) ?: emptyList()
                     patterns.clear()
                     patterns.addAll(loadedPatterns)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // If new format fails, try to convert old format
-                    ChatUtils.info("Converting old movement patterns format...")
+                    ChatUtil.info("Converting old movement patterns format...")
                     convertOldPatterns(jsonText)
                 }
 
                 if (patterns.isNotEmpty()) {
-                    ChatUtils.info("Loaded ${patterns.size} movement patterns")
+                    ChatUtil.info("Loaded ${patterns.size} movement patterns")
                 }
             }
         } catch (e: Exception) {
-            ChatUtils.info("Failed to load movement patterns: ${e.message}")
+            ChatUtil.info("Failed to load movement patterns: ${e.message}")
         }
     }
 
@@ -418,10 +418,10 @@ object MovementRecorder {
 
             // Save in new format
             savePatterns()
-            ChatUtils.info("Successfully converted ${patterns.size} old patterns to new format")
+            ChatUtil.info("Successfully converted ${patterns.size} old patterns to new format")
 
         } catch (e: Exception) {
-            ChatUtils.info("Failed to convert old patterns: ${e.message}")
+            ChatUtil.info("Failed to convert old patterns: ${e.message}")
         }
     }
 
@@ -430,13 +430,13 @@ object MovementRecorder {
      */
     fun listPatterns() {
         if (patterns.isEmpty()) {
-            ChatUtils.info("No movement patterns available")
+            ChatUtil.info("No movement patterns available")
             return
         }
 
-        ChatUtils.info("Available movement patterns:")
+        ChatUtil.info("Available movement patterns:")
         patterns.forEachIndexed { index, pattern ->
-            ChatUtils.info("${index + 1}. ${pattern.name} (${pattern.duration} ticks, ${pattern.frames.size} frames)")
+            ChatUtil.info("${index + 1}. ${pattern.name} (${pattern.duration} ticks, ${pattern.frames.size} frames)")
         }
     }
 
@@ -447,9 +447,9 @@ object MovementRecorder {
         val removed = patterns.removeIf { it.name.equals(name, ignoreCase = true) }
         if (removed) {
             savePatterns()
-            ChatUtils.info("Deleted movement pattern: $name")
+            ChatUtil.info("Deleted movement pattern: $name")
         } else {
-            ChatUtils.info("Pattern not found: $name")
+            ChatUtil.info("Pattern not found: $name")
         }
         return removed
     }
@@ -460,7 +460,7 @@ object MovementRecorder {
     fun enableAutoRecord() {
         autoRecordEnabled = true
         pendingAutoRecord = true
-        ChatUtils.info("Auto recording enabled - will start recording on next lobby join")
+        ChatUtil.info("Auto recording enabled - will start recording on next lobby join")
     }
 
     /**
@@ -472,7 +472,7 @@ object MovementRecorder {
         if (isRecording) {
             stopRecording()
         }
-        ChatUtils.info("Auto recording disabled")
+        ChatUtil.info("Auto recording disabled")
     }
 
     /**
@@ -494,7 +494,7 @@ object MovementRecorder {
             autoRecordCounter = nextNumber
             startRecording(autoName)
             pendingAutoRecord = false
-            ChatUtils.info("Auto recording started: $autoName")
+            ChatUtil.info("Auto recording started: $autoName")
         }
     }
 
@@ -505,7 +505,7 @@ object MovementRecorder {
         if (autoRecordEnabled && isRecording) {
             stopRecording()
             pendingAutoRecord = true // Ready for next lobby
-            ChatUtils.info("Auto recording stopped - ready for next lobby")
+            ChatUtil.info("Auto recording stopped - ready for next lobby")
         }
     }
 
@@ -522,7 +522,7 @@ object MovementRecorder {
         if (message.contains("has joined") && message.contains("(2/2)!") && message.contains("(gameFull)")) {
             // Only trigger if not currently playing a movement pattern
             if (autoMovementOnGameFull && !isPlaying && patterns.isNotEmpty()) {
-                ChatUtils.info("Game is full! Starting random movement pattern...")
+                ChatUtil.info("Game is full! Starting random movement pattern...")
                 startRandomPlayback()
             }
         }
@@ -542,14 +542,14 @@ object MovementRecorder {
                     if (number > maxAutoNumber) {
                         maxAutoNumber = number
                     }
-                } catch (e: NumberFormatException) {
+                } catch (_: NumberFormatException) {
                     // Ignore patterns with invalid numbers
                 }
             }
         }
         autoRecordCounter = maxAutoNumber
         if (maxAutoNumber > 0) {
-            ChatUtils.info("Auto record counter initialized to $autoRecordCounter (found existing auto_lobby patterns)")
+            ChatUtil.info("Auto record counter initialized to $autoRecordCounter (found existing auto_lobby patterns)")
         }
     }
 }

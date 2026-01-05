@@ -1,11 +1,11 @@
 package best.spaghetcodes.catdueller.bot.features
 
 import best.spaghetcodes.catdueller.CatDueller
-import best.spaghetcodes.catdueller.bot.StateManager
 import best.spaghetcodes.catdueller.bot.player.Inventory
 import best.spaghetcodes.catdueller.bot.player.Mouse
-import best.spaghetcodes.catdueller.utils.RandomUtils
-import best.spaghetcodes.catdueller.utils.TimeUtils
+import best.spaghetcodes.catdueller.bot.state.StateManager
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 
 /**
  * Interface providing bow usage functionality for combat scenarios.
@@ -44,26 +44,26 @@ interface Bow {
         }
 
         Mouse.setUsingProjectile(true)
-        TimeUtils.setTimeout(fun() {
+        TimerUtil.setTimeout(fun() {
             Inventory.setInvItem("bow")
-            TimeUtils.setTimeout(fun() {
+            TimerUtil.setTimeout(fun() {
                 val r = when (distance) {
-                    in 0f..7f -> RandomUtils.randomIntInRange(700, 900)
-                    in 7f..15f -> RandomUtils.randomIntInRange(700, 900)
-                    else -> RandomUtils.randomIntInRange(900, 1100)
+                    in 0f..7f -> RandomUtil.randomIntInRange(700, 900)
+                    in 7f..15f -> RandomUtil.randomIntInRange(700, 900)
+                    else -> RandomUtil.randomIntInRange(900, 1100)
                 }
                 Mouse.rClick(r)
-                TimeUtils.setTimeout(fun() {
+                TimerUtil.setTimeout(fun() {
                     Mouse.setUsingProjectile(false)
                     Inventory.setInvItem("sword")
-                    TimeUtils.setTimeout(fun() {
+                    TimerUtil.setTimeout(fun() {
                         if (StateManager.state == StateManager.States.PLAYING) {
                             cb()
                         }
-                    }, RandomUtils.randomIntInRange(100, 200))
-                }, r + RandomUtils.randomIntInRange(100, 150))
-            }, RandomUtils.randomIntInRange(100, 200))
-        }, RandomUtils.randomIntInRange(50, 100))
+                    }, RandomUtil.randomIntInRange(100, 200))
+                }, r + RandomUtil.randomIntInRange(100, 150))
+            }, RandomUtil.randomIntInRange(100, 200))
+        }, RandomUtil.randomIntInRange(50, 100))
     }
 
 }

@@ -1,6 +1,6 @@
 package best.spaghetcodes.catdueller.mixins;
 
-import best.spaghetcodes.catdueller.events.packet.PacketEvent;
+import best.spaghetcodes.catdueller.events.PacketEvent;
 import io.netty.channel.ChannelHandlerContext;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.Packet;

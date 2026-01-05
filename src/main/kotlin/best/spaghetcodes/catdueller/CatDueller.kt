@@ -1,15 +1,17 @@
 package best.spaghetcodes.catdueller
 
 import best.spaghetcodes.catdueller.bot.BotBase
-import best.spaghetcodes.catdueller.bot.StateManager
 import best.spaghetcodes.catdueller.bot.impl.Sumo
-import best.spaghetcodes.catdueller.bot.player.*
+import best.spaghetcodes.catdueller.bot.player.LobbyMovement
+import best.spaghetcodes.catdueller.bot.player.Mouse
+import best.spaghetcodes.catdueller.bot.player.Movement
+import best.spaghetcodes.catdueller.bot.state.StateManager
 import best.spaghetcodes.catdueller.commands.*
 import best.spaghetcodes.catdueller.core.Config
 import best.spaghetcodes.catdueller.core.HWIDLock
 import best.spaghetcodes.catdueller.core.KeyBindings
-import best.spaghetcodes.catdueller.utils.ParticleDetector
-import best.spaghetcodes.catdueller.utils.TimeUtils
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.game.ParticleUtil
 import net.minecraft.client.Minecraft
 import net.minecraftforge.common.MinecraftForge
 import net.minecraftforge.fml.common.Mod
@@ -109,7 +111,7 @@ class CatDueller {
         MinecraftForge.EVENT_BUS.register(Movement)
         MinecraftForge.EVENT_BUS.register(LobbyMovement)
         MinecraftForge.EVENT_BUS.register(KeyBindings)
-        MinecraftForge.EVENT_BUS.register(ParticleDetector)
+        MinecraftForge.EVENT_BUS.register(ParticleUtil)
 
         val selectedBotIndex = config?.currentBot ?: 0
         val selectedBot = config?.bots?.get(selectedBotIndex) ?: Sumo()
@@ -117,7 +119,7 @@ class CatDueller {
 
         Runtime.getRuntime().addShutdownHook(Thread {
             println("CatDueller shutting down, cleaning up timers...")
-            TimeUtils.cancelAllTimers()
+            TimerUtil.cancelAllTimers()
         })
     }
 }

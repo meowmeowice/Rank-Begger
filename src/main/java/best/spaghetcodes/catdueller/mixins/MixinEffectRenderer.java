@@ -24,12 +24,14 @@ public abstract class MixinEffectRenderer {
      *
      * @param layer The layer index (0-3) to update.
      */
-    @Shadow protected abstract void updateEffectLayer(int layer);
+    @Shadow
+    protected abstract void updateEffectLayer(int layer);
 
     /**
      * Shadow field containing the list of active particle emitters.
      */
-    @Shadow private List<EntityParticleEmitter> particleEmitters;
+    @Shadow
+    private List<EntityParticleEmitter> particleEmitters;
 
     /**
      * Updates all particle effects and emitters.
@@ -44,19 +46,16 @@ public abstract class MixinEffectRenderer {
     @Overwrite
     public void updateEffects() {
         try {
-            for (int i = 0; i < 4; ++i)
-            {
+            for (int i = 0; i < 4; ++i) {
                 this.updateEffectLayer(i);
             }
 
             List<EntityParticleEmitter> list = Lists.newArrayList();
 
-            for (EntityParticleEmitter entityparticleemitter : this.particleEmitters)
-            {
+            for (EntityParticleEmitter entityparticleemitter : this.particleEmitters) {
                 entityparticleemitter.onUpdate();
 
-                if (entityparticleemitter.isDead)
-                {
+                if (entityparticleemitter.isDead) {
                     list.add(entityparticleemitter);
                 }
             }

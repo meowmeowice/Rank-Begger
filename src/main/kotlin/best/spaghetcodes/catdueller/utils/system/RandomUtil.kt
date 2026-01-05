@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.utils
+package best.spaghetcodes.catdueller.utils.system
 
 import java.util.*
 import java.util.concurrent.ThreadLocalRandom
@@ -9,12 +9,12 @@ import java.util.concurrent.ThreadLocalRandom
  * Offers thread-safe random value generation for integers, doubles, booleans,
  * and alphanumeric strings with configurable parameters.
  */
-object RandomUtils {
+object RandomUtil {
 
     /**
      * Generates a random integer within a specified inclusive range.
      *
-     * Uses [ThreadLocalRandom] for thread-safe random number generation.
+     * Uses [java.util.concurrent.ThreadLocalRandom] for thread-safe random number generation.
      *
      * @param min The minimum value (inclusive).
      * @param max The maximum value (inclusive).

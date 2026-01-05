@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.events.packet
+package best.spaghetcodes.catdueller.events
 
 import net.minecraft.network.Packet
 import net.minecraftforge.fml.common.eventhandler.Cancelable

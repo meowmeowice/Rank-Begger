@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.utils
+package best.spaghetcodes.catdueller.utils.client
 
 import best.spaghetcodes.catdueller.CatDueller
 import net.minecraft.util.ChatComponentText
@@ -10,7 +10,7 @@ import net.minecraft.util.EnumChatFormatting
  * Provides methods for sending formatted chat messages to the player,
  * sending messages as the player, and removing formatting codes from text.
  */
-object ChatUtils {
+object ChatUtil {
 
     /**
      * Removes Minecraft formatting codes from a string.

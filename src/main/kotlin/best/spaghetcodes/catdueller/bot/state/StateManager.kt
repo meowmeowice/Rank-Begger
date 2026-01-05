@@ -1,6 +1,7 @@
-package best.spaghetcodes.catdueller.bot
+package best.spaghetcodes.catdueller.bot.state
 
 import best.spaghetcodes.catdueller.CatDueller
+import best.spaghetcodes.catdueller.bot.player.MovementRecorder
 import net.minecraftforge.client.event.ClientChatReceivedEvent
 import net.minecraftforge.event.entity.EntityJoinWorldEvent
 import net.minecraftforge.fml.common.eventhandler.EventPriority
@@ -26,8 +27,10 @@ object StateManager {
     enum class States {
         /** In server lobby, not queued for a game. */
         LOBBY,
+
         /** In pre-game lobby, waiting for opponent or game start. */
         GAME,
+
         /** Actively playing in a duel. */
         PLAYING
     }

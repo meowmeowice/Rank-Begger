@@ -1,7 +1,7 @@
 package best.spaghetcodes.catdueller.commands
 
 import best.spaghetcodes.catdueller.core.HWIDLock
-import best.spaghetcodes.catdueller.utils.ChatUtils
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
 import net.minecraft.command.CommandBase
 import net.minecraft.command.ICommandSender
 import net.minecraft.util.BlockPos
@@ -55,8 +55,8 @@ class HWIDCommand : CommandBase() {
         val isAuthorized = HWIDLock.isAuthorized()
         val currentHWID = HWIDLock.getCurrentHWID()
 
-        ChatUtils.info("Your HWID: $currentHWID")
-        ChatUtils.info("Authorized: ${if (isAuthorized) "§aTrue" else "§cFalse"}")
+        ChatUtil.info("Your HWID: $currentHWID")
+        ChatUtil.info("Authorized: ${if (isAuthorized) "§aTrue" else "§cFalse"}")
 
         println("[HWIDCommand] HWID: $currentHWID, Authorized: $isAuthorized")
     }

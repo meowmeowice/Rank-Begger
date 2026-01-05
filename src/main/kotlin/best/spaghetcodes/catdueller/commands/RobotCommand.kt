@@ -1,6 +1,6 @@
 package best.spaghetcodes.catdueller.commands
 
-import best.spaghetcodes.catdueller.utils.ChatUtils
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
 import gg.essential.api.commands.Command
 import gg.essential.api.commands.DefaultHandler
 import java.awt.Robot
@@ -33,11 +33,11 @@ class RobotCommand : Command("robot") {
             robot.mousePress(InputEvent.BUTTON1_DOWN_MASK)
             robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK)
 
-            ChatUtils.info("Robot click executed successfully")
+            ChatUtil.info("Robot click executed successfully")
         } catch (e: SecurityException) {
-            ChatUtils.error("Robot creation blocked by security policy: ${e.message}")
+            ChatUtil.error("Robot creation blocked by security policy: ${e.message}")
         } catch (e: Exception) {
-            ChatUtils.error("Failed to execute robot click: ${e.message}")
+            ChatUtil.error("Failed to execute robot click: ${e.message}")
         }
     }
 }

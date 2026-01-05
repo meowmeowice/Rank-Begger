@@ -7,7 +7,11 @@ import best.spaghetcodes.catdueller.bot.player.Combat
 import best.spaghetcodes.catdueller.bot.player.Inventory
 import best.spaghetcodes.catdueller.bot.player.Mouse
 import best.spaghetcodes.catdueller.bot.player.Movement
-import best.spaghetcodes.catdueller.utils.*
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.game.EntityUtil
+import best.spaghetcodes.catdueller.utils.game.WorldUtil
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 import net.minecraft.init.Blocks
 import net.minecraft.util.Vec3
 
@@ -131,7 +135,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
 
         Movement.startSprinting()
         Movement.startForward()
-        TimeUtils.setTimeout(Movement::startJumping, RandomUtils.randomIntInRange(400, 1200))
+        TimerUtil.setTimeout(Movement::startJumping, RandomUtil.randomIntInRange(400, 1200))
     }
 
     /**
@@ -178,16 +182,16 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
             Mouse.stopLeftAC()
         }
 
-        val i = TimeUtils.setInterval({
+        val i = TimerUtil.setInterval({
             if (CatDueller.config?.holdLeftClick == true) {
                 Mouse.stopHoldLeftClick()
             } else {
                 Mouse.stopLeftAC()
             }
         }, 100, 100)
-        TimeUtils.setTimeout(fun() {
+        TimerUtil.setTimeout(fun() {
             i?.cancel()
-        }, RandomUtils.randomIntInRange(200, 400))
+        }, RandomUtil.randomIntInRange(200, 400))
 
         if (CatDueller.bot?.toggled() == true) {
             Mouse.stopTracking()
@@ -205,7 +209,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
     override fun onAttack() {
         super.onAttack()
 
-        val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
+        val distance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
         if (mc.thePlayer != null && mc.thePlayer.heldItem != null) {
             val n = mc.thePlayer.heldItem.unlocalizedName.lowercase()
             if (n.contains("rod")) { // wait after hitting with the rod
@@ -214,7 +218,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
 
                 // Jump when rod hits (regardless of W-Tap setting)
                 if (mc.thePlayer.onGround) {
-                    Movement.singleJump(RandomUtils.randomIntInRange(100, 150))
+                    Movement.singleJump(RandomUtil.randomIntInRange(100, 150))
                 }
 
                 if (CatDueller.config?.enableWTap == true) {
@@ -225,7 +229,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                 combo--
             } else if (n.contains("sword")) {
                 if (distance < 2 && CatDueller.config?.holdLeftClick != true) {
-                    Mouse.rClick(RandomUtils.randomIntInRange(60, 90)) // otherwise just blockhit
+                    Mouse.rClick(RandomUtil.randomIntInRange(60, 90)) // otherwise just blockhit
                 } else if (CatDueller.config?.enableWTap == true) {
                     Combat.wTap(100)
                     tapping = true
@@ -258,7 +262,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                 // Opponent just started drawing bow
                 opponentBowStartTime = currentTime
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("OP: Opponent started drawing bow - tracking time for 700ms block")
+                    ChatUtil.combatInfo("OP: Opponent started drawing bow - tracking time for 700ms block")
                 }
             } else if (lastTickOpponentDrawingBow && !opponentIsDrawingBow) {
                 // Opponent stopped drawing bow (fired arrow)
@@ -267,7 +271,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                 opponentBowStartTime = 0L  // Reset bow start time
 
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("OP: Opponent fired arrow - arrow fired flag set")
+                    ChatUtil.combatInfo("OP: Opponent fired arrow - arrow fired flag set")
                 }
             }
 
@@ -284,7 +288,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                     // Interrupt rod usage for arrow blocking
                     immediateRetractRod()
                     if (CatDueller.config?.combatLogs == true) {
-                        ChatUtils.combatInfo("OP: Interrupted rod usage for arrow blocking")
+                        ChatUtil.combatInfo("OP: Interrupted rod usage for arrow blocking")
                     }
                 }
 
@@ -305,7 +309,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                         // If already holding right click, just continue holding
 
                         if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo("OP: Seamless transition from projectile to sword blocking (no right-click release)")
+                            ChatUtil.combatInfo("OP: Seamless transition from projectile to sword blocking (no right-click release)")
                         }
                     } else {
                         // Not using projectile, start fresh block
@@ -327,7 +331,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
 
                 if (CatDueller.config?.combatLogs == true) {
                     val transitionType = if (wasUsingProjectile) "seamless" else "fresh"
-                    ChatUtils.combatInfo("OP: Started blocking arrow after 700ms draw time (${transitionType} transition) - will block until opponent stops drawing")
+                    ChatUtil.combatInfo("OP: Started blocking arrow after 700ms draw time (${transitionType} transition) - will block until opponent stops drawing")
                 }
             }
 
@@ -335,7 +339,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
             // Use distance-based delay to account for arrow flight time
             if (Mouse.isBlockingArrow() && !opponentIsDrawingBow && !blockingEndScheduled) {
                 // Calculate delay based on distance: longer distance = longer arrow flight time
-                val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
+                val distance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
                 val flightTimeDelay = when {
                     distance <= 5f -> 100   // Very close: 100ms delay
                     distance <= 10f -> 200  // Close: 200ms delay
@@ -346,14 +350,14 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
 
                 blockingEndScheduled = true  // Prevent multiple scheduling
 
-                TimeUtils.setTimeout({
+                TimerUtil.setTimeout({
                     if (Mouse.isBlockingArrow()) {  // Double check we're still blocking
                         Mouse.setBlockingArrow(false)
                         Mouse.rClickUp()  // Release right click after delay
                         blockingEndScheduled = false  // Reset flag
 
                         if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo(
+                            ChatUtil.combatInfo(
                                 "OP: Arrow blocking ended after ${flightTimeDelay}ms delay (distance: ${
                                     String.format(
                                         "%.1f",
@@ -366,7 +370,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                 }, flightTimeDelay)
 
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo(
+                    ChatUtil.combatInfo(
                         "OP: Opponent stopped drawing bow - scheduled blocking end in ${flightTimeDelay}ms (distance: ${
                             String.format(
                                 "%.1f",
@@ -384,7 +388,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
             if (opponentJustFiredArrow && currentTime - lastOpponentArrowFireTime > 3000) {
                 opponentJustFiredArrow = false
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("OP: Arrow fired flag reset after 3 seconds")
+                    ChatUtil.combatInfo("OP: Arrow fired flag reset after 3 seconds")
                 }
             }
 
@@ -398,14 +402,14 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
 
             // Check for block in front and jump if needed (copied from Classic)
             // But disable jumping if player has speed effect
-            if (WorldUtils.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && mc.thePlayer.onGround && !hasSpeed) {
-                Movement.singleJump(RandomUtils.randomIntInRange(150, 250))
+            if (WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && mc.thePlayer.onGround && !hasSpeed) {
+                Movement.singleJump(RandomUtil.randomIntInRange(150, 250))
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("OP: Jumping over block in front")
+                    ChatUtil.combatInfo("OP: Jumping over block in front")
                 }
-            } else if (WorldUtils.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && hasSpeed) {
+            } else if (WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && hasSpeed) {
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("OP: Block in front but jumping disabled due to speed effect")
+                    ChatUtil.combatInfo("OP: Block in front but jumping disabled due to speed effect")
                 }
             }
 
@@ -413,7 +417,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                 Movement.startSprinting()
             }
 
-            val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
+            val distance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
 
             // Check if rod should be immediately retracted due to close distance
             // Only retract non-defensive rods due to distance
@@ -460,7 +464,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                 if (hasSpeed) {
                     Movement.stopJumping()
                     if (CatDueller.config?.combatLogs == true) {
-                        ChatUtils.combatInfo("OP: Jumping disabled due to speed effect")
+                        ChatUtil.combatInfo("OP: Jumping disabled due to speed effect")
                     }
                 } else if (opponent() != null && opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase()
                         .contains("bow")
@@ -512,12 +516,12 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
 
             if (!hasSpeed && speedPotsLeft > 0 && System.currentTimeMillis() - lastSpeedUse > 15000 && System.currentTimeMillis() - lastPotion > 3500) {
                 Movement.stopJumping()  // Stop jumping when using speed potion
-                useSplashPotion(speedDamage, distance < 3.5, EntityUtils.entityFacingAway(mc.thePlayer, opponent()!!))
+                useSplashPotion(speedDamage, distance < 3.5, EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!))
                 speedPotsLeft--
                 lastSpeedUse = System.currentTimeMillis()
             }
 
-            if (WorldUtils.blockInFront(mc.thePlayer, 3f, 1.5f) != Blocks.air) {
+            if (WorldUtil.blockInFront(mc.thePlayer, 3f, 1.5f) != Blocks.air) {
                 // wall
                 Mouse.setRunningAway(false)
             }
@@ -530,13 +534,13 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                         useSplashPotion(
                             regenDamage,
                             distance < 5,
-                            EntityUtils.entityFacingAway(mc.thePlayer, opponent()!!)
+                            EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)
                         )
                         regenPotsLeft--
                         lastRegenUse = System.currentTimeMillis()
                     } else {
                         if (gapsLeft > 0 && System.currentTimeMillis() - lastGap > 6000) {
-                            useGap(distance, distance < 5, EntityUtils.entityFacingAway(mc.thePlayer, opponent()!!))
+                            useGap(distance, distance < 5, EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!))
                             gapsLeft--
                         }
 
@@ -561,11 +565,11 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                     opponentUsedBow = true
 
                     if (CatDueller.config?.combatLogs == true) {
-                        ChatUtils.combatInfo("Opponent used bow - drawing detected")
+                        ChatUtil.combatInfo("Opponent used bow - drawing detected")
                     }
                 }
 
-                if ((distance in rodDistance1Min..rodDistance1Max || distance in rodDistance2Min..rodDistance2Max) && !EntityUtils.entityFacingAway(
+                if ((distance in rodDistance1Min..rodDistance1Max || distance in rodDistance2Min..rodDistance2Max) && !EntityUtil.entityFacingAway(
                         mc.thePlayer,
                         opponent()!!
                     )
@@ -573,9 +577,9 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                     useRod(false)  // OP bot only uses offensive rods
                 } else {
                     // Situation 1: Enemy facing away (3.5-30 blocks) - no opponentUsedBow requirement
-                    val situation1 = EntityUtils.entityFacingAway(mc.thePlayer, opponent()!!) && distance in 3.5f..30f
+                    val situation1 = EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!) && distance in 3.5f..30f
                     // Situation 2: Long distance (28-33 blocks) - requires opponentUsedBow
-                    val situation2 = distance in 28.0..33.0 && !EntityUtils.entityFacingAway(mc.thePlayer, opponent()!!)
+                    val situation2 = distance in 28.0..33.0 && !EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)
 
                     if (situation1 || situation2) {
                         val canUseBow = if (situation1) {
@@ -593,7 +597,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                             })
                         } else {
                             clear = false
-                            if (WorldUtils.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
+                            if (WorldUtil.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
                                 movePriority[0] += 4
                             } else {
                                 movePriority[1] += 4
@@ -602,14 +606,14 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                     } else {
                         if (opponent()!!.isInvisibleToPlayer(mc.thePlayer)) {
                             clear = false
-                            if (WorldUtils.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
+                            if (WorldUtil.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
                                 movePriority[0] += 4
                             } else {
                                 movePriority[1] += 4
                             }
                         } else {
-                            if (EntityUtils.entityFacingAway(mc.thePlayer, opponent()!!)) {
-                                if (WorldUtils.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
+                            if (EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)) {
+                                if (WorldUtil.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
                                     movePriority[0] += 4
                                 } else {
                                     movePriority[1] += 4
@@ -630,15 +634,15 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                                     } else {
                                         if (distance < 8) {
                                             // Dynamic strafe logic with randomization
-                                            val rotations = EntityUtils.getRotations(opponent()!!, mc.thePlayer, false)
+                                            val rotations = EntityUtil.getRotations(opponent()!!, mc.thePlayer, false)
                                             if (rotations != null) {
                                                 // Base direction preference
                                                 val basePreference = if (rotations[0] < 0) 1 else 0  // 0=left, 1=right
 
                                                 // Add randomization to prevent predictable movement
-                                                val randomFactor = RandomUtils.randomIntInRange(1, 4)
+                                                val randomFactor = RandomUtil.randomIntInRange(1, 4)
                                                 val shouldReverse =
-                                                    RandomUtils.randomIntInRange(1, 100) <= 30 // 30% chance to reverse
+                                                    RandomUtil.randomIntInRange(1, 100) <= 30 // 30% chance to reverse
 
                                                 if (shouldReverse) {
                                                     // Reverse the preference occasionally
@@ -658,27 +662,27 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                     }
                 }
 
-                if (WorldUtils.blockInPath(
+                if (WorldUtil.blockInPath(
                         mc.thePlayer,
-                        RandomUtils.randomIntInRange(3, 7),
+                        RandomUtil.randomIntInRange(3, 7),
                         1f
                     ) == Blocks.fire && !hasSpeed
                 ) {
-                    Movement.singleJump(RandomUtils.randomIntInRange(200, 400))
-                } else if (WorldUtils.blockInPath(
+                    Movement.singleJump(RandomUtil.randomIntInRange(200, 400))
+                } else if (WorldUtil.blockInPath(
                         mc.thePlayer,
-                        RandomUtils.randomIntInRange(3, 7),
+                        RandomUtil.randomIntInRange(3, 7),
                         1f
                     ) == Blocks.fire && hasSpeed
                 ) {
                     if (CatDueller.config?.combatLogs == true) {
-                        ChatUtils.combatInfo("OP: Fire detected but jumping disabled due to speed effect")
+                        ChatUtil.combatInfo("OP: Fire detected but jumping disabled due to speed effect")
                     }
                 }
 
                 // Wall avoidance: simple wall detection using blockInFront logic (copied from Classic)
                 fun hasWallInDirection(yaw: Float, distance: Float): Boolean {
-                    val lookVec = EntityUtils.get2dLookVec(mc.thePlayer).rotateYaw(yaw)
+                    val lookVec = EntityUtil.get2dLookVec(mc.thePlayer).rotateYaw(yaw)
                     val checkPos = mc.thePlayer.position.add(lookVec.xCoord * distance, 0.0, lookVec.zCoord * distance)
                     val block = mc.theWorld.getBlockState(checkPos).block
                     return block != Blocks.air
@@ -694,13 +698,13 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                     // Wall on left, prefer right movement
                     movePriority[1] += 20  // Higher priority than strafe
                     if (CatDueller.config?.combatLogs == true) {
-                        ChatUtils.combatInfo("OP: Wall on left - moving right")
+                        ChatUtil.combatInfo("OP: Wall on left - moving right")
                     }
                 } else if (hasWallOnRight && !hasWallOnLeft) {
                     // Wall on right, prefer left movement
                     movePriority[0] += 20  // Higher priority than strafe
                     if (CatDueller.config?.combatLogs == true) {
-                        ChatUtils.combatInfo("OP: Wall on right - moving left")
+                        ChatUtil.combatInfo("OP: Wall on right - moving left")
                     }
                 }
 

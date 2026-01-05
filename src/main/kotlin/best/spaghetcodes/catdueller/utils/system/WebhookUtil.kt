@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.utils
+package best.spaghetcodes.catdueller.utils.system
 
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
@@ -15,7 +15,7 @@ import javax.net.ssl.HttpsURLConnection
  * sending them to webhook URLs. All messages are sent with the "Cat Dueller"
  * branding including a custom avatar.
  */
-object WebHook {
+object WebhookUtil {
 
     /**
      * Sends an embed message to a Discord webhook URL.

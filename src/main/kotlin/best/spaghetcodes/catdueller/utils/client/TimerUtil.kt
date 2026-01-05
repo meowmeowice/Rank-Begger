@@ -1,4 +1,4 @@
-package best.spaghetcodes.catdueller.utils
+package best.spaghetcodes.catdueller.utils.client
 
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
  * automatic timer tracking and cleanup capabilities. All timers run as daemon
  * threads and are tracked for bulk cancellation during shutdown.
  */
-object TimeUtils {
+object TimerUtil {
 
     /**
      * Thread-safe map tracking all active timers for cleanup purposes.

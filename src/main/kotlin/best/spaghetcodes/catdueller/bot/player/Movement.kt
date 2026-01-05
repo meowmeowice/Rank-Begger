@@ -1,7 +1,7 @@
 package best.spaghetcodes.catdueller.bot.player
 
 import best.spaghetcodes.catdueller.CatDueller
-import best.spaghetcodes.catdueller.utils.TimeUtils
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
 import net.minecraft.client.settings.KeyBinding
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import net.minecraftforge.fml.common.gameevent.TickEvent
@@ -205,7 +205,7 @@ object Movement {
             println("Movement.singleJump() called with duration: $holdDuration, bot toggled: ${CatDueller.bot?.toggled()}")
         }
         startJumping()
-        TimeUtils.setTimeout(this::stopJumping, holdDuration)
+        TimerUtil.setTimeout(this::stopJumping, holdDuration)
     }
 
     /**

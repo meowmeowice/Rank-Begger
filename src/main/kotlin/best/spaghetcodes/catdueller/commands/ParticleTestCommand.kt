@@ -1,7 +1,7 @@
 package best.spaghetcodes.catdueller.commands
 
-import best.spaghetcodes.catdueller.utils.ChatUtils
-import best.spaghetcodes.catdueller.utils.ParticleDetector
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
+import best.spaghetcodes.catdueller.utils.game.ParticleUtil
 import net.minecraft.client.Minecraft
 import net.minecraft.command.CommandBase
 import net.minecraft.command.ICommandSender
@@ -54,21 +54,21 @@ class ParticleTestCommand : CommandBase() {
         val enableDebug = args?.getOrNull(1)?.equals("debug", ignoreCase = true) ?: false
 
         if (enableDebug) {
-            ParticleDetector.debugMode = !ParticleDetector.debugMode
-            ChatUtils.info("Particle debug mode: ${if (ParticleDetector.debugMode) "ON" else "OFF"}")
-            if (ParticleDetector.debugMode) {
-                ChatUtils.info("Debug output will appear in console")
+            ParticleUtil.debugMode = !ParticleUtil.debugMode
+            ChatUtil.info("Particle debug mode: ${if (ParticleUtil.debugMode) "ON" else "OFF"}")
+            if (ParticleUtil.debugMode) {
+                ChatUtil.info("Debug output will appear in console")
             }
             return
         }
 
-        ChatUtils.info("=== Particle Detection Test ===")
-        ChatUtils.info("Testing within $radius blocks of player")
-        ChatUtils.info("Use '/particletest debug' to toggle debug mode")
-        ChatUtils.info("")
+        ChatUtil.info("=== Particle Detection Test ===")
+        ChatUtil.info("Testing within $radius blocks of player")
+        ChatUtil.info("Use '/particletest debug' to toggle debug mode")
+        ChatUtil.info("")
 
-        ChatUtils.info(ParticleDetector.getDebugInfo())
-        ChatUtils.info("")
+        ChatUtil.info(ParticleUtil.getDebugInfo())
+        ChatUtil.info("")
 
         val particleTypes = listOf(
             EnumParticleTypes.PORTAL to "Portal",
@@ -82,21 +82,21 @@ class ParticleTestCommand : CommandBase() {
 
         var foundAny = false
         for ((type, name) in particleTypes) {
-            val found = ParticleDetector.hasParticleNearby(
+            val found = ParticleUtil.hasParticleNearby(
                 player.posX, player.posY, player.posZ, type, radius, true
             )
             if (found) {
-                ChatUtils.info("[checkmark] Found $name particles")
+                ChatUtil.info("[checkmark] Found $name particles")
                 foundAny = true
             }
         }
 
         if (!foundAny) {
-            ChatUtils.info("No particles detected within $radius blocks")
+            ChatUtil.info("No particles detected within $radius blocks")
         }
 
-        ChatUtils.info("")
-        ChatUtils.info("=== Test Complete ===")
+        ChatUtil.info("")
+        ChatUtil.info("=== Test Complete ===")
     }
 
     /**

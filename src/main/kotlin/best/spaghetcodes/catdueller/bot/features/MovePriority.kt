@@ -2,7 +2,7 @@ package best.spaghetcodes.catdueller.bot.features
 
 import best.spaghetcodes.catdueller.bot.player.Combat
 import best.spaghetcodes.catdueller.bot.player.Movement
-import best.spaghetcodes.catdueller.utils.RandomUtils
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 
 /**
  * Interface for handling movement priority decisions during combat.
@@ -56,7 +56,7 @@ interface MovePriority {
                     Movement.stopLeft()
                     Movement.startRight()
                 } else {
-                    if (RandomUtils.randomBool()) {
+                    if (RandomUtil.randomBool()) {
                         Movement.startLeft()
                     } else {
                         Movement.startRight()

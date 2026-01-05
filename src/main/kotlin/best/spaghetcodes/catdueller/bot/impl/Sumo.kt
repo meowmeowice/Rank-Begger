@@ -3,12 +3,17 @@ package best.spaghetcodes.catdueller.bot.impl
 
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.BotBase
-import best.spaghetcodes.catdueller.bot.StateManager
 import best.spaghetcodes.catdueller.bot.player.Combat
 import best.spaghetcodes.catdueller.bot.player.LobbyMovement
 import best.spaghetcodes.catdueller.bot.player.Mouse
 import best.spaghetcodes.catdueller.bot.player.Movement
-import best.spaghetcodes.catdueller.utils.*
+import best.spaghetcodes.catdueller.bot.state.StateManager
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.game.EntityUtil
+import best.spaghetcodes.catdueller.utils.game.ParticleUtil
+import best.spaghetcodes.catdueller.utils.game.WorldUtil
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 import net.minecraft.client.Minecraft
 import net.minecraft.entity.player.EntityPlayer
 import net.minecraft.util.BlockPos
@@ -127,7 +132,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         try {
             java.awt.Robot()
         } catch (e: Exception) {
-            ChatUtils.info("Failed to initialize Robot: ${e.message}")
+            ChatUtil.info("Failed to initialize Robot: ${e.message}")
             null
         }
     }
@@ -250,19 +255,19 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         }
 
         if (CatDueller.config?.setMyRotation == true) {
-            TimeUtils.setTimeout({
+            TimerUtil.setTimeout({
                 val baseYaw = CatDueller.config?.myTargetYaw ?: 0.0f
                 val basePitch = CatDueller.config?.myTargetPitch ?: 0.0f
                 val tolerance = CatDueller.config?.myAngleTolerance ?: 0.01f
 
                 if (CatDueller.config?.showRotationDebug == true) {
-                    ChatUtils.info("Setting my rotation:")
-                    ChatUtils.info("  yaw=$baseYaw, pitch=$basePitch, tolerance=$tolerance")
+                    ChatUtil.info("Setting my rotation:")
+                    ChatUtil.info("  yaw=$baseYaw, pitch=$basePitch, tolerance=$tolerance")
                 }
 
                 LobbyMovement.adjustRotation(baseYaw, basePitch, tolerance) {
                     if (CatDueller.config?.showRotationDebug == true) {
-                        ChatUtils.info("My rotation adjustment completed!")
+                        ChatUtil.info("My rotation adjustment completed!")
                     }
                 }
             }, 1000)
@@ -290,42 +295,42 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     if (currentScreen is net.minecraft.client.gui.GuiChat) {
                         // Close chat first
                         mc.displayGuiScreen(null)
-                        TimeUtils.setTimeout({
+                        TimerUtil.setTimeout({
                             try {
                                 // Check if ESC menu was automatically opened (happens when window not focused)
                                 when (val screenAfterClose = mc.currentScreen) {
                                     is net.minecraft.client.gui.GuiIngameMenu -> {
                                         // ESC menu automatically opened - use it
-                                        ChatUtils.info("Sumo Long Jump activated - closed chat, using auto-opened ESC menu")
+                                        ChatUtil.info("Sumo Long Jump activated - closed chat, using auto-opened ESC menu")
                                     }
 
                                     null -> {
                                         // No GUI auto-opened, manually open ESC menu
                                         mc.displayGuiScreen(net.minecraft.client.gui.GuiIngameMenu())
-                                        ChatUtils.info("Sumo Long Jump activated - closed chat and opened ESC menu")
+                                        ChatUtil.info("Sumo Long Jump activated - closed chat and opened ESC menu")
                                     }
 
                                     else -> {
                                         // Some other GUI opened, use it
-                                        ChatUtils.info("Sumo Long Jump activated - closed chat, using ${screenAfterClose.javaClass.simpleName}")
+                                        ChatUtil.info("Sumo Long Jump activated - closed chat, using ${screenAfterClose.javaClass.simpleName}")
                                     }
                                 }
                             } catch (e: Exception) {
-                                ChatUtils.info("Failed to handle GUI after closing chat: ${e.message}")
+                                ChatUtil.info("Failed to handle GUI after closing chat: ${e.message}")
                                 Movement.stopLongJump()
                             }
                         }, 50)
                     } else {
                         // Other GUI (ESC menu, etc.) works same as inventory for keybind handling
-                        ChatUtils.info("Sumo Long Jump activated - using existing GUI (${currentScreen.javaClass.simpleName})")
+                        ChatUtil.info("Sumo Long Jump activated - using existing GUI (${currentScreen.javaClass.simpleName})")
                     }
                 } else {
                     // No GUI open, open inventory
                     mc.displayGuiScreen(net.minecraft.client.gui.inventory.GuiInventory(player))
-                    ChatUtils.info("Sumo Long Jump activated - opened inventory")
+                    ChatUtil.info("Sumo Long Jump activated - opened inventory")
                 }
             } catch (e: Exception) {
-                ChatUtils.info("Error during long jump setup: ${e.message}")
+                ChatUtil.info("Error during long jump setup: ${e.message}")
                 Movement.stopLongJump() // Cancel long jump on any error
             }
         }
@@ -373,16 +378,16 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
             // Only trigger if both blocks are air
             if (block1 == net.minecraft.init.Blocks.air && block2 == net.minecraft.init.Blocks.air) {
-                ChatUtils.info("Air detected at $x, $y1, $z and $x, $y2, $z. Leaving Game...")
-                TimeUtils.setTimeout(fun() {
+                ChatUtil.info("Air detected at $x, $y1, $z and $x, $y2, $z. Leaving Game...")
+                TimerUtil.setTimeout(fun() {
                     player.sendChatMessage("/play duels_sumo_duel")
-                }, RandomUtils.randomIntInRange(100, 300))
+                }, RandomUtil.randomIntInRange(100, 300))
                 return
             }
         }
 
         // If we reach here, no air blocks were detected at any coordinate
-        ChatUtils.info("No air blocks detected - map is safe")
+        ChatUtil.info("No air blocks detected - map is safe")
 
 
         // Check for standing still players if dodge feature is enabled
@@ -394,12 +399,12 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         val dodgeParticleType = CatDueller.config?.dodgeParticleType ?: 0
         if (dodgeParticleType > 0) {  // 0=None, 1=Slime, 2=Portal
             // Set up delayed particle checking (0-2 seconds)
-            val delayMs = RandomUtils.randomIntInRange(0, 2000)
+            val delayMs = RandomUtil.randomIntInRange(0, 2000)
             particleDodgeDelayActive = true
             particleDodgeCheckTime = System.currentTimeMillis() + delayMs
 
             if (CatDueller.config?.combatLogs == true) {
-                ChatUtils.info("Particle dodge check scheduled in ${delayMs}ms")
+                ChatUtil.info("Particle dodge check scheduled in ${delayMs}ms")
             }
         }
 
@@ -410,8 +415,8 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             val tolerance = CatDueller.config?.opponentAngleTolerance ?: 1.0f
 
             if (CatDueller.config?.showRotationDebug == true) {
-                ChatUtils.info("Checking opponent rotation:")
-                ChatUtils.info("  Expected: yaw=$baseExpectedYaw, pitch=$baseExpectedPitch, tolerance=$tolerance")
+                ChatUtil.info("Checking opponent rotation:")
+                ChatUtil.info("  Expected: yaw=$baseExpectedYaw, pitch=$baseExpectedPitch, tolerance=$tolerance")
             }
 
             if (LobbyMovement.checkOpponentRotationAndDodge(baseExpectedYaw, baseExpectedPitch, tolerance)) {
@@ -427,8 +432,8 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             val tolerance = CatDueller.config?.opponentAngleTolerance ?: 1.0f
 
             if (CatDueller.config?.showRotationDebug == true) {
-                ChatUtils.info("Checking opponent rotation for bot detection:")
-                ChatUtils.info("  Expected: yaw=$baseExpectedYaw, pitch=$baseExpectedPitch, tolerance=$tolerance")
+                ChatUtil.info("Checking opponent rotation for bot detection:")
+                ChatUtil.info("  Expected: yaw=$baseExpectedYaw, pitch=$baseExpectedPitch, tolerance=$tolerance")
             }
 
             if (LobbyMovement.checkOpponentRotationMatchAndDodge(baseExpectedYaw, baseExpectedPitch, tolerance)) {
@@ -449,7 +454,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         LobbyMovement.stop()
 
         if (Movement.isLongJumpActive()) {
-            TimeUtils.setTimeout({
+            TimerUtil.setTimeout({
                 Movement.stopLongJump()
             }, 300)
         }
@@ -498,7 +503,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
         gameStartWaitActive = true
         gameStartTime = System.currentTimeMillis()
-        ChatUtils.combatInfo("Game started - waiting ${gameStartWaitDuration}ms before enabling edge features")
+        ChatUtil.combatInfo("Game started - waiting ${gameStartWaitDuration}ms before enabling edge features")
 
         resetOpponentFreezeDetection()
     }
@@ -512,13 +517,13 @@ class Sumo : BotBase("/play duels_sumo_duel") {
     override fun onGameEnd() {
         if (edgeBlatantToggled && CatDueller.config?.toggleBlatantAtEdge == true) {
             val keyName = CatDueller.config?.blatantToggleKey ?: "F1"
-            ChatUtils.combatInfo("Game ended - turning off edge blatant mode")
+            ChatUtil.combatInfo("Game ended - turning off edge blatant mode")
             simulateKeyPress(keyName)
         }
 
         if (CatDueller.config?.freezeWhenOffEdge == true && offEdgeBindTriggeredThisGame) {
             val freezeBind = CatDueller.config?.freezeBind ?: "F1"
-            ChatUtils.combatInfo("Game ended - pressing freeze bind again (was triggered during game): $freezeBind")
+            ChatUtil.combatInfo("Game ended - pressing freeze bind again (was triggered during game): $freezeBind")
             simulateKeyPress(freezeBind)
         }
 
@@ -555,21 +560,21 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         if (stopAtEdgeActive) {
             stopAtEdgeActive = false
             if (CatDueller.config?.combatLogs == true) {
-                ChatUtils.combatInfo("Stop When Opponent At Edge cancelled - attacked opponent")
+                ChatUtil.combatInfo("Stop When Opponent At Edge cancelled - attacked opponent")
             }
         }
 
         if (!tapping && CatDueller.config?.enableWTap == true) {
             tapping = true
             val delay = CatDueller.config?.wTapDelay ?: 100
-            TimeUtils.setTimeout(fun() {
+            TimerUtil.setTimeout(fun() {
                 val dur = 50
                 if (CatDueller.config?.sprintReset == true) {
                     Combat.sprintReset(dur)
                 } else {
                     Combat.wTap(dur)
                 }
-                TimeUtils.setTimeout(fun() {
+                TimerUtil.setTimeout(fun() {
                     tapping = false
                 }, dur)
             }, delay)
@@ -608,7 +613,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
     override fun onFoundOpponent() {
         val opponentPlayer = opponent() ?: return
         if (!isOpponentValid(opponentPlayer.displayNameString)) {
-            ChatUtils.info("Opponent ${opponentPlayer.displayNameString} is not in tablist, ignoring")
+            ChatUtil.info("Opponent ${opponentPlayer.displayNameString} is not in tablist, ignoring")
             return
         }
 
@@ -632,7 +637,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
      * @return True if edge is on the left
      */
     fun leftEdge(distance: Float): Boolean {
-        return (WorldUtils.airOnLeft(mc.thePlayer, distance))
+        return (WorldUtil.airOnLeft(mc.thePlayer, distance))
     }
 
     /**
@@ -642,7 +647,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
      * @return True if edge is on the right
      */
     fun rightEdge(distance: Float): Boolean {
-        return (WorldUtils.airOnRight(mc.thePlayer, distance))
+        return (WorldUtil.airOnRight(mc.thePlayer, distance))
     }
 
     /**
@@ -652,7 +657,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
      * @return True if near any edge (excluding front)
      */
     fun nearEdge(distance: Float): Boolean {
-        return (rightEdge(distance) || leftEdge(distance) || WorldUtils.airInBack(mc.thePlayer, distance))
+        return (rightEdge(distance) || leftEdge(distance) || WorldUtil.airInBack(mc.thePlayer, distance))
     }
 
     /**
@@ -673,10 +678,10 @@ class Sumo : BotBase("/play duels_sumo_duel") {
      */
     fun opponentNearEdge(distance: Float): Boolean {
         val opponent = opponent() ?: return false
-        return (WorldUtils.airInBack(opponent, distance) || WorldUtils.airOnLeft(
+        return (WorldUtil.airInBack(opponent, distance) || WorldUtil.airOnLeft(
             opponent,
             distance
-        ) || WorldUtils.airOnRight(opponent, distance))
+        ) || WorldUtil.airOnRight(opponent, distance))
     }
 
     /**
@@ -690,7 +695,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         val currentTime = System.currentTimeMillis()
         if (currentTime - gameStartTime >= gameStartWaitDuration) {
             gameStartWaitActive = false
-            ChatUtils.combatInfo("Game start wait period ended - edge features now enabled")
+            ChatUtil.combatInfo("Game start wait period ended - edge features now enabled")
             return false
         }
         return true
@@ -705,16 +710,16 @@ class Sumo : BotBase("/play duels_sumo_duel") {
      * @return 1 for left, 2 for right
      */
     private fun decideStrafeDirectionByEdgeDistance(): Int {
-        val player = mc.thePlayer ?: return if (RandomUtils.randomBool()) 1 else 2
+        val player = mc.thePlayer ?: return if (RandomUtil.randomBool()) 1 else 2
 
         // Only check if near left or right edge (not back)
         if (!nearLeftOrRightEdge(6f)) {
             // Not near left or right edge, return random direction
-            return if (RandomUtils.randomBool()) 1 else 2
+            return if (RandomUtil.randomBool()) 1 else 2
         }
 
-        val leftDistance = WorldUtils.distanceToLeftEdge(player)
-        val rightDistance = WorldUtils.distanceToRightEdge(player)
+        val leftDistance = WorldUtil.distanceToLeftEdge(player)
+        val rightDistance = WorldUtil.distanceToRightEdge(player)
 
         // Strafe towards the direction with more space (larger distance to edge)
         return if (leftDistance > rightDistance) 1 else 2
@@ -774,16 +779,16 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 val isStandingStill = kotlin.math.abs(xDecimal - 0.5) < 0.01 && kotlin.math.abs(zDecimal - 0.5) < 0.01
 
                 if (isStandingStill) {
-                    ChatUtils.info("Detected standing still player at ($opponentX, $opponentZ) - dodging!")
+                    ChatUtil.info("Detected standing still player at ($opponentX, $opponentZ) - dodging!")
 
                     // Send queue command to dodge
-                    TimeUtils.setTimeout(fun() {
-                        ChatUtils.sendAsPlayer(queueCommand)
-                    }, RandomUtils.randomIntInRange(100, 300))
+                    TimerUtil.setTimeout(fun() {
+                        ChatUtil.sendAsPlayer(queueCommand)
+                    }, RandomUtil.randomIntInRange(100, 300))
                 }
             }
         } catch (e: Exception) {
-            ChatUtils.info("Error checking for standing still player: ${e.message}")
+            ChatUtil.info("Error checking for standing still player: ${e.message}")
         }
     }
 
@@ -821,25 +826,25 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             val debug = CatDueller.config?.combatLogs == true
 
             if (debug) {
-                ChatUtils.info("Checking for $particleName particles using S2APacketParticles...")
-                ChatUtils.info(ParticleDetector.getDebugInfo())
+                ChatUtil.info("Checking for $particleName particles using S2APacketParticles...")
+                ChatUtil.info(ParticleUtil.getDebugInfo())
             }
 
-            if (ParticleDetector.hasParticleInRange(
+            if (ParticleUtil.hasParticleInRange(
                     player.posX, player.posY, player.posZ, particleType, 1.0, 20.0, debug
                 )
             ) {
-                ChatUtils.info("Detected $particleName particles within 1-20 blocks - dodging!")
+                ChatUtil.info("Detected $particleName particles within 1-20 blocks - dodging!")
 
                 // Send queue command to dodge
-                TimeUtils.setTimeout(fun() {
-                    ChatUtils.sendAsPlayer(queueCommand)
-                }, RandomUtils.randomIntInRange(100, 300))
+                TimerUtil.setTimeout(fun() {
+                    ChatUtil.sendAsPlayer(queueCommand)
+                }, RandomUtil.randomIntInRange(100, 300))
             } else if (debug) {
-                ChatUtils.info("No $particleName particles detected within 1-20 blocks")
+                ChatUtil.info("No $particleName particles detected within 1-20 blocks")
             }
         } catch (e: Exception) {
-            ChatUtils.info("Error checking for particles: ${e.message}")
+            ChatUtil.info("Error checking for particles: ${e.message}")
             e.printStackTrace()
         }
     }
@@ -881,7 +886,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             val dodgeParticleType = CatDueller.config?.dodgeParticleType ?: 0
             if (dodgeParticleType > 0) {
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.info("Executing delayed particle dodge check")
+                    ChatUtil.info("Executing delayed particle dodge check")
                 }
                 checkAndDodgeParticles(dodgeParticleType)
             }
@@ -894,8 +899,8 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
         // Check if opponent is off edge
         if (opponent() != null && mc.thePlayer != null) {
-            val currentlyOffEdge = WorldUtils.entityOffEdge(opponent()!!)
-            val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent()!!)
+            val currentlyOffEdge = WorldUtil.entityOffEdge(opponent()!!)
+            val distance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent()!!)
 
             // Opponent is off edge if:
             // 1. Actually off edge, OR
@@ -908,10 +913,10 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 if (CatDueller.config?.distance7Jump == true && waitingDistanceWasGreaterThan7 && distance <= 7.0f && !jumpedAtDistance7 && player.onGround) {
                     val timeSinceGameStart = System.currentTimeMillis() - gameStartTime
                     if (timeSinceGameStart >= 1000) { // Only jump after 1 second from game start
-                        Movement.singleJump(RandomUtils.randomIntInRange(100, 150))
+                        Movement.singleJump(RandomUtil.randomIntInRange(100, 150))
                         jumpedAtDistance7 = true
                         if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo("waitingForOpponentAttack: Jumped at distance 7 (was waiting from >7)")
+                            ChatUtil.combatInfo("waitingForOpponentAttack: Jumped at distance 7 (was waiting from >7)")
                         }
                     }
                 }
@@ -919,7 +924,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 // Only cancel waiting if distance < 0.5 (very close)
                 if (distance < 1f) {
                     if (CatDueller.config?.combatLogs == true) {
-                        ChatUtils.combatInfo("Cancelling waitingForOpponentAttack - distance < 0.5 ($distance)")
+                        ChatUtil.combatInfo("Cancelling waitingForOpponentAttack - distance < 0.5 ($distance)")
                     }
                     waitingForOpponentAttack = false
                     waitingForOpponentAttackStartTime = 0L
@@ -967,7 +972,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         val hasActiveHurtStrafe = hurtStrafeDirection != 0 &&
                 opponent() != null &&
                 mc.thePlayer != null &&
-                EntityUtils.getDistanceNoY(mc.thePlayer, opponent()!!) < 4f
+                EntityUtil.getDistanceNoY(mc.thePlayer, opponent()!!) < 4f
 
         if (!opponentOffEdge && mc.thePlayer != null && opponent() != null) {
             // Blink At Edge logic
@@ -979,12 +984,12 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
             // Check if player is off edge and press freeze bind if enabled (only during game)
             if (CatDueller.config?.freezeWhenOffEdge == true && mc.thePlayer != null) {
-                val playerOffEdge = WorldUtils.entityOffEdge(mc.thePlayer)
+                val playerOffEdge = WorldUtil.entityOffEdge(mc.thePlayer)
 
                 // Only press key when transitioning from not off edge to off edge
                 if (playerOffEdge && !playerOffEdgeLastTick) {
                     val freezeBind = CatDueller.config?.freezeBind ?: "F1"
-                    ChatUtils.combatInfo("Player went off edge during game - pressing freeze bind: $freezeBind")
+                    ChatUtil.combatInfo("Player went off edge during game - pressing freeze bind: $freezeBind")
                     simulateKeyPress(freezeBind)
                     offEdgeBindTriggeredThisGame = true  // Mark that we triggered off edge bind this game
                 }
@@ -1005,7 +1010,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 Mouse.startTracking()
             }
 
-            val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
+            val distance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
 
             // Track when we enter attack range for timeout calculation
             val maxAttackDistance = CatDueller.config?.maxDistanceAttack ?: 5
@@ -1064,7 +1069,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     Movement.stopForward()
                     Movement.startBackward()
 
-                    TimeUtils.setTimeout({
+                    TimerUtil.setTimeout({
                         if (!tapping) {
                             Movement.startForward()
                         }
@@ -1087,7 +1092,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     Movement.stopForward()
 
                     if (CatDueller.config?.combatLogs == true) {
-                        ChatUtils.combatInfo("Stop When Opponent At Edge activated - distance: $distance")
+                        ChatUtil.combatInfo("Stop When Opponent At Edge activated - distance: $distance")
                     }
                 }
 
@@ -1106,7 +1111,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
                         if (CatDueller.config?.combatLogs == true) {
                             val reason = if (hurtTimeIncreased) "hurtTime > 0" else "timeout"
-                            ChatUtils.combatInfo("Stop When Opponent At Edge ended - reason: $reason, duration: ${timeElapsed}ms")
+                            ChatUtil.combatInfo("Stop When Opponent At Edge ended - reason: $reason, duration: ${timeElapsed}ms")
                         }
                     }
                 }
@@ -1119,7 +1124,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 }
 
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("Stop When Opponent At Edge cancelled - conditions no longer met")
+                    ChatUtil.combatInfo("Stop When Opponent At Edge cancelled - conditions no longer met")
                 }
             }
 
@@ -1133,11 +1138,11 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             // But ignore edge safety for first 1 second after game start
             val timeSinceGameStart = System.currentTimeMillis() - gameStartTime
             val ignoreEdgeForEarlyGame = timeSinceGameStart < 1000
-            val leftDistance = WorldUtils.distanceToLeftEdge(player)
-            val rightDistance = WorldUtils.distanceToRightEdge(player)
+            val leftDistance = WorldUtil.distanceToLeftEdge(player)
+            val rightDistance = WorldUtil.distanceToRightEdge(player)
             val tooCloseToLeftEdge = if (ignoreEdgeForEarlyGame) {
                 if (CatDueller.config?.combatLogs == true && leftDistance < 7.0f) {
-                    ChatUtils.combatInfo("Ignoring left edge safety for early game (${timeSinceGameStart}ms since start, distance: $leftDistance)")
+                    ChatUtil.combatInfo("Ignoring left edge safety for early game (${timeSinceGameStart}ms since start, distance: $leftDistance)")
                 }
                 false
             } else {
@@ -1145,7 +1150,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             }
             val tooCloseToRightEdge = if (ignoreEdgeForEarlyGame) {
                 if (CatDueller.config?.combatLogs == true && rightDistance < 7.0f) {
-                    ChatUtils.combatInfo("Ignoring right edge safety for early game (${timeSinceGameStart}ms since start, distance: $rightDistance)")
+                    ChatUtil.combatInfo("Ignoring right edge safety for early game (${timeSinceGameStart}ms since start, distance: $rightDistance)")
                 }
                 false
             } else {
@@ -1166,7 +1171,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     if (CatDueller.config?.combatLogs == true) {
                         val edgeType = if (tooCloseToLeftEdge) "left" else "right"
                         val direction = if (safeDirection == 1) "left" else "right"
-                        ChatUtils.combatInfo("Edge Safety: Too close to $edgeType edge (${"%.1f".format(if (tooCloseToLeftEdge) leftDistance else rightDistance)}), forcing mid range strafe $direction")
+                        ChatUtil.combatInfo("Edge Safety: Too close to $edgeType edge (${"%.1f".format(if (tooCloseToLeftEdge) leftDistance else rightDistance)}), forcing mid range strafe $direction")
                     }
                 }
             }
@@ -1174,7 +1179,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             // hurt strafe logic is now handled with absolute priority in movement section
             // No need for movePriority system - direct Movement control takes precedence
 
-            if (distance > 8 && !WorldUtils.airInFront(player, 5f) && player.hurtTime == 0) {
+            if (distance > 8 && !WorldUtil.airInFront(player, 5f) && player.hurtTime == 0) {
                 // Use random strafe if enabled, otherwise clear movement
                 if (CatDueller.config?.randomStrafe == true) {
                     randomStrafe = true
@@ -1197,12 +1202,12 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     (dx * playerMotionX + dz * playerMotionZ) > 0
                 } ?: false
 
-                if (player.onGround && !WorldUtils.airInFront(player, 3f) && !waitingForOpponentAttack &&
+                if (player.onGround && !WorldUtil.airInFront(player, 3f) && !waitingForOpponentAttack &&
                     Movement.forward() && (isActuallyMovingForward || isMovingTowardsOpponent)
                 ) {
 
                     // Jump first
-                    Movement.singleJump(RandomUtils.randomIntInRange(100, 150))
+                    Movement.singleJump(RandomUtil.randomIntInRange(100, 150))
 
                     // Handle strafe based on random strafe setting
                     if (CatDueller.config?.randomStrafe == true) {
@@ -1268,7 +1273,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 if (enableStrafeSwitch && midRangeStrafeDecided && midRangeStrafeStartTime > 0 &&
                     currentTime - midRangeStrafeStartTime > switchDelay
                 ) {
-                    ChatUtils.combatInfo("Mid-range strafe timeout (${currentTime - midRangeStrafeStartTime}ms) - forcing close range strafe")
+                    ChatUtil.combatInfo("Mid-range strafe timeout (${currentTime - midRangeStrafeStartTime}ms) - forcing close range strafe")
                     closeRangeStrafe = true
                     midRangeStrafeDecided = false
                     jumpTriggeredStrafe = false
@@ -1278,12 +1283,12 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     when (lastStrafeDirection) {
                         1 -> {
                             movePriority[1] += 15  // Switch to right with higher priority
-                            ChatUtils.combatInfo("Timeout: Switching from left to right strafe")
+                            ChatUtil.combatInfo("Timeout: Switching from left to right strafe")
                         }
 
                         2 -> {
                             movePriority[0] += 15  // Switch to left with higher priority
-                            ChatUtils.combatInfo("Timeout: Switching from right to left strafe")
+                            ChatUtil.combatInfo("Timeout: Switching from right to left strafe")
                         }
 
                         else -> {
@@ -1293,7 +1298,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                             } else {
                                 movePriority[0] += 15  // Start with opposite direction
                             }
-                            ChatUtils.combatInfo("Timeout: Starting close range strafe")
+                            ChatUtil.combatInfo("Timeout: Starting close range strafe")
                         }
                     }
                 }
@@ -1322,7 +1327,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     midRangeStrafeDecided = false
                     jumpTriggeredStrafe = false  // Reset jump triggered flag when entering close range
                     midRangeStrafeStartTime = 0L  // Reset timeout when entering close range
-                    ChatUtils.combatInfo("Strafe switching - entered close range")
+                    ChatUtil.combatInfo("Strafe switching - entered close range")
                 }
 
                 // strafe switch until attack (if strafe switching is enabled)
@@ -1340,10 +1345,10 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                         }
 
                         if (CatDueller.config?.combatLogs == true) {
-                            val leftDistance = WorldUtils.distanceToLeftEdge(player)
-                            val rightDistance = WorldUtils.distanceToRightEdge(player)
+                            val leftDistance = WorldUtil.distanceToLeftEdge(player)
+                            val rightDistance = WorldUtil.distanceToRightEdge(player)
                             val direction = if (safeDirection == 1) "left" else "right"
-                            ChatUtils.combatInfo(
+                            ChatUtil.combatInfo(
                                 "Close Range Strafe (Near Left/Right Edge): Moving $direction (leftDist: ${
                                     "%.1f".format(
                                         leftDistance
@@ -1380,7 +1385,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                         midRangeStrafeStartTime = System.currentTimeMillis()
                         if (CatDueller.config?.combatLogs == true) {
                             val direction = if (lastStrafeDirection == 1) "left" else "right"
-                            ChatUtils.combatInfo("Strafe switching disabled - continuing mid-range strafe $direction at close range")
+                            ChatUtil.combatInfo("Strafe switching disabled - continuing mid-range strafe $direction at close range")
                         }
                     }
 
@@ -1397,7 +1402,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             // val timeSinceGameStart and ignoreEdgeForEarlyGame already declared above
             val playerNearEdge = if (ignoreEdgeForEarlyGame) {
                 if (CatDueller.config?.combatLogs == true && nearLeftOrRightEdge(5f)) {
-                    ChatUtils.combatInfo("Ignoring edge detection for early game (${timeSinceGameStart}ms since start)")
+                    ChatUtil.combatInfo("Ignoring edge detection for early game (${timeSinceGameStart}ms since start)")
                 }
                 false
             } else {
@@ -1422,8 +1427,8 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 val currentTime = System.currentTimeMillis()
 
                 if (opponentEdgeStrafeDirection == 0 || currentTime - opponentEdgeStrafeLastChange >= 500) {
-                    val leftDistance = WorldUtils.distanceToLeftEdge(player)
-                    val rightDistance = WorldUtils.distanceToRightEdge(player)
+                    val leftDistance = WorldUtil.distanceToLeftEdge(player)
+                    val rightDistance = WorldUtil.distanceToRightEdge(player)
 
                     // Always strafe towards the direction with more space (safer direction)
                     opponentEdgeStrafeDirection = if (playerNearLeftOrRightEdge) {
@@ -1437,7 +1442,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     val situation =
                         if (bothAtEdge) "BothAtEdge" else if (playerNearLeftOrRightEdge) "OpponentAtEdge+PlayerNearEdge" else "OpponentAtEdge"
                     val direction = if (opponentEdgeStrafeDirection == 1) "left" else "right"
-                    ChatUtils.combatInfo(
+                    ChatUtil.combatInfo(
                         "$situation strafe: $direction (leftDist: ${"%.1f".format(leftDistance)}, rightDist: ${
                             "%.1f".format(
                                 rightDistance
@@ -1467,8 +1472,8 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 Movement.clearLeftRight()
 
                 // Check if current hurt strafe direction is safe (not towards edge)
-                val leftDistance = WorldUtils.distanceToLeftEdge(player)
-                val rightDistance = WorldUtils.distanceToRightEdge(player)
+                val leftDistance = WorldUtil.distanceToLeftEdge(player)
+                val rightDistance = WorldUtil.distanceToRightEdge(player)
                 val tooCloseToLeftEdge = leftDistance < 4.0f
                 val tooCloseToRightEdge = rightDistance < 4.0f
 
@@ -1478,13 +1483,13 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     // Too close to left edge but trying to strafe left - switch to right
                     actualStrafeDirection = 2
                     if (CatDueller.config?.combatLogs == true) {
-                        ChatUtils.combatInfo("Hurt Strafe: Overriding left strafe due to left edge proximity ($leftDistance)")
+                        ChatUtil.combatInfo("Hurt Strafe: Overriding left strafe due to left edge proximity ($leftDistance)")
                     }
                 } else if (tooCloseToRightEdge && hurtStrafeDirection == 2) {
                     // Too close to right edge but trying to strafe right - switch to left
                     actualStrafeDirection = 1
                     if (CatDueller.config?.combatLogs == true) {
-                        ChatUtils.combatInfo("Hurt Strafe: Overriding right strafe due to right edge proximity ($rightDistance)")
+                        ChatUtil.combatInfo("Hurt Strafe: Overriding right strafe due to right edge proximity ($rightDistance)")
                     }
                 }
 
@@ -1506,8 +1511,8 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     // Near left or right edge when hurt - strafe away from edge
                     Combat.stopRandomStrafe()
 
-                    val leftDistance = WorldUtils.distanceToLeftEdge(player)
-                    val rightDistance = WorldUtils.distanceToRightEdge(player)
+                    val leftDistance = WorldUtil.distanceToLeftEdge(player)
+                    val rightDistance = WorldUtil.distanceToRightEdge(player)
 
                     if (leftDistance < rightDistance) {
                         // Closer to left edge - strafe right
@@ -1531,8 +1536,8 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     Combat.stopRandomStrafe()
 
                     // Final edge safety check before applying movement
-                    val leftDistance = WorldUtils.distanceToLeftEdge(player)
-                    val rightDistance = WorldUtils.distanceToRightEdge(player)
+                    val leftDistance = WorldUtil.distanceToLeftEdge(player)
+                    val rightDistance = WorldUtil.distanceToRightEdge(player)
                     val tooCloseToLeftEdge = leftDistance < 4.0f
                     val tooCloseToRightEdge = rightDistance < 4.0f
 
@@ -1543,7 +1548,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     } else if (movePriority[1] > movePriority[0]) {
                         2  // Want to go right
                     } else {
-                        if (RandomUtils.randomBool()) 1 else 2
+                        if (RandomUtil.randomBool()) 1 else 2
                     }
 
                     // Override if intended direction is towards edge
@@ -1551,13 +1556,13 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                         // Too close to left edge but trying to strafe left - force right
                         intendedDirection = 2
                         if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo("Final Edge Safety: Overriding left strafe due to left edge proximity ($leftDistance)")
+                            ChatUtil.combatInfo("Final Edge Safety: Overriding left strafe due to left edge proximity ($leftDistance)")
                         }
                     } else if (tooCloseToRightEdge && intendedDirection == 2) {
                         // Too close to right edge but trying to strafe right - force left
                         intendedDirection = 1
                         if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo("Final Edge Safety: Overriding right strafe due to right edge proximity ($rightDistance)")
+                            ChatUtil.combatInfo("Final Edge Safety: Overriding right strafe due to right edge proximity ($rightDistance)")
                         }
                     }
 
@@ -1580,7 +1585,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             if (shouldStopForwardForCombo(distance, edgeStutterActive, stopAtEdgeActive)) {
                 Movement.stopForward()
                 Movement.startBackward()
-            } else if (distance < 1.8 && WorldUtils.airInFront(mc.thePlayer, 5f)) {
+            } else if (distance < 1.8 && WorldUtil.airInFront(mc.thePlayer, 5f)) {
                 if (!edgeStutterActive && !stopAtEdgeActive) {  // Don't override during edge stutter or stop at edge
                     Movement.stopForward()
                     Movement.startBackward()
@@ -1596,12 +1601,12 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
             if (!waitingForOpponentAttack && mc.thePlayer != null) {
                 opponent()?.let { opp ->
-                    val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opp)
+                    val distance = EntityUtil.getDistanceNoY(mc.thePlayer, opp)
 
                     // Only trigger when hit select at edge is enabled, player is near edge, opponent is at medium distance, AND distance > 7
                     if (CatDueller.config?.hitSelectAtEdge == true && playerNearEdge && distance > 7.0f && distance <= 12.0f) {
                         if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo("Player near edge - late hit selecting (distance: $distance, >7: true)")
+                            ChatUtil.combatInfo("Player near edge - late hit selecting (distance: $distance, >7: true)")
                         }
 
                         waitingForOpponentAttack = true
@@ -1612,7 +1617,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
                         if (CatDueller.config?.combatLogs == true) {
                             val hitSelectDelay = CatDueller.config?.hitSelectDelay ?: 400
-                            ChatUtils.combatInfo("waitingForOpponentAttack set to TRUE - ${hitSelectDelay}ms timeout")
+                            ChatUtil.combatInfo("waitingForOpponentAttack set to TRUE - ${hitSelectDelay}ms timeout")
                         }
 
                         if (CatDueller.config?.holdLeftClick == true) {
@@ -1621,7 +1626,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     } else if (CatDueller.config?.hitSelectAtEdge == true && playerNearEdge && distance >= 3.5f && distance <= 7.0f) {
                         // When near edge but distance <= 7, don't trigger waiting - just log for debugging
                         if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo("Player near edge but distance <= 7 ($distance) - not triggering waitingForOpponentAttack")
+                            ChatUtil.combatInfo("Player near edge but distance <= 7 ($distance) - not triggering waitingForOpponentAttack")
                         }
                     }
                 }
@@ -1650,7 +1655,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 // Cancel game start wait period when attacked
                 if (gameStartWaitActive && currentHurtTime > 0 && lastPlayerHurtTime == 0) {
                     gameStartWaitActive = false
-                    ChatUtils.combatInfo("Game start wait period cancelled - player was attacked, edge features now enabled")
+                    ChatUtil.combatInfo("Game start wait period cancelled - player was attacked, edge features now enabled")
                 }
 
 
@@ -1661,12 +1666,12 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     // Always activate hurt strafe - decide direction based on edge distance
                     hurtStrafeDirection = decideStrafeDirectionByEdgeDistance()
 
-                    val leftDistance = WorldUtils.distanceToLeftEdge(player)
-                    val rightDistance = WorldUtils.distanceToRightEdge(player)
+                    val leftDistance = WorldUtil.distanceToLeftEdge(player)
+                    val rightDistance = WorldUtil.distanceToRightEdge(player)
 
                     if (CatDueller.config?.combatLogs == true) {
                         val direction = if (hurtStrafeDirection == 1) "left" else "right"
-                        ChatUtils.combatInfo(
+                        ChatUtil.combatInfo(
                             "Hurt Strafe: activated $direction (leftDist: ${"%.1f".format(leftDistance)}, rightDist: ${
                                 "%.1f".format(
                                     rightDistance
@@ -1676,10 +1681,10 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     }
 
                     // Auto stop after 400ms
-                    TimeUtils.setTimeout({
+                    TimerUtil.setTimeout({
                         hurtStrafeDirection = 0
                         if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo("Hurt Strafe: deactivated")
+                            ChatUtil.combatInfo("Hurt Strafe: deactivated")
                         }
                     }, 400)
                 }
@@ -1699,7 +1704,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                         net.minecraft.client.settings.KeyBinding.onTick(mc.gameSettings.keyBindJump.keyCode)
 
                         if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo("Jump Velocity: pressed jump key with ${jumpChance}% chance (rolled ${randomChance})")
+                            ChatUtil.combatInfo("Jump Velocity: pressed jump key with ${jumpChance}% chance (rolled ${randomChance})")
                         }
                     }
                 }
@@ -1710,7 +1715,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
                 // If waiting for opponent attack and detected being attacked (hurtTime == 10 means just got hit)
                 if (waitingForOpponentAttack && currentHurtTime > 0 && lastPlayerHurtTime == 0) {
-                    ChatUtils.combatInfo("Cancelling waitingForOpponentAttack - player was attacked (hurtTime: $currentHurtTime)")
+                    ChatUtil.combatInfo("Cancelling waitingForOpponentAttack - player was attacked (hurtTime: $currentHurtTime)")
                     waitingForOpponentAttack = false
                     waitingForOpponentAttackStartTime = 0L  // Reset timeout
                     enteredAttackRangeTime = 0L  // Reset attack range time
@@ -1760,7 +1765,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                         "Distance from center: $distanceFromCenter > $triggerDistance"
                     else
                         "Opponent combo >= 2 ($opponentCombo)"
-                    ChatUtils.combatInfo("$reason - toggling blatant mode with key: $keyName")
+                    ChatUtil.combatInfo("$reason - toggling blatant mode with key: $keyName")
 
                     simulateKeyPress(keyName)
                     edgeBlatantToggled = true  // Mark as toggled to prevent spam
@@ -1769,14 +1774,14 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
             // don't walk off an edge - but don't interfere with hurt strafe
             if (!hasActiveHurtStrafe) {
-                if (WorldUtils.airInFront(player, 2f) && player.onGround) {
+                if (WorldUtil.airInFront(player, 2f) && player.onGround) {
                     Movement.startSneaking()
                 } else {
                     Movement.stopSneaking()
                 }
             }
 
-            if (WorldUtils.airInBack(player, 0.3f) && player.onGround) {
+            if (WorldUtil.airInBack(player, 0.3f) && player.onGround) {
                 Movement.startSneaking()
             } else {
                 Movement.stopSneaking()
@@ -1790,7 +1795,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     val distance = mc.thePlayer.getDistanceToEntity(currentOpponent)
 
                     // Check if player is also near LEFT OR RIGHT edge
-                    val playerNearEdge = nearEdge(5f) || WorldUtils.airInFront(mc.thePlayer, 5f)
+                    val playerNearEdge = nearEdge(5f) || WorldUtil.airInFront(mc.thePlayer, 5f)
 
                     if (playerNearEdge) {
                         clearMovementAndCombat()
@@ -1802,7 +1807,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                             if (!pendingMovementClear) {
                                 pendingMovementClear = true
                                 movementClearTime = System.currentTimeMillis() + 500L // 1 second delay
-                                ChatUtils.combatInfo(
+                                ChatUtil.combatInfo(
                                     "Opponent off edge, distance > 5 (${
                                         String.format(
                                             "%.1f",
@@ -1850,13 +1855,13 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     }
                 }
 
-                ChatUtils.combatInfo("Delayed clear cancelled - player near edge, strafing ${if (saferDirection == 1) "left" else "right"} for safety")
+                ChatUtil.combatInfo("Delayed clear cancelled - player near edge, strafing ${if (saferDirection == 1) "left" else "right"} for safety")
                 pendingMovementClear = false
             } else {
                 // Player not near edge - safe to clear
                 clearMovementAndCombat()
                 pendingMovementClear = false
-                ChatUtils.combatInfo("Delayed movement clear executed")
+                ChatUtil.combatInfo("Delayed movement clear executed")
             }
         }
 
@@ -1881,15 +1886,15 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     // Random taunt messages
                     val tauntMessages =
                         listOf("lol", "lmao", "xd", "zzz", "wtf", "wow", "??", "ok", "nice one", "bai bye")
-                    val randomTaunt = tauntMessages[RandomUtils.randomIntInRange(0, tauntMessages.size - 1)]
+                    val randomTaunt = tauntMessages[RandomUtil.randomIntInRange(0, tauntMessages.size - 1)]
 
                     // Send the taunt message with delay
-                    TimeUtils.setTimeout(fun() {
+                    TimerUtil.setTimeout(fun() {
                         if (CatDueller.bot?.toggled() == true) {
-                            ChatUtils.sendAsPlayer("/ac $randomTaunt")
-                            ChatUtils.info("Sent taunt message after $gameDurationSeconds seconds: $randomTaunt")
+                            ChatUtil.sendAsPlayer("/ac $randomTaunt")
+                            ChatUtil.info("Sent taunt message after $gameDurationSeconds seconds: $randomTaunt")
                         }
-                    }, RandomUtils.randomIntInRange(200, 500))  // Delay after game end
+                    }, RandomUtil.randomIntInRange(200, 500))  // Delay after game end
 
                     tauntMessageSent = true  // Mark as sent to avoid spam
                 }
@@ -1908,7 +1913,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
      */
     private fun handleBlinkAtEdge(player: EntityPlayer, currentOpponent: EntityPlayer) {
         val now = System.currentTimeMillis()
-        EntityUtils.getDistanceNoY(player, currentOpponent)
+        EntityUtil.getDistanceNoY(player, currentOpponent)
         val centerX = 0.5
         val centerZ = 0.5
         val centerDx = kotlin.math.abs(player.posX) - centerX
@@ -1916,11 +1921,11 @@ class Sumo : BotBase("/play duels_sumo_duel") {
         val distanceFromCenter = sqrt(centerDx * centerDx + centerDz * centerDz)
 
         if (!walkingToMiddle &&
-                (WorldUtils.airInBack(player, 5f) ||
-                        WorldUtils.airOnRight(player, 3.5f) ||
-                        WorldUtils.airOnLeft(player, 3.5f) ||
-                        distanceFromCenter > 6.2f) &&
-                distanceFromCenter > 3.6f && nextBlinkPossible && !opponentOffEdge
+            (WorldUtil.airInBack(player, 5f) ||
+                    WorldUtil.airOnRight(player, 3.5f) ||
+                    WorldUtil.airOnLeft(player, 3.5f) ||
+                    distanceFromCenter > 6.2f) &&
+            distanceFromCenter > 3.6f && nextBlinkPossible && !opponentOffEdge
         ) {
 
             walkingToMiddle = true
@@ -1928,7 +1933,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             walkToMiddleStartTime = now
             qCooldownActive = true
             secondQPressed = false // reset for this cycle
-            ChatUtils.combatInfo("Triggering walk to middle")
+            ChatUtil.combatInfo("Triggering walk to middle")
 
             // Stop tracking and left click when starting blink
             Mouse.stopTracking()
@@ -1939,7 +1944,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             // First Q press
             if (!qPressed) {
                 Mouse.stopHoldLeftClick()
-                ChatUtils.combatInfo("Released mouse button on ${CatDueller.config?.blinkKey ?: "Q"} press (start walk)")
+                ChatUtil.combatInfo("Released mouse button on ${CatDueller.config?.blinkKey ?: "Q"} press (start walk)")
                 val blinkKeyCode = getKeyCodeFromName(CatDueller.config?.blinkKey ?: "Q")
                 robot?.let {
                     it.keyPress(blinkKeyCode)
@@ -1965,7 +1970,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             if (distanceToMiddle > 1.2) {
                 Movement.startForward()
             } else {
-                ChatUtils.combatInfo("Middle Reached")
+                ChatUtil.combatInfo("Middle Reached")
                 // Face opponent
                 currentOpponent.let {
                     val opponentXDiff = it.posX - player.posX
@@ -1976,7 +1981,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 }
 
                 Mouse.startHoldLeftClick()
-                ChatUtils.combatInfo("Started Mouse Press")
+                ChatUtil.combatInfo("Started Mouse Press")
                 Movement.startForward()
 
                 if (!secondQPressed) {
@@ -1985,7 +1990,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                         it.keyPress(blinkKeyCode)
                         it.keyRelease(blinkKeyCode)
                     }
-                    ChatUtils.combatInfo("Pressed ${CatDueller.config?.blinkKey ?: "Q"} Key (Reached Middle)")
+                    ChatUtil.combatInfo("Pressed ${CatDueller.config?.blinkKey ?: "Q"} Key (Reached Middle)")
                     qPressed = false
                     secondQPressed = true
                     qCooldownActive = false
@@ -2006,7 +2011,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
         // Automatically press blink key if 6 seconds have passed without second press
         if (walkingToMiddle && qPressed && !secondQPressed && now - firstQTime > 6000) {
-            ChatUtils.combatInfo("Automatically pressing ${CatDueller.config?.blinkKey ?: "Q"} after 6s timeout")
+            ChatUtil.combatInfo("Automatically pressing ${CatDueller.config?.blinkKey ?: "Q"} after 6s timeout")
             secondQPressed = true
             qCooldownActive = false
             walkingToMiddle = false
@@ -2053,12 +2058,12 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
             if (lines.size >= 9) {
                 if ("Huaxi" in lines[8] && StateManager.state != StateManager.States.PLAYING) {
-                    ChatUtils.info("Huaxi server detected - dodging!")
+                    ChatUtil.info("Huaxi server detected - dodging!")
                     player.sendChatMessage("/play duels_sumo_duel")
                     return true  // Return true to indicate Huaxi was detected
                 }
             } else {
-                ChatUtils.info("Only ${lines.size} scoreboard lines available.")
+                ChatUtil.info("Only ${lines.size} scoreboard lines available.")
             }
         }
         return false  // Return false if Huaxi was not detected
@@ -2073,7 +2078,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
     private fun startOpponentRotationLogging() {
         stopOpponentRotationLogging() // Stop any existing timer
 
-        ChatUtils.info("Starting opponent rotation logging...")
+        ChatUtil.info("Starting opponent rotation logging...")
         rotationLoggingTimer = Timer()
         rotationLoggingTimer?.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
@@ -2125,25 +2130,25 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             lastOpponentPosition = currentPosition
             opponentLastMoveTime = currentTime
             if (CatDueller.config?.showRotationDebug == true) {
-                ChatUtils.info("Opponent moved, resetting freeze timer")
+                ChatUtil.info("Opponent moved, resetting freeze timer")
             }
         } else {
             // Opponent hasn't moved, check if 3 seconds have passed
             val timeSinceLastMove = currentTime - opponentLastMoveTime
 
             if (timeSinceLastMove >= 3000) { // 3 seconds
-                ChatUtils.info("Opponent has been frozen for ${timeSinceLastMove}ms - sending /l command")
+                ChatUtil.info("Opponent has been frozen for ${timeSinceLastMove}ms - sending /l command")
 
                 // Send /l command
                 try {
-                    ChatUtils.sendAsPlayer("/l")
+                    ChatUtil.sendAsPlayer("/l")
                     alreadySentLeaveCommand = true
                 } catch (e: Exception) {
-                    ChatUtils.info("Failed to send /l command: ${e.message}")
+                    ChatUtil.info("Failed to send /l command: ${e.message}")
                 }
             } else if (CatDueller.config?.showRotationDebug == true && timeSinceLastMove % 1000 < 100) {
                 // Debug info every second (with 100ms tolerance to avoid spam)
-                ChatUtils.info("Opponent frozen for ${timeSinceLastMove}ms / 3000ms")
+                ChatUtil.info("Opponent frozen for ${timeSinceLastMove}ms / 3000ms")
             }
         }
     }
@@ -2156,7 +2161,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
         stopOpponentFreezeDetection() // Stop any existing timer
 
-        ChatUtils.info("Starting opponent freeze detection...")
+        ChatUtil.info("Starting opponent freeze detection...")
         freezeCheckTimer = Timer()
         freezeCheckTimer?.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
@@ -2204,7 +2209,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             val yawDiff = if (lastOpponentRotationLogTime > 0L) currentYaw - lastLoggedOpponentYaw else 0f
             val pitchDiff = if (lastOpponentRotationLogTime > 0L) currentPitch - lastLoggedOpponentPitch else 0f
 
-            ChatUtils.info(
+            ChatUtil.info(
                 "Opponent Rotation: yaw=${String.format("%.6f", currentYaw)}, pitch=${
                     String.format(
                         "%.6f",
@@ -2213,7 +2218,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 }"
             )
             if (lastOpponentRotationLogTime > 0L) {
-                ChatUtils.info(
+                ChatUtil.info(
                     "  Change: yaw=${String.format("%+.6f", yawDiff)}, pitch=${
                         String.format(
                             "%+.6f",
@@ -2224,10 +2229,10 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 val yawStep = kotlin.math.abs(yawDiff)
                 val pitchStep = kotlin.math.abs(pitchDiff)
                 if (yawStep > 0) {
-                    ChatUtils.info("  Yaw precision step: ${String.format("%.6f", yawStep)} degrees")
+                    ChatUtil.info("  Yaw precision step: ${String.format("%.6f", yawStep)} degrees")
                 }
                 if (pitchStep > 0) {
-                    ChatUtils.info("  Pitch precision step: ${String.format("%.6f", pitchStep)} degrees")
+                    ChatUtil.info("  Pitch precision step: ${String.format("%.6f", pitchStep)} degrees")
                 }
             }
 
@@ -2272,7 +2277,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
                 if (CatDueller.config?.combatLogs == true) {
                     val reason = if (player.onGround) "landed" else "falling"
-                    ChatUtils.combatInfo("Jump Velocity (PostMotion): released jump key ($reason)")
+                    ChatUtil.combatInfo("Jump Velocity (PostMotion): released jump key ($reason)")
                 }
             }
         }

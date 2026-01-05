@@ -1,8 +1,8 @@
-package best.spaghetcodes.catdueller.utils
+package best.spaghetcodes.catdueller.utils.game
 
 import best.spaghetcodes.catdueller.CatDueller
-import best.spaghetcodes.catdueller.utils.Extensions.getVelocity
-import best.spaghetcodes.catdueller.utils.Extensions.scale
+import best.spaghetcodes.catdueller.utils.game.ExtensionUtil.getVelocity
+import best.spaghetcodes.catdueller.utils.game.ExtensionUtil.scale
 import net.minecraft.block.Block
 import net.minecraft.entity.player.EntityPlayer
 import net.minecraft.init.Blocks
@@ -16,7 +16,7 @@ import net.minecraft.util.Vec3
  * position and orientation. Useful for navigation, edge detection, and
  * environmental awareness in dueling scenarios.
  */
-object WorldUtils {
+object WorldUtil {
 
     /**
      * Gets the block at a specified distance in front of the player.
@@ -60,7 +60,7 @@ object WorldUtils {
      * @return `true` if an air gap is detected within the distance, `false` otherwise.
      */
     fun airInFront(player: EntityPlayer, distance: Float): Boolean {
-        return airCheck(player.position, distance, EntityUtils.get2dLookVec(player))
+        return airCheck(player.position, distance, EntityUtil.get2dLookVec(player))
     }
 
     /**
@@ -71,7 +71,7 @@ object WorldUtils {
      * @return `true` if an air gap is detected within the distance, `false` otherwise.
      */
     fun airInBack(player: EntityPlayer, distance: Float): Boolean {
-        return airCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(180f))
+        return airCheck(player.position, distance, EntityUtil.get2dLookVec(player).rotateYaw(180f))
     }
 
     /**
@@ -82,7 +82,7 @@ object WorldUtils {
      * @return `true` if an air gap is detected within the distance, `false` otherwise.
      */
     fun airOnLeft(player: EntityPlayer, distance: Float): Boolean {
-        return airCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(90f))
+        return airCheck(player.position, distance, EntityUtil.get2dLookVec(player).rotateYaw(90f))
     }
 
     /**
@@ -93,7 +93,7 @@ object WorldUtils {
      * @return `true` if an air gap is detected within the distance, `false` otherwise.
      */
     fun airOnRight(player: EntityPlayer, distance: Float): Boolean {
-        return airCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(-90f))
+        return airCheck(player.position, distance, EntityUtil.get2dLookVec(player).rotateYaw(-90f))
     }
 
     /**
@@ -174,7 +174,7 @@ object WorldUtils {
      */
     fun leftOrRightToPoint(player: EntityPlayer, point: Vec3): Boolean {
         val pos = player.positionVector
-        val lookVec = EntityUtils.get2dLookVec(player)
+        val lookVec = EntityUtil.get2dLookVec(player)
         val leftVec = lookVec.rotateYaw(90f).scale(2.0)
         val rightVec = lookVec.rotateYaw(-90f).scale(2.0)
 

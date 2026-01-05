@@ -1,11 +1,12 @@
 package best.spaghetcodes.catdueller.bot.player
 
 import best.spaghetcodes.catdueller.CatDueller
-import best.spaghetcodes.catdueller.bot.MovementRecorder
-import best.spaghetcodes.catdueller.bot.StateManager
-import best.spaghetcodes.catdueller.utils.RandomUtils
-import best.spaghetcodes.catdueller.utils.TimeUtils
-import best.spaghetcodes.catdueller.utils.WorldUtils
+import best.spaghetcodes.catdueller.bot.player.LobbyMovement.checkOpponentRotationAndDodge
+import best.spaghetcodes.catdueller.bot.state.StateManager
+import best.spaghetcodes.catdueller.utils.client.ChatUtil
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.game.WorldUtil
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent
 import java.util.*
@@ -206,15 +207,17 @@ object LobbyMovement {
 
                 if (!yawMatches || !pitchMatches) {
                     try {
-                        TimeUtils.setTimeout({
+                        TimerUtil.setTimeout({
                             try {
                                 val queueCommand =
                                     CatDueller.bot?.queueCommand
                                         ?: "/play duels_sumo_duel"
-                                best.spaghetcodes.catdueller.utils.ChatUtils.sendAsPlayer(queueCommand)
-                            } catch (_: Exception) { }
-                        }, RandomUtils.randomIntInRange(100, 300))
-                    } catch (_: Exception) { }
+                                ChatUtil.sendAsPlayer(queueCommand)
+                            } catch (_: Exception) {
+                            }
+                        }, RandomUtil.randomIntInRange(100, 300))
+                    } catch (_: Exception) {
+                    }
 
                     return true
                 } else {
@@ -223,7 +226,8 @@ object LobbyMovement {
             }
         } catch (_: ConcurrentModificationException) {
             return false
-        } catch (_: Exception) { }
+        } catch (_: Exception) {
+        }
 
         return false
     }
@@ -288,15 +292,17 @@ object LobbyMovement {
 
                 if (yawMatches && pitchMatches) {
                     try {
-                        TimeUtils.setTimeout({
+                        TimerUtil.setTimeout({
                             try {
                                 val queueCommand =
                                     CatDueller.bot?.queueCommand
                                         ?: "/play duels_sumo_duel"
-                                best.spaghetcodes.catdueller.utils.ChatUtils.sendAsPlayer(queueCommand)
-                            } catch (_: Exception) { }
-                        }, RandomUtils.randomIntInRange(100, 300))
-                    } catch (_: Exception) { }
+                                ChatUtil.sendAsPlayer(queueCommand)
+                            } catch (_: Exception) {
+                            }
+                        }, RandomUtil.randomIntInRange(100, 300))
+                    } catch (_: Exception) {
+                    }
 
                     return true
                 } else {
@@ -305,7 +311,8 @@ object LobbyMovement {
             }
         } catch (_: ConcurrentModificationException) {
             return false
-        } catch (_: Exception) { }
+        } catch (_: Exception) {
+        }
 
         return false
     }
@@ -317,34 +324,34 @@ object LobbyMovement {
      */
     private fun sumo1() {
         if (CatDueller.mc.thePlayer != null) {
-            var left = RandomUtils.randomBool()
+            var left = RandomUtil.randomBool()
 
-            val speed = RandomUtils.randomDoubleInRange(3.0, 9.0).toFloat()
+            val speed = RandomUtil.randomDoubleInRange(3.0, 9.0).toFloat()
 
             tickYawChange = if (left) -speed else speed
-            TimeUtils.setTimeout(fun() {
+            TimerUtil.setTimeout(fun() {
                 Movement.startForward()
                 Movement.startSprinting()
-                TimeUtils.setTimeout(fun() {
+                TimerUtil.setTimeout(fun() {
                     Movement.startJumping()
-                }, RandomUtils.randomIntInRange(400, 800))
-                intervals.add(TimeUtils.setInterval(fun() {
-                    tickYawChange = if (WorldUtils.airInFront(CatDueller.mc.thePlayer, 7f)) {
-                        if (WorldUtils.airInFront(CatDueller.mc.thePlayer, 3f)) {
-                            RandomUtils.randomDoubleInRange(if (left) 9.5 else -9.5, if (left) 13.0 else -13.0)
+                }, RandomUtil.randomIntInRange(400, 800))
+                intervals.add(TimerUtil.setInterval(fun() {
+                    tickYawChange = if (WorldUtil.airInFront(CatDueller.mc.thePlayer, 7f)) {
+                        if (WorldUtil.airInFront(CatDueller.mc.thePlayer, 3f)) {
+                            RandomUtil.randomDoubleInRange(if (left) 9.5 else -9.5, if (left) 13.0 else -13.0)
                                 .toFloat()
-                        } else RandomUtils.randomDoubleInRange(if (left) 4.5 else -4.5, if (left) 7.0 else -7.0)
+                        } else RandomUtil.randomDoubleInRange(if (left) 4.5 else -4.5, if (left) 7.0 else -7.0)
                             .toFloat()
                     } else {
                         0f
                     }
-                }, 0, RandomUtils.randomIntInRange(50, 100)))
-                intervals.add(TimeUtils.setTimeout(fun() {
-                    intervals.add(TimeUtils.setInterval(fun() {
+                }, 0, RandomUtil.randomIntInRange(50, 100)))
+                intervals.add(TimerUtil.setTimeout(fun() {
+                    intervals.add(TimerUtil.setInterval(fun() {
                         left = !left
-                    }, 0, RandomUtils.randomIntInRange(5000, 10000)))
-                }, RandomUtils.randomIntInRange(5000, 10000)))
-            }, RandomUtils.randomIntInRange(100, 250))
+                    }, 0, RandomUtil.randomIntInRange(5000, 10000)))
+                }, RandomUtil.randomIntInRange(5000, 10000)))
+            }, RandomUtil.randomIntInRange(100, 250))
         }
     }
 

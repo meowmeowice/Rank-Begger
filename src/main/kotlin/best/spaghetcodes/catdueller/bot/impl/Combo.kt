@@ -9,10 +9,10 @@ import best.spaghetcodes.catdueller.bot.player.Combat
 import best.spaghetcodes.catdueller.bot.player.Inventory
 import best.spaghetcodes.catdueller.bot.player.Mouse
 import best.spaghetcodes.catdueller.bot.player.Movement
-import best.spaghetcodes.catdueller.utils.EntityUtils
-import best.spaghetcodes.catdueller.utils.RandomUtils
-import best.spaghetcodes.catdueller.utils.TimeUtils
-import best.spaghetcodes.catdueller.utils.WorldUtils
+import best.spaghetcodes.catdueller.utils.client.TimerUtil
+import best.spaghetcodes.catdueller.utils.game.EntityUtil
+import best.spaghetcodes.catdueller.utils.game.WorldUtil
+import best.spaghetcodes.catdueller.utils.system.RandomUtil
 import net.minecraft.init.Blocks
 import net.minecraft.util.Vec3
 
@@ -104,7 +104,7 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
      * Resets all state variables and stops combat actions.
      */
     override fun onGameEnd() {
-        TimeUtils.setTimeout(fun() {
+        TimerUtil.setTimeout(fun() {
             Movement.clearAll()
             Mouse.stopLeftAC()
             Combat.stopRandomStrafe()
@@ -121,7 +121,7 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
                 2 to 1,
                 3 to 1
             )
-        }, RandomUtils.randomIntInRange(100, 300))
+        }, RandomUtil.randomIntInRange(100, 300))
     }
 
     /**
@@ -132,7 +132,7 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
      */
     override fun onTick() {
         if (opponent() != null && mc.theWorld != null && mc.thePlayer != null) {
-            val distance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
+            val distance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
 
             if (!mc.thePlayer.isSprinting) {
                 Movement.startSprinting()
@@ -165,7 +165,7 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
             }
 
             if (combo >= 3 && distance >= 3.2 && mc.thePlayer.onGround) {
-                Movement.singleJump(RandomUtils.randomIntInRange(100, 150))
+                Movement.singleJump(RandomUtil.randomIntInRange(100, 150))
             }
 
             if (distance < 1.5 || (distance < 2.4 && combo >= 1)) {
@@ -176,7 +176,7 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
                 }
             }
 
-            if (WorldUtils.blockInFront(mc.thePlayer, 3f, 1.5f) != Blocks.air) {
+            if (WorldUtil.blockInFront(mc.thePlayer, 3f, 1.5f) != Blocks.air) {
                 Mouse.setRunningAway(false)
             }
 
@@ -185,7 +185,7 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
                 if (strengthPots > 0) {
                     strengthPots--
                     Movement.stopJumping()  // Stop jumping when using strength potion
-                    usePotion(8, distance < 3, EntityUtils.entityFacingAway(opponent()!!, mc.thePlayer))
+                    usePotion(8, distance < 3, EntityUtil.entityFacingAway(opponent()!!, mc.thePlayer))
                 }
             }
 
@@ -194,31 +194,31 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
                     Mouse.stopLeftAC()
                     dontStartLeftAC = true
                     if (armor[i]!! > 0) {
-                        TimeUtils.setTimeout(fun() {
+                        TimerUtil.setTimeout(fun() {
                             val a = Inventory.setInvItem(ArmorEnum.values()[i].name.lowercase())
                             if (a) {
                                 armor[i] = armor[i]!! - 1
-                                TimeUtils.setTimeout(fun() {
-                                    val r = RandomUtils.randomIntInRange(100, 150)
+                                TimerUtil.setTimeout(fun() {
+                                    val r = RandomUtil.randomIntInRange(100, 150)
                                     Mouse.rClick(r)
-                                    TimeUtils.setTimeout(fun() {
+                                    TimerUtil.setTimeout(fun() {
                                         Inventory.setInvItem("sword")
-                                        TimeUtils.setTimeout(fun() {
+                                        TimerUtil.setTimeout(fun() {
                                             dontStartLeftAC = false
-                                        }, RandomUtils.randomIntInRange(200, 300))
-                                    }, r + RandomUtils.randomIntInRange(100, 150))
-                                }, RandomUtils.randomIntInRange(200, 400))
+                                        }, RandomUtil.randomIntInRange(200, 300))
+                                    }, r + RandomUtil.randomIntInRange(100, 150))
+                                }, RandomUtil.randomIntInRange(200, 400))
                             } else {
                                 dontStartLeftAC = false
                             }
-                        }, RandomUtils.randomIntInRange(250, 500))
+                        }, RandomUtil.randomIntInRange(250, 500))
                     }
                 }
             }
 
             if ((mc.thePlayer.health < 10 || !mc.thePlayer.isPotionActive(net.minecraft.potion.Potion.absorption)) && gaps > 0) {
                 if (System.currentTimeMillis() - lastGap > 3500 && System.currentTimeMillis() - lastPotion > 3500) {
-                    useGap(distance, distance < 2, EntityUtils.entityFacingAway(mc.thePlayer, opponent()!!))
+                    useGap(distance, distance < 2, EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!))
                     gaps--
                 }
             }
@@ -227,7 +227,7 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
             var clear = false
             var randomStrafe = false
 
-            if (distance > 18 && EntityUtils.entityFacingAway(
+            if (distance > 18 && EntityUtil.entityFacingAway(
                     opponent()!!,
                     mc.thePlayer
                 ) && !Mouse.isRunningAway() && System.currentTimeMillis() - lastPearl > 5000 && pearls > 0
@@ -235,29 +235,29 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
                 lastPearl = System.currentTimeMillis()
                 Mouse.stopLeftAC()
                 dontStartLeftAC = true
-                TimeUtils.setTimeout(fun() {
+                TimerUtil.setTimeout(fun() {
                     if (Inventory.setInvItem("pearl")) {
                         pearls--
                         Mouse.setUsingProjectile(true)
-                        TimeUtils.setTimeout(fun() {
-                            Mouse.rClick(RandomUtils.randomIntInRange(100, 150))
-                            TimeUtils.setTimeout(fun() {
+                        TimerUtil.setTimeout(fun() {
+                            Mouse.rClick(RandomUtil.randomIntInRange(100, 150))
+                            TimerUtil.setTimeout(fun() {
                                 Mouse.setUsingProjectile(false)
                                 Inventory.setInvItem("sword")
-                                TimeUtils.setTimeout(fun() {
+                                TimerUtil.setTimeout(fun() {
                                     dontStartLeftAC = false
-                                }, RandomUtils.randomIntInRange(200, 300))
-                            }, RandomUtils.randomIntInRange(250, 300))
-                        }, RandomUtils.randomIntInRange(300, 600))
+                                }, RandomUtil.randomIntInRange(200, 300))
+                            }, RandomUtil.randomIntInRange(250, 300))
+                        }, RandomUtil.randomIntInRange(300, 600))
                     } else {
                         dontStartLeftAC = false
                     }
-                }, RandomUtils.randomIntInRange(250, 500))
+                }, RandomUtil.randomIntInRange(250, 500))
             } else {
                 if (distance < 8) {
                     if (opponent()!!.isInvisibleToPlayer(mc.thePlayer)) {
                         clear = false
-                        if (WorldUtils.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
+                        if (WorldUtil.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
                             movePriority[0] += 4
                         } else {
                             movePriority[1] += 4
@@ -265,7 +265,7 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
                     } else {
                         if (distance < 4 && combo > 2) {
                             randomStrafe = false
-                            val rotations = EntityUtils.getRotations(opponent()!!, mc.thePlayer, false)
+                            val rotations = EntityUtil.getRotations(opponent()!!, mc.thePlayer, false)
                             if (rotations != null) {
                                 if (rotations[0] < 0) {
                                     movePriority[1] += 5
