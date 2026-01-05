@@ -1129,7 +1129,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             var clear = false
             var randomStrafe = false
 
-            // Edge Safety Check: Force change mid range strafe direction if too close to edges
+            // Edge Safety Check: Force change mid-range strafe direction if too close to edges
             // But ignore edge safety for first 1 second after game start
             val timeSinceGameStart = System.currentTimeMillis() - gameStartTime
             val ignoreEdgeForEarlyGame = timeSinceGameStart < 1000
@@ -1152,7 +1152,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                 rightDistance < 7.0f
             }
 
-            // Force change mid range strafe direction if too close to edge
+            // Force change mid-range strafe direction if too close to edge
             if ((tooCloseToLeftEdge || tooCloseToRightEdge) && midRangeStrafeDecided) {
                 val safeDirection = if (leftDistance > rightDistance) 1 else 2 // 1=left, 2=right
 
@@ -1411,7 +1411,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             }
 
             // For combo jump strafe, also ignore edge detection in early game
-            if (ignoreEdgeForEarlyGame) false else nearEdge(5f)
+            if (!ignoreEdgeForEarlyGame) nearEdge(5f)
             // Strafe away from edge when opponent is at edge OR when both are at edge
             val playerNearLeftOrRightEdge = nearLeftOrRightEdge(6f)
             // Modified: Also strafe towards safer direction when only opponent is at edge (even if player is not near edge)
@@ -1751,7 +1751,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
 
                 // Trigger blatant mode if either:
                 // 1. Player is far from center (configurable distance), OR
-                // 2. Opponent combo >= 2 (being combo'd by opponent)
+                // 2. Opponent combo >= 2 (being comboed by opponent)
                 val shouldToggleBlatant = (distanceFromCenter > triggerDistance || opponentCombo >= 2) && combo < 2
 
                 if (shouldToggleBlatant) {
@@ -2079,7 +2079,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             override fun run() {
                 try {
                     logOpponentRotation()
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // Ignore errors to prevent timer from stopping
                 }
             }
@@ -2162,7 +2162,7 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             override fun run() {
                 try {
                     checkOpponentFreeze()
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // Ignore errors to prevent timer from stopping
                 }
             }
