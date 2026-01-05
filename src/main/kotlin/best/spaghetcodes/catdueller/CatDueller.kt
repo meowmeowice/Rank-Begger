@@ -3,10 +3,8 @@ package best.spaghetcodes.catdueller
 import best.spaghetcodes.catdueller.bot.BotBase
 import best.spaghetcodes.catdueller.bot.StateManager
 import best.spaghetcodes.catdueller.bot.impl.Sumo
-import best.spaghetcodes.catdueller.bot.player.LobbyMovement
-import best.spaghetcodes.catdueller.bot.player.Mouse
-import best.spaghetcodes.catdueller.bot.player.Movement
-import best.spaghetcodes.catdueller.commands.ConfigCommand
+import best.spaghetcodes.catdueller.bot.player.*
+import best.spaghetcodes.catdueller.commands.*
 import best.spaghetcodes.catdueller.core.Config
 import best.spaghetcodes.catdueller.core.HWIDLock
 import best.spaghetcodes.catdueller.core.KeyBindings
@@ -90,10 +88,11 @@ class CatDueller {
         config?.preload()
 
         ConfigCommand().register()
-        best.spaghetcodes.catdueller.commands.MovementCommand().register()
-        best.spaghetcodes.catdueller.commands.HWIDCommand().register()
-        best.spaghetcodes.catdueller.commands.PingCommand().register()
-        best.spaghetcodes.catdueller.commands.ParticleTestCommand().register()
+        MovementCommand().register()
+        HWIDCommand().register()
+        PingCommand().register()
+        ParticleTestCommand().register()
+        RobotCommand().register()
         KeyBindings.register()
 
         println("[CatDueller] Initializing HWID lock system...")
