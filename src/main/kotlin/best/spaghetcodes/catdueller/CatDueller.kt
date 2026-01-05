@@ -8,6 +8,7 @@ import best.spaghetcodes.catdueller.bot.player.Movement
 import best.spaghetcodes.catdueller.bot.state.StateManager
 import best.spaghetcodes.catdueller.commands.*
 import best.spaghetcodes.catdueller.core.Config
+import best.spaghetcodes.catdueller.core.DelayedTaskHandler
 import best.spaghetcodes.catdueller.core.HWIDLock
 import best.spaghetcodes.catdueller.core.KeyBindings
 import best.spaghetcodes.catdueller.irc.IRCDodgeClient
@@ -88,6 +89,7 @@ class CatDueller {
         println("[CatDueller] Starting initialization...")
 
         config = Config()
+        config?.initialize()
 
         ConfigCommand().register()
         MovementCommand().register()
@@ -113,6 +115,7 @@ class CatDueller {
         MinecraftForge.EVENT_BUS.register(LobbyMovement)
         MinecraftForge.EVENT_BUS.register(KeyBindings)
         MinecraftForge.EVENT_BUS.register(ParticleUtil)
+        MinecraftForge.EVENT_BUS.register(DelayedTaskHandler)
 
         val selectedBotIndex = config?.currentBot ?: 0
         val selectedBot = config?.bots?.get(selectedBotIndex) ?: Sumo()
