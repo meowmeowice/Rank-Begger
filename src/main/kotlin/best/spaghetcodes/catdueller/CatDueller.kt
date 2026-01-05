@@ -88,7 +88,6 @@ class CatDueller {
         println("[CatDueller] Starting initialization...")
 
         config = Config()
-        config?.preload()
 
         ConfigCommand().register()
         MovementCommand().register()

@@ -4,6 +4,7 @@ import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.state.Session
 import best.spaghetcodes.catdueller.utils.client.ChatUtil
 import gg.essential.universal.UScreen
+import net.minecraft.client.Minecraft
 import net.minecraft.command.CommandBase
 import net.minecraft.command.ICommandSender
 import net.minecraft.util.BlockPos
@@ -56,10 +57,12 @@ class ConfigCommand : CommandBase() {
     }
 
     /**
-     * Opens the configuration GUI.
+     * Opens the configuration GUI (delayed by one tick to avoid issues with command processing).
      */
     private fun openConfig() {
-        UScreen.displayScreen(CatDueller.config?.gui())
+        Minecraft.getMinecraft().addScheduledTask {
+            UScreen.displayScreen(CatDueller.config?.gui())
+        }
     }
 
     /**
