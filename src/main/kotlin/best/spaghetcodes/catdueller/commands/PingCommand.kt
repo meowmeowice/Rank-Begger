@@ -2,8 +2,10 @@ package best.spaghetcodes.catdueller.commands
 
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.utils.client.ChatUtil
-import gg.essential.api.commands.Command
-import gg.essential.api.commands.DefaultHandler
+import net.minecraft.command.CommandBase
+import net.minecraft.command.ICommandSender
+import net.minecraft.util.BlockPos
+import net.minecraftforge.client.ClientCommandHandler
 
 /**
  * Command handler for displaying the current server ping.
@@ -11,16 +13,23 @@ import gg.essential.api.commands.DefaultHandler
  * Provides the `/ping` command which retrieves and displays the current
  * network latency to the server.
  */
-class PingCommand : Command("ping") {
+class PingCommand : CommandBase() {
 
     /**
-     * Handles the ping command by displaying the current server latency.
-     *
-     * Retrieves ping information from the bot instance if available.
-     * Displays an error message if the bot is not initialized or ping cannot be retrieved.
+     * Registers this command with the Minecraft Forge client command handler.
      */
-    @DefaultHandler
-    fun handle() {
+    fun register() {
+        ClientCommandHandler.instance.registerCommand(this)
+    }
+
+    override fun getCommandName(): String = "ping"
+
+    override fun getCommandUsage(sender: ICommandSender?): String =
+        "/ping - Display current server latency"
+
+    override fun getRequiredPermissionLevel(): Int = 0
+
+    override fun processCommand(sender: ICommandSender?, args: Array<out String>?) {
         val bot = CatDueller.bot
         if (bot != null) {
             val pingStatus = bot.getPingStatus()
@@ -29,10 +38,16 @@ class PingCommand : Command("ping") {
             ChatUtil.info("Current ping: $pingStatus")
 
             if (!(ping >= 0)) {
-                ChatUtil.info("Cant get ping")
+                ChatUtil.info("Can't get ping")
             }
         } else {
             ChatUtil.info("Bot is not initialized")
         }
     }
+
+    override fun addTabCompletionOptions(
+        sender: ICommandSender?,
+        args: Array<out String>?,
+        pos: BlockPos?
+    ): List<String> = emptyList()
 }

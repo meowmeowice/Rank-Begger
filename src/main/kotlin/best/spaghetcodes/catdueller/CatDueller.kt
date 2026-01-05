@@ -10,6 +10,7 @@ import best.spaghetcodes.catdueller.commands.*
 import best.spaghetcodes.catdueller.core.Config
 import best.spaghetcodes.catdueller.core.HWIDLock
 import best.spaghetcodes.catdueller.core.KeyBindings
+import best.spaghetcodes.catdueller.irc.IRCDodgeClient
 import best.spaghetcodes.catdueller.utils.client.TimerUtil
 import best.spaghetcodes.catdueller.utils.game.ParticleUtil
 import net.minecraft.client.Minecraft
@@ -99,12 +100,13 @@ class CatDueller {
 
         println("[CatDueller] Initializing HWID lock system...")
         if (!HWIDLock.initialize()) {
-            println("[CatDueller] HWID VERIFICATION FAILED")
+            println("[CatDueller] HWID generation failed")
             println("[CatDueller] Your HWID: ${HWIDLock.getCurrentHWID()}")
-            println("[CatDueller] This module is not authorized for your hardware")
-        } else {
-            println("[CatDueller] HWID verification successful")
         }
+
+        // Always initialize IRC client - it handles HWID authentication
+        println("[CatDueller] Initializing IRC client for auth...")
+        IRCDodgeClient.initialize()
 
         MinecraftForge.EVENT_BUS.register(StateManager)
         MinecraftForge.EVENT_BUS.register(Mouse)
@@ -118,8 +120,9 @@ class CatDueller {
         swapBot(selectedBot)
 
         Runtime.getRuntime().addShutdownHook(Thread {
-            println("CatDueller shutting down, cleaning up timers...")
+            println("CatDueller shutting down, cleaning up...")
             TimerUtil.cancelAllTimers()
+            IRCDodgeClient.disconnect()
         })
     }
 }

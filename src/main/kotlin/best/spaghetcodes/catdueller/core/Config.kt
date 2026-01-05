@@ -2,6 +2,7 @@ package best.spaghetcodes.catdueller.core
 
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.impl.*
+import gg.essential.universal.UScreen
 import gg.essential.vigilance.Vigilant
 import gg.essential.vigilance.data.Property
 import gg.essential.vigilance.data.PropertyType
@@ -858,6 +859,49 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
         category = "Queue Dodging",
     )
     val dmTargetPlayer = ""
+
+    // IRC Dodge System (IRC auth is always active)
+    @Property(
+        type = PropertyType.SWITCH,
+        name = "IRC Dodge",
+        description = "Enable queue dodging coordination with other mod users (auth always active)",
+        category = "Queue Dodging",
+    )
+    val ircDodgeEnabled = true
+
+    @Property(
+        type = PropertyType.TEXT,
+        name = "IRC Server",
+        description = "IRC server hostname or IP address",
+        category = "Queue Dodging",
+    )
+    val ircServerHost = "catdueller.afterlike.org"
+
+    @Property(
+        type = PropertyType.NUMBER,
+        name = "IRC Port",
+        description = "IRC server port number (443 for wss://)",
+        category = "Queue Dodging",
+        min = 1,
+        max = 65535,
+    )
+    val ircServerPort = 443
+
+    @Property(
+        type = PropertyType.SWITCH,
+        name = "Show IRC Alerts",
+        description = "Display chat notifications when other users queue",
+        category = "Queue Dodging",
+    )
+    val showIRCAlerts = true
+
+    @Property(
+        type = PropertyType.SWITCH,
+        name = "Auto IRC Dodge",
+        description = "Automatically dodge when another user is on the same server",
+        category = "Queue Dodging",
+    )
+    val autoIRCDodge = true
 
     @Property(
         type = PropertyType.SWITCH,

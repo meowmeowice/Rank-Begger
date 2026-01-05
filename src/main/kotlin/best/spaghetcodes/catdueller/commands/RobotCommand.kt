@@ -1,8 +1,10 @@
 package best.spaghetcodes.catdueller.commands
 
 import best.spaghetcodes.catdueller.utils.client.ChatUtil
-import gg.essential.api.commands.Command
-import gg.essential.api.commands.DefaultHandler
+import net.minecraft.command.CommandBase
+import net.minecraft.command.ICommandSender
+import net.minecraft.util.BlockPos
+import net.minecraftforge.client.ClientCommandHandler
 import java.awt.Robot
 import java.awt.event.InputEvent
 
@@ -16,17 +18,23 @@ import java.awt.event.InputEvent
  * Note: Robot functionality may be restricted on some systems due to security
  * policies or accessibility permissions.
  */
-class RobotCommand : Command("robot") {
+class RobotCommand : CommandBase() {
 
     /**
-     * Handles the robot command by performing a single left mouse click.
-     *
-     * Creates a new AWT Robot instance and simulates a left mouse button
-     * press and release sequence. Reports success or failure to the player
-     * via chat messages.
+     * Registers this command with the Minecraft Forge client command handler.
      */
-    @DefaultHandler
-    fun handle() {
+    fun register() {
+        ClientCommandHandler.instance.registerCommand(this)
+    }
+
+    override fun getCommandName(): String = "robot"
+
+    override fun getCommandUsage(sender: ICommandSender?): String =
+        "/robot - Test AWT Robot mouse click"
+
+    override fun getRequiredPermissionLevel(): Int = 0
+
+    override fun processCommand(sender: ICommandSender?, args: Array<out String>?) {
         try {
             val robot = Robot()
 
@@ -40,4 +48,10 @@ class RobotCommand : Command("robot") {
             ChatUtil.error("Failed to execute robot click: ${e.message}")
         }
     }
+
+    override fun addTabCompletionOptions(
+        sender: ICommandSender?,
+        args: Array<out String>?,
+        pos: BlockPos?
+    ): List<String> = emptyList()
 }

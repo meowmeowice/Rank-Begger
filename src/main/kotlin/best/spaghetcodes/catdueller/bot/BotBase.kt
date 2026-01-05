@@ -6,6 +6,7 @@ import best.spaghetcodes.catdueller.bot.state.Session
 import best.spaghetcodes.catdueller.bot.state.StateManager
 import best.spaghetcodes.catdueller.core.HWIDLock
 import best.spaghetcodes.catdueller.core.KeyBindings
+import best.spaghetcodes.catdueller.irc.IRCDodgeClient
 import best.spaghetcodes.catdueller.utils.client.ChatUtil
 import best.spaghetcodes.catdueller.utils.client.TimerUtil
 import best.spaghetcodes.catdueller.utils.game.EntityUtil
@@ -191,6 +192,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 if (manualPlayers.isNotEmpty()) {
                     ChatUtil.info("Bot Crasher Mode: Found ${manualPlayers.size} manual target players, starting spam timer")
                     startSpamming()
+                }
+            }
+
+            // Setup IRC dodge callback
+            if (CatDueller.config?.ircDodgeEnabled == true) {
+                IRCDodgeClient.onQueueAlert = { username, _, serverId, _ ->
+                    checkIRCDodge(serverId, username)
                 }
             }
         }
@@ -1118,6 +1126,11 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         forceRequeueScheduled = false
         forceRequeueAttempts = 0  // Reset attempt counter
 
+        // Send IRC leave notification if enabled
+        if (CatDueller.config?.ircDodgeEnabled == true) {
+            IRCDodgeClient.sendLeaveInfo()
+        }
+
         // Bot Crasher Mode: Cancel timer since game ended normally
         if (CatDueller.config?.botCrasherMode == true && CatDueller.config?.botCrasherAutoRequeue == true) {
             botCrasherTimer?.cancel()
@@ -1225,6 +1238,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 ChatUtil.sendAsPlayer(dmMessage)
                 ChatUtil.info("Sent DM message: $dmMessage")
             }, RandomUtil.randomIntInRange(100, 300))
+        }
+
+        // Send IRC queue notification if enabled
+        if (CatDueller.config?.ircDodgeEnabled == true && currentServer != null) {
+            val gamemode = getGamemodeName()
+            val map = detectCurrentMap()
+            IRCDodgeClient.sendQueueInfo(gamemode, currentServer!!, map)
         }
     }
 
@@ -2805,6 +2825,107 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         } catch (_: Exception) {
             // Silently handle any scoreboard reading errors
         }
+    }
+
+    /**
+     * Detects the current map from the scoreboard.
+     *
+     * Parses the scoreboard to find the "Map:" line and extracts the map name.
+     *
+     * @return The detected map name, or "Unknown" if not found
+     */
+    private fun detectCurrentMap(): String {
+        val scoreboard = mc.theWorld?.scoreboard ?: return "Unknown"
+        val objective = scoreboard.getObjectiveInDisplaySlot(1) ?: return "Unknown"
+
+        try {
+            val scores = scoreboard.getSortedScores(objective)
+
+            for (score in scores) {
+                val playerName = score.playerName ?: continue
+                val line = ScorePlayerTeam.formatPlayerName(scoreboard.getPlayersTeam(playerName), playerName)
+                val cleanLine = StringUtils.stripControlCodes(line).trim()
+
+                // Look for "Map: <mapname>" pattern
+                val mapPattern = Regex("Map:\\s*(.+)")
+                val match = mapPattern.find(cleanLine)
+                if (match != null) {
+                    return match.groupValues[1].trim()
+                }
+            }
+        } catch (_: Exception) {
+            // Silently handle any scoreboard reading errors
+        }
+
+        return "Unknown"
+    }
+
+    /**
+     * Extracts the gamemode name from the queue command.
+     *
+     * Parses the queue command (e.g., "/play sumo_duel") to extract the gamemode.
+     *
+     * @return The gamemode name (e.g., "Sumo", "Classic", "OP")
+     */
+    private fun getGamemodeName(): String {
+        return when {
+            queueCommand.contains("sumo", ignoreCase = true) -> "Sumo"
+            queueCommand.contains("classic", ignoreCase = true) -> "Classic"
+            queueCommand.contains("op_", ignoreCase = true) -> "OP"
+            queueCommand.contains("boxing", ignoreCase = true) -> "Boxing"
+            queueCommand.contains("combo", ignoreCase = true) -> "Combo"
+            queueCommand.contains("uhc", ignoreCase = true) -> "UHC"
+            else -> "Unknown"
+        }
+    }
+
+    /**
+     * Normalizes a server ID for comparison.
+     *
+     * Converts "mini123" format to "m123" and lowercases for consistent matching.
+     *
+     * @param serverId The server ID to normalize
+     * @return The normalized server ID
+     */
+    private fun normalizeServerId(serverId: String): String {
+        val lower = serverId.lowercase()
+        return if (lower.startsWith("mini")) {
+            "m" + lower.substring(4)
+        } else {
+            lower
+        }
+    }
+
+    /**
+     * Checks if we should dodge based on an IRC alert.
+     *
+     * Compares the alert server ID against our current server.
+     * If they match and we're in pre-game lobby, triggers a dodge.
+     *
+     * @param alertServerId The server ID from the IRC alert
+     * @param alertUsername The username who triggered the alert
+     * @return true if dodge was triggered, false otherwise
+     */
+    fun checkIRCDodge(alertServerId: String, alertUsername: String): Boolean {
+        if (CatDueller.config?.autoIRCDodge != true) return false
+
+        val currentServerId = currentServer ?: return false
+
+        val normalizedCurrent = normalizeServerId(currentServerId)
+        val normalizedAlert = normalizeServerId(alertServerId)
+
+        if (normalizedCurrent == normalizedAlert) {
+            // We're on the same server as another user
+            if (StateManager.state == StateManager.States.GAME && !StateManager.gameFull) {
+                // We're in pre-game lobby and match is not full - dodge!
+                ChatUtil.info("IRC Dodge: Same server as $alertUsername, dodging...")
+                TimerUtil.setTimeout({
+                    ChatUtil.sendAsPlayer(queueCommand)
+                }, RandomUtil.randomIntInRange(100, 300))
+                return true
+            }
+        }
+        return false
     }
 
     /**

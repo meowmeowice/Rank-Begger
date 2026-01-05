@@ -3,10 +3,11 @@ package best.spaghetcodes.catdueller.commands
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.state.Session
 import best.spaghetcodes.catdueller.utils.client.ChatUtil
-import gg.essential.api.EssentialAPI
-import gg.essential.api.commands.Command
-import gg.essential.api.commands.DefaultHandler
-import gg.essential.api.commands.SubCommand
+import gg.essential.universal.UScreen
+import net.minecraft.command.CommandBase
+import net.minecraft.command.ICommandSender
+import net.minecraft.util.BlockPos
+import net.minecraftforge.client.ClientCommandHandler
 
 /**
  * Main command handler for CatDueller configuration and session management.
@@ -14,48 +15,75 @@ import gg.essential.api.commands.SubCommand
  * Provides the `/catdueller` command with subcommands for opening the configuration GUI
  * and managing session statistics (wins, losses, winstreak).
  */
-class ConfigCommand : Command("CatDueller") {
+class ConfigCommand : CommandBase() {
 
     /**
-     * Default command handler that displays available commands and opens the configuration GUI.
-     *
-     * Invoked when the user runs `/catdueller` without any subcommands.
+     * Registers this command with the Minecraft Forge client command handler.
      */
-    @DefaultHandler
-    fun handle() {
+    fun register() {
+        ClientCommandHandler.instance.registerCommand(this)
+    }
+
+    override fun getCommandName(): String = "catdueller"
+
+    override fun getCommandAliases(): List<String> = listOf("cd")
+
+    override fun getCommandUsage(sender: ICommandSender?): String =
+        "/catdueller <config|session>"
+
+    override fun getRequiredPermissionLevel(): Int = 0
+
+    override fun processCommand(sender: ICommandSender?, args: Array<out String>?) {
+        when (args?.getOrNull(0)?.lowercase()) {
+            "config", "cfg", "settings" -> openConfig()
+            "session" -> handleSession(args.getOrNull(1))
+            else -> handleDefault()
+        }
+    }
+
+    override fun addTabCompletionOptions(
+        sender: ICommandSender?,
+        args: Array<out String>?,
+        pos: BlockPos?
+    ): List<String> {
+        return when (args?.size) {
+            1 -> getListOfStringsMatchingLastWord(args, "config", "session")
+            2 -> if (args[0].equals("session", true))
+                getListOfStringsMatchingLastWord(args, "reset", "show")
+            else emptyList()
+            else -> emptyList()
+        }
+    }
+
+    /**
+     * Opens the configuration GUI.
+     */
+    private fun openConfig() {
+        UScreen.displayScreen(CatDueller.config?.gui())
+    }
+
+    /**
+     * Default command handler that displays available commands.
+     */
+    private fun handleDefault() {
         ChatUtil.info("CatDueller Commands:")
-        ChatUtil.info("/catdueller - Open config GUI")
+        ChatUtil.info("/catdueller config - Open config GUI")
         ChatUtil.info("/catdueller session [reset|show] - Manage session statistics")
-        ChatUtil.info("Opening config GUI...")
-        EssentialAPI.getGuiUtil().openScreen(CatDueller.config?.gui())
     }
 
     /**
      * Handles the session subcommand for viewing or resetting session statistics.
-     *
-     * @param action The action to perform: "reset" to clear statistics, "show"/"stats" or null to display them.
      */
-    @SubCommand("session")
-    fun sessionCommand(action: String? = null) {
+    private fun handleSession(action: String?) {
         when (action?.lowercase()) {
-            "reset" -> {
-                resetSession()
-            }
-
-            "show", "stats", null -> {
-                showSession()
-            }
-
-            else -> {
-                ChatUtil.info("Usage: /catdueller session [reset|show]")
-            }
+            "reset" -> resetSession()
+            "show", "stats", null -> showSession()
+            else -> ChatUtil.info("Usage: /catdueller session [reset|show]")
         }
     }
 
     /**
      * Resets all session statistics to their initial values.
-     *
-     * Clears wins and losses counters, and resets the session start time to the current time.
      */
     private fun resetSession() {
         Session.wins = 0
@@ -66,9 +94,6 @@ class ConfigCommand : Command("CatDueller") {
 
     /**
      * Displays the current session statistics including wins, losses, and winstreak.
-     *
-     * Retrieves the current winstreak from the bot instance via reflection if available,
-     * otherwise defaults to zero.
      */
     private fun showSession() {
         val currentBot = CatDueller.bot
