@@ -2,14 +2,12 @@ package best.spaghetcodes.catdueller.core
 
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.bots.*
-import best.spaghetcodes.catdueller.utils.ChatUtils
 import gg.essential.vigilance.Vigilant
 import gg.essential.vigilance.data.Property
 import gg.essential.vigilance.data.PropertyType
-
 import java.io.File
 
-class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = ConfigSorter()) {
+class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = ConfigSorter()) {
 
     /*
         GENERAL
@@ -23,7 +21,6 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
         options = ["Sumo", "Classic", "OP"/*, "Boxing", "Combo"*/]
     )
     val currentBot = 0
-
 
 
     @Property(
@@ -43,13 +40,12 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
     val useRecordedMovement = false
 
     @Property(
-    type = PropertyType.SWITCH,
-    name = "Combat Logs",
-    description = "When enabled, shows combat-related debug messages. Non-combat messages are always shown.",
-    category = "General",
+        type = PropertyType.SWITCH,
+        name = "Combat Logs",
+        description = "When enabled, shows combat-related debug messages. Non-combat messages are always shown.",
+        category = "General",
     )
     val combatLogs = true
-
 
 
     @Property(
@@ -158,7 +154,7 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
 
     @Property(
         type = PropertyType.NUMBER,
-        name = "Big Break End Hour", 
+        name = "Big Break End Hour",
         description = "Hour to end big break (0-23, 24-hour format)",
         category = "General",
         min = 0,
@@ -212,7 +208,7 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
         maxF = 2f,
     )
     val lookRand = 0.3f
-    
+
     @Property(
         type = PropertyType.SWITCH,
         name = "Vertical Multipoint",
@@ -220,7 +216,7 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
         category = "Combat",
     )
     val verticalMultipoint = true
-    
+
     @Property(
         type = PropertyType.SWITCH,
         name = "Disable Aiming",
@@ -419,7 +415,6 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
     val blinkTapSecondPressDelay = 0
 
 
-
     @Property(
         type = PropertyType.SLIDER,
         name = "Hit Select Cancel Rate",
@@ -563,7 +558,7 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
     )
     val tauntThresholdSeconds = 20
 
-        @Property(
+    @Property(
         type = PropertyType.SWITCH,
         name = "Dodge Standing Still",
         description = "Dodge if opponent doesnt move in pre-game lobby",
@@ -624,27 +619,26 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
     val dodgeParticleType = 0  // 0=None, 1=Slime, 2=Portal, 3=Rainbow, 4=Heart, 5=Angry Villager
 
 
-    
     @Property(
         type = PropertyType.SWITCH,
         name = "Blink At Edge",
         description = "Automatically blink back to center when near edge or air",
         category = "Toggling"
     )
-    
+
     val blinkAtEdge = false
-    
-    
+
+
     @Property(
         type = PropertyType.TEXT,
         name = "Blink Key",
         description = "Key to use for blinking (e.g., Q, E, R, F, etc.)",
         category = "Toggling"
     )
-    
+
     val blinkKey = "Q"
 
-    
+
     @Property(
         type = PropertyType.SWITCH,
         name = "Toggle Blatant at Edge",
@@ -839,7 +833,7 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
     )
     val forceRequeue = true
 
-    
+
     @Property(
         type = PropertyType.SWITCH,
         name = "Delay Requeue After Losing",
@@ -934,9 +928,6 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
         category = "Webhook",
     )
     val webhookURL = ""
-
-
-
 
 
     /*
@@ -1073,7 +1064,7 @@ class Config : Vigilant(File(CatDueller.configLocation), sortingBehavior = Confi
 
             addDependency("startMessage", "sendStartMessage")
             addDependency("startMessageDelay", "sendStartMessage")
-            
+
             addDependency("tauntThresholdSeconds", "enableTauntMessages")
             addDependency("blatantToggleKey", "toggleBlatantOnBlacklisted")
             addDependency("blacklistedPlayers", "toggleBlatantOnBlacklisted")

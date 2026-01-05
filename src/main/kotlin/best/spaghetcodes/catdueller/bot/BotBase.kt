@@ -2,8 +2,8 @@ package best.spaghetcodes.catdueller.bot
 
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.player.*
-import best.spaghetcodes.catdueller.core.KeyBindings
 import best.spaghetcodes.catdueller.core.HWIDLock
+import best.spaghetcodes.catdueller.core.KeyBindings
 import best.spaghetcodes.catdueller.utils.*
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
@@ -12,43 +12,32 @@ import io.netty.channel.SimpleChannelInboundHandler
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiMainMenu
 import net.minecraft.client.gui.GuiMultiplayer
-import net.minecraft.client.gui.GuiIngameMenu
 import net.minecraft.client.multiplayer.GuiConnecting
 import net.minecraft.client.multiplayer.ServerData
 import net.minecraft.entity.player.EntityPlayer
-import net.minecraft.entity.projectile.EntityArrow
 import net.minecraft.network.Packet
-import java.util.Timer
-
 import net.minecraft.network.play.server.S12PacketEntityVelocity
 import net.minecraft.network.play.server.S19PacketEntityStatus
-import net.minecraft.network.play.server.S3EPacketTeams
 import net.minecraft.network.play.server.S40PacketDisconnect
 import net.minecraft.network.play.server.S45PacketTitle
 import net.minecraft.scoreboard.ScorePlayerTeam
 import net.minecraft.util.EnumChatFormatting
-import net.minecraft.util.MathHelper
+import net.minecraft.util.StringUtils
 import net.minecraft.util.Vec3
-import net.minecraft.util.MovingObjectPosition
-import net.minecraft.util.AxisAlignedBB
 import net.minecraftforge.client.event.ClientChatReceivedEvent
 import net.minecraftforge.event.entity.EntityJoinWorldEvent
 import net.minecraftforge.event.entity.player.AttackEntityEvent
-import kotlin.math.pow
 import net.minecraftforge.fml.client.FMLClientHandler
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import net.minecraftforge.fml.common.gameevent.TickEvent
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent
 import net.minecraftforge.fml.common.network.FMLNetworkEvent.ClientConnectedToServerEvent
 import net.minecraftforge.fml.common.network.FMLNetworkEvent.ClientDisconnectionFromServerEvent
-import net.minecraft.network.play.client.C01PacketChatMessage
-import net.minecraft.network.play.server.S38PacketPlayerListItem
-import net.minecraft.network.play.server.S38PacketPlayerListItem.Action
-
-import java.util.Calendar
-import java.io.File
 import java.awt.Robot
 import java.awt.event.KeyEvent
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 
 /**
  * Base class for all bots
@@ -57,7 +46,7 @@ import java.awt.event.KeyEvent
  */
 open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
-    protected val mc = Minecraft.getMinecraft()
+    protected val mc: Minecraft = Minecraft.getMinecraft()
 
     private var toggled = false
     fun toggled() = toggled
@@ -68,84 +57,84 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             ChatUtils.error("Your HWID: ${HWIDLock.getCurrentHWID()}")
             return
         }
-        
+
         val wasToggled = toggled
         toggled = !toggled
-        
+
         // If bot is disabled, stop all actions and cancel timers
-        if (wasToggled && !toggled) {
+        if (wasToggled) {
             // Stop all mouse actions
             Mouse.resetAllStates()
-            
+
             // Stop all movements
             Movement.clearAll()
             LobbyMovement.stop()
             Combat.stopRandomStrafe()
-            
+
             TimeUtils.cancelAllTimers()
-            
+
             // Cancel Bot Crasher Mode timers
             botCrasherTimer?.cancel()
             botCrasherTimer = null
             spamTimer?.cancel()
             spamTimer = null
             disconnectedPlayers.clear()
-            
+
             // Cancel reconnect timer
             reconnectTimer?.cancel()
             reconnectTimer = null
-            
+
             // Cancel ping monitoring timer
             pingCheckTimer?.cancel()
             pingCheckTimer = null
             internetStabilityPaused = false
             lastStablePingTime = 0L
-            
+
             // Clear rod retract timeout
             rodRetractTimeout?.cancel()
             rodRetractTimeout = null
-            
+
             // Clear tracking data to prevent memory leaks
             distanceHistory.clear()
             lastOpponentPos = null
             lastOurPos = null
-            
+
             // Clear session blacklist if manual toggle (not during big break)
             if (isManualToggle) {
                 sessionBlacklist.clear()
                 playersSent.clear()
             }
-            
+
             // No need to stop big break monitoring since we don't have continuous monitoring
-            
+
             // Don't clear session blacklist during big break - only clear on manual toggle off
             // Session blacklist will persist through big breaks to maintain consistency
-            
+
             // Reset force requeue prevention when bot is disabled
             preventForceRequeue = false
-            
+
             // Reset requeue-related states
             forceRequeueScheduled = false
             forceRequeueAttempts = 0
             gameEndTime = 0L
-        } else if (!wasToggled && toggled) {
+        } else {
             // Bot is being enabled
-            
+
             // Reset Hit Select variables when bot is enabled
             hitSelectAttackTime = -1L
             currentShouldAttack = false
             isKbReductionAttack = false
             lastHitByOpponentTime = -1L
             waitingForHitLaterDelay = false
-            
+
             // Reset wait for first hit variables
             waitingForFirstHit = false
             crosshairOnOpponentTime = -1L
             hasBeenHitOnce = false
-            
+
             // Always set bot start time when bot is toggled on
             botStartTime = System.currentTimeMillis()
-            
+
             // Only set session start time for manual toggle or if not set
             if (isManualToggle || Session.startTime == -1L) {
                 Session.startTime = System.currentTimeMillis()
@@ -153,21 +142,21 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             } else {
                 ChatUtils.info("Session start time preserved (automatic toggle)")
             }
-            
+
             // Generate randomized timings with variance
             generateRandomizedTimings()
-            
+
             // Don't reset session stats (wins/losses) when toggling - only update start time
-            
+
             // Allow manual bot start even during big break time
             // Big break will be checked after each game ends
-            
+
             // Bot Crasher Mode setup
             if (CatDueller.config?.botCrasherMode == true && CatDueller.config?.botCrasherSpamPlayers == true) {
                 val manualPlayers = CatDueller.config?.botCrasherTargetPlayers?.split(",")
                     ?.map { it.trim() }
                     ?.filter { it.isNotBlank() } ?: emptyList()
-                
+
                 if (manualPlayers.isNotEmpty()) {
                     ChatUtils.info("Bot Crasher Mode: Found ${manualPlayers.size} manual target players, starting spam timer")
                     startSpamming()
@@ -195,8 +184,6 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     protected var ticksSinceHit = 0
 
 
-
-
     private var ticksSinceGameStart = 0
 
     private var lastOpponentName = ""
@@ -206,44 +193,44 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     private var calledGameEnd = false
     private var calledJoinGame = false
     private var lastGameWasLoss = false  // Track if the last game was a loss
-    
+
     // Blink Tap variables
     private var lastDistanceToOpponent = 999f  // Track distance for blink tap trigger
     private var blinkTapTriggered = false  // Prevent multiple triggers
-    
+
     // Force requeue mechanism
     private var gameEndTime = 0L  // time when game ended
     private var forceRequeueScheduled = false  // whether force requeue is scheduled
     private var forceRequeueAttempts = 0  // number of force requeue attempts made
     private var preventForceRequeue = false  // prevent force requeue when preparing to disconnect
-    
+
     // Reconnect timer for unexpected disconnections
     private var reconnectTimer: Timer? = null
-    
+
     // Bot runtime tracking (separate from session stats)
     private var botStartTime = 0L  // time when bot was started/resumed
-    
+
     // Dynamic break timing with variance
     private var actualDisconnectMinutes = 0  // actual disconnect time with variance applied
     private var actualReconnectWaitMinutes = 30  // actual wait time with variance applied
     private var scheduledReconnectTime = 0L  // absolute time when we should reconnect (0 = not scheduled)
     private var isDynamicBreakReconnect = false  // track if scheduled reconnect is for dynamic break
-    
+
     // Lobby Sit mode variables
     private var lobbySitActive = false  // whether lobby sit mode is active
     private var lobbySitEndTime = 0L  // when lobby sit mode should end
     private var lobbySitPhase = 0  // 0 = forward phase, 1 = backward phase
     private var lobbySitPhaseStartTime = 0L  // when current phase started
     private var lobbySitJumpTimer: Timer? = null  // timer for jump spam
-    
+
     // Internet stability monitoring variables
     private var internetStabilityPaused = false  // whether requeuing is paused due to high ping
     private var lastStablePingTime = 0L  // last time ping was below 250ms
     private var pingCheckTimer: Timer? = null  // timer for continuous ping monitoring
-    
+
     // Disconnect reason tracking
     private var lastDisconnectReason = "Unknown"  // Track the reason for last disconnect
-    
+
     /**
      * Set the disconnect reason for webhook reporting
      */
@@ -251,71 +238,68 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         lastDisconnectReason = reason
         ChatUtils.info("Disconnect reason set: $reason")
     }
-    
 
-    
+
     // Scoreboard opponent tracking
     private var cachedOpponentName: String? = null  // Cached opponent name
     private var lastScoreboardCheck = 0L  // Last time scoreboard was checked
     private var winstreakChecked = false  // Track if winstreak has been checked this game
-    
+
     // Current server tracking from scoreboard
     private var currentServer: String? = null  // Current server ID extracted from scoreboard
-    
-    /**
-     * Get current server ID extracted from scoreboard
-     */
-    fun getCurrentServer(): String? = currentServer
+
     protected var blatantToggled = false  // Track if blatant mode was toggled for current opponent
     private var sessionBlacklist = mutableSetOf<String>()  // Session-only blacklist for auto-added players
     private var beforeStartTime = 0L  // Track when beforeStart() was called
-    
+
     // Bot Crasher Mode variables
     private var gameStartTime = 0L  // Time when game started
     private var botCrasherTimer: Timer? = null  // Timer for bot crasher mode
     private var disconnectedPlayers = mutableListOf<String>()  // List of disconnected players to spam
     private var spamTimer: Timer? = null  // Timer for spamming disconnected players
-    
+
     // Hit Select variables for being attacked state
     // Note: Now only uses KB reduction mode
-    
+
     // Big Break variables - simplified
     private var bigBreakReconnectTime = 0L  // absolute time when big break ends (0 = not in big break)
-    
+
     // Hit Select variables
     private var lastCombatTime = 0L     // Last time we attacked or were attacked
-    
+
     // W-Tap variables
     private var tapping = false         // Whether W-Tap is currently active
     private var lastWTapTime = 0L       // Track last W-Tap time for 500ms cooldown
 
     // Rod retract timeout for immediate retraction on hit
     var rodRetractTimeout: Timer? = null
+
     // Track if rod was used defensively (due to opponent combo)
     var isDefensiveRod: Boolean = false
+
     // Track if opponent has used bow (to allow our bow usage)
     var opponentUsedBow: Boolean = false
-    
+
     // Track opponent's arrow usage
     var opponentArrowsFired: Int = 0
     var opponentIsDrawingBow: Boolean = false
     private var lastOpponentBowCheck: Long = 0
-    
+
     // Track opponent movement direction
     var opponentIsApproaching: Boolean = false
     var opponentIsRetreating: Boolean = false
     private var lastDistance: Float = 0f
     private var lastDistanceCheck: Long = 0
     private val distanceHistory = mutableListOf<Float>()
-    
+
     // Damage statistics for Classic bot
     private var damageDealtToOpponent: Double = 0.0
     private var damageReceivedFromOpponent: Double = 0.0
-    
+
     // Track opponent's actual movement speed
     var opponentActualSpeed = 0.13f  // Default to sprinting speed (blocks per tick)
     private var lastOpponentSpeedPos: Vec3? = null
-    
+
     // Track lateral movement (strafe direction)
     var opponentStrafeDirection: Int = 0  // -1=left, 0=none, 1=right (relative to opponent)
     var ourStrafeDirection: Int = 0       // -1=left, 0=none, 1=right (relative to us)
@@ -325,7 +309,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     private var lastStrafeCheck: Long = 0
 
     fun opponent() = opponent
-    
+
     /**
      * Get counter strafe multiplier for projectile prediction
      * @return Multiplier to apply for counter strafe prediction (1.0 = no bonus)
@@ -333,36 +317,6 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     fun getCounterStrafeMultiplier(): Float {
         val multiplier = CatDueller.config?.counterStrafeBonus ?: 1.5f
         return if (isCounterStrafing) multiplier else 1.0f
-    }
-    
-    /**
-     * Get detailed opponent information including precise position and rotation
-     * @return Formatted string with opponent details, or null if no opponent
-     */
-    fun getOpponentDetailedInfo(): String? {
-        val opponent = opponent() ?: return null
-        
-        return "Opponent: ${opponent.displayNameString}\n" +
-               "Position: X=${String.format("%.3f", opponent.posX)}, Z=${String.format("%.3f", opponent.posZ)}, Y=${String.format("%.3f", opponent.posY)}\n" +
-               "Rotation: Yaw=${String.format("%.1f", opponent.rotationYaw)}, Pitch=${String.format("%.1f", opponent.rotationPitch)}\n" +
-               "Status: ${if (opponent.onGround) "OnGround" else "InAir"}, Health=${String.format("%.1f", opponent.health)}\n" +
-               "Movement: ${if (opponent.isSneaking) "Sneaking" else "Standing"}, ${if (opponent.isSprinting) "Sprinting" else "Walking"}"
-    }
-    
-    /**
-     * Get opponent's exact coordinates for precise positioning
-     * @return Triple of (x, z, distance) or null if no opponent
-     */
-    fun getOpponentCoordinates(): Triple<Double, Double, Double>? {
-        val opponent = opponent() ?: return null
-        val player = mc.thePlayer ?: return null
-        
-        val distance = kotlin.math.sqrt(
-            (opponent.posX - player.posX).pow(2.0) + 
-            (opponent.posZ - player.posZ).pow(2.0)
-        )
-        
-        return Triple(opponent.posX, opponent.posZ, distance)
     }
 
     /********
@@ -389,14 +343,14 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     protected open fun onAttacked() {
         // Update combat time for hit select timeout logic
         lastCombatTime = System.currentTimeMillis()
-        
+
         // Record time when hit by opponent for "Hit Later In Trades" feature
         lastHitByOpponentTime = System.currentTimeMillis()
-        
-        if (CatDueller.config?.combatLogs == true && CatDueller.config?.hitLaterInTrades ?: 0 > 0) {
-            ChatUtils.combatInfo("Hit Later In Trades: Recorded hit at ${lastHitByOpponentTime}")
+
+        if (CatDueller.config?.combatLogs == true && (CatDueller.config?.hitLaterInTrades ?: 0) > 0) {
+            ChatUtils.combatInfo("Hit Later In Trades: Recorded hit at $lastHitByOpponentTime")
         }
-        
+
         // Mark that we've been hit for "Wait For First Hit" feature
         if (!hasBeenHitOnce) {
             hasBeenHitOnce = true
@@ -412,13 +366,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      * Called when the bot receives velocity (knockback)
      * Triggered by S12PacketEntityVelocity - most accurate timing for jump reset
      * @param motionX X velocity
-     * @param motionY Y velocity  
+     * @param motionY Y velocity
      * @param motionZ Z velocity
      */
     protected open fun onVelocity(motionX: Int, motionY: Int, motionZ: Int) {
         // Base implementation does nothing - subclasses can override for jump reset
     }
-
 
 
     /**
@@ -428,44 +381,41 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     open fun shouldStartAttacking(distance: Float): Boolean {
         val player = mc.thePlayer ?: return false
         val opponent = opponent() ?: return false
-        
+
         // Basic distance check
         val maxAttackDistance = CatDueller.config?.maxDistanceAttack ?: 5
         if (distance > maxAttackDistance) {
             return false
         }
-        
+
         // Crosshair aim check is now handled in canSwing() with missed hits cancel rate logic
-        
+
         // Ensure opponent is visible
         if (!player.canEntityBeSeen(opponent)) {
             return false
         }
-        
+
         // Ensure player can attack
         if (player.isUsingItem) {
             return false
         }
-        
-        val canAttackResult = canAttack()
-        if (!canAttackResult && CatDueller.config?.combatLogs == true) {
 
-        }
+        val canAttackResult = canAttack()
+
         return canAttackResult
     }
-    
+
     // Hit Select variables (simplified implementation)
     private var hitSelectAttackTime = -1L
     private var currentShouldAttack = false
     private var isKbReductionAttack = false  // Track if current attack is due to KB reduction
     private var lastHitByOpponentTime = -1L  // Track when we were last hit by opponent
     private var waitingForHitLaterDelay = false  // Track if we're waiting for hit later delay
-    
+
     // Wait For First Hit variables
     private var waitingForFirstHit = false  // Track if we're waiting for opponent's first hit
     private var crosshairOnOpponentTime = -1L  // Track when crosshair first aimed at opponent
     private var hasBeenHitOnce = false  // Track if we've been hit at least once this game
-    
 
 
     /**
@@ -473,17 +423,17 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      */
     open fun canSwing(): Boolean {
         if (!toggled()) return false
-        
+
         val player = mc.thePlayer ?: return false
         val opponent = opponent() ?: return false
         val distance = EntityUtils.getDistanceNoY(player, opponent)
         val maxAttackDistance = CatDueller.config?.maxDistanceAttack ?: 5
-        
+
         // Basic distance check - never attack beyond max distance
         if (distance > maxAttackDistance) {
             return false
         }
-        
+
         // Check Wait For First Hit feature
         val waitForFirstHitEnabled = CatDueller.config?.waitForFirstHit ?: false
         if (waitForFirstHitEnabled && waitingForFirstHit) {
@@ -492,18 +442,18 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }
             return false
         }
-        
+
         val hitSelectEnabled = CatDueller.config?.hitSelect ?: false
-        
+
         // If hit select is disabled, always allow swing within max distance
         if (!hitSelectEnabled) {
             return true
         }
-        
+
         // Hit select is enabled - check crosshair aim
         val mouseOver = mc.objectMouseOver
         val crosshairAimed = (mouseOver != null && mouseOver.entityHit == opponent)
-        
+
         if (crosshairAimed) {
             // Crosshair is aimed at target - use normal hit select timing logic
             return currentShouldAttack
@@ -520,7 +470,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     return false
                 }
             }
-            
+
             // Missed hits cancel rate allows attack - swing without hit select timing restrictions
             if (CatDueller.config?.combatLogs == true) {
                 ChatUtils.combatInfo("canSwing() allowed by missed hits cancel rate - crosshair not aimed")
@@ -544,21 +494,21 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         if (scheduledReconnectTime > 0L && isDynamicBreakReconnect) {
             val currentTime = System.currentTimeMillis()
             val timeUntilReconnect = scheduledReconnectTime - currentTime
-            
+
             // Debug info every 30 seconds for dynamic break
             if (timeUntilReconnect > 0 && timeUntilReconnect % 30000 < 50) {
-                println("Waiting for dynamic break reconnect... ${timeUntilReconnect/1000}s remaining")
+                println("Waiting for dynamic break reconnect... ${timeUntilReconnect / 1000}s remaining")
             }
-            
+
             if (currentTime >= scheduledReconnectTime) {
                 scheduledReconnectTime = 0L  // Reset
                 isDynamicBreakReconnect = false  // Reset
-                
+
                 try {
                     ChatUtils.info("Dynamic break reconnect time reached, attempting reconnect...")
                     println("Dynamic break reconnect triggered")
                     println("Current time: $currentTime")
-                
+
                     // For dynamic break reconnects, we need to re-enable the bot
                     if (!toggled()) {
                         ChatUtils.info("Re-enabling bot for dynamic break reconnect...")
@@ -566,21 +516,21 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     } else {
                         ChatUtils.info("Bot already enabled for dynamic break reconnect")
                     }
-                    
+
                     // Don't reset session for dynamic break - session persists
-                    
+
                     // Start persistent reconnect attempts for dynamic break
                     ChatUtils.info("Starting persistent reconnect attempts for dynamic break...")
                     reconnectTimer = TimeUtils.setInterval(this::reconnect, 0, 30000)
-                
+
                 } catch (e: Exception) {
                     ChatUtils.error("Error during scheduled reconnect: ${e.message}")
                     e.printStackTrace()
                 }
             }
-        }   
+        }
     }
-    
+
     /**
      * Check if big break should end
      */
@@ -588,42 +538,46 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         if (bigBreakReconnectTime > 0L) {
             val currentTime = System.currentTimeMillis()
             val timeUntilReconnect = bigBreakReconnectTime - currentTime
-            
+
             // Debug info every 30 seconds
             if (timeUntilReconnect > 0 && timeUntilReconnect % 30000 < 50) {
-                println("Waiting for big break to end... ${timeUntilReconnect/1000}s remaining")
-                ChatUtils.info("Big break ends in ${timeUntilReconnect/1000}s")
+                println("Waiting for big break to end... ${timeUntilReconnect / 1000}s remaining")
+                ChatUtils.info("Big break ends in ${timeUntilReconnect / 1000}s")
             }
-            
+
             if (currentTime >= bigBreakReconnectTime) {
                 bigBreakReconnectTime = 0L  // Reset
                 println("Big break reconnect time reached!")
                 ChatUtils.info("Big break time reached - starting reconnect process")
-            
+
                 try {
                     // Send webhook notification for big break end
                     if (CatDueller.config?.sendWebhookMessages == true && !CatDueller.config?.webhookURL.isNullOrBlank()) {
-                        val author = WebHook.buildAuthor("Cat Dueller - ${getName()}", "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-                        val thumbnail = WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-                        
+                        val author = WebHook.buildAuthor(
+                            "Cat Dueller - ${getName()}",
+                            "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
+                        )
+                        val thumbnail =
+                            WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
+
                         WebHook.sendEmbed(
                             CatDueller.config?.webhookURL!!,
                             WebHook.buildEmbed(
-                                ":white_check_mark: Big Break Ended", 
-                                "Big break time has ended. Bot is now re-enabled and resuming operation.", 
-                                JsonArray(), 
-                                JsonObject(), 
-                                author, 
-                                thumbnail, 
+                                ":white_check_mark: Big Break Ended",
+                                "Big break time has ended. Bot is now re-enabled and resuming operation.",
+                                JsonArray(),
+                                JsonObject(),
+                                author,
+                                thumbnail,
                                 0x00ff00
                             )
                         )
                     }
-                    
+
                     // Big break ended, re-enable bot and reconnect (like dynamic break)
                     ChatUtils.info("Big break reconnect time reached, attempting reconnect...")
                     println("Big break reconnect triggered")
-                    
+
                     // For big break reconnects, we need to re-enable the bot
                     if (!toggled()) {
                         ChatUtils.info("Re-enabling bot for big break reconnect...")
@@ -631,14 +585,14 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     } else {
                         ChatUtils.info("Bot already enabled for big break reconnect")
                     }
-                    
+
                     // Don't reset session for big break - session persists
                     ChatUtils.info("Bot re-enabled after big break - session preserved")
-                    
+
                     // Start persistent reconnect attempts for big break
                     ChatUtils.info("Starting persistent reconnect attempts for big break...")
                     reconnectTimer = TimeUtils.setInterval(this::reconnect, 0, 30000)
-                    
+
                 } catch (e: Exception) {
                     ChatUtils.error("Error during big break reconnect: ${e.message}")
                     e.printStackTrace()
@@ -652,7 +606,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      */
     private fun updateHitSelect() {
         if (!toggled()) return
-        
+
         val hitSelectEnabled = CatDueller.config?.hitSelect ?: false
         if (!hitSelectEnabled) {
             currentShouldAttack = true
@@ -661,10 +615,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
         val player = mc.thePlayer ?: return
         val currentTime = System.currentTimeMillis()
-        
+
         // Reset KB reduction flag
         isKbReductionAttack = false
-        
+
         // 1. 首先在還沒進入循環前允許攻擊
         if (hitSelectAttackTime == -1L) {
             currentShouldAttack = true
@@ -673,7 +627,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }
             return
         }
-        
+
         // 2. KB reduction: hurtTime > 6 時允許攻擊
         if (player.hurtTime > 6 && !player.onGround) {
             currentShouldAttack = true
@@ -683,29 +637,28 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }
             return
         }
-        
+
         // 3. 檢查 500ms 循環邏輯
         val hitSelectDelay = CatDueller.config?.hitSelectDelay ?: 350
         val timeSinceLastAttack = currentTime - hitSelectAttackTime
         val hitLaterDelay = CatDueller.config?.hitLaterInTrades ?: 0
-        
+
         if (timeSinceLastAttack < hitSelectDelay) {
             // 在 delay 期間內 - 暫停攻擊
             currentShouldAttack = false
             waitingForHitLaterDelay = false  // Reset waiting flag
-            if (CatDueller.config?.combatLogs == true) {
 
-            }
         } else if (timeSinceLastAttack < 500) {
             // delay 後到 500ms 前 - 檢查 Hit Later In Trades 邏輯
-            
+
             if (hitLaterDelay > 0) {
                 // Hit Later In Trades enabled
-                val timeSinceHit = if (lastHitByOpponentTime > 0) currentTime - lastHitByOpponentTime else Long.MAX_VALUE
-                
+                val timeSinceHit =
+                    if (lastHitByOpponentTime > 0) currentTime - lastHitByOpponentTime else Long.MAX_VALUE
+
                 // Check if we were hit during this cycle (after hitSelectAttackTime)
                 val wasHitDuringCycle = lastHitByOpponentTime > hitSelectAttackTime
-                
+
                 if (wasHitDuringCycle && timeSinceHit < hitLaterDelay) {
                     // We were hit during this cycle, wait for hit later delay
                     currentShouldAttack = false
@@ -724,26 +677,19 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     // Not hit during this cycle, use normal logic
                     currentShouldAttack = true
                     waitingForHitLaterDelay = false
-                    if (CatDueller.config?.combatLogs == true) {
 
-                    }
                 }
             } else {
                 // Hit Later In Trades disabled, use normal logic
                 currentShouldAttack = true
                 waitingForHitLaterDelay = false
-                if (CatDueller.config?.combatLogs == true) {
 
-                }
             }
         } else {
             // 500ms 後 - 開始新循環，允許攻擊並重置時間
             currentShouldAttack = true
             hitSelectAttackTime = -1L  // 重置，讓下次攻擊時重新記錄時間
             waitingForHitLaterDelay = false
-            if (CatDueller.config?.combatLogs == true) {
-
-            }
         }
     }
 
@@ -752,24 +698,24 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      */
     private fun updateWaitForFirstHit() {
         if (!toggled()) return
-        
+
         val waitForFirstHitEnabled = CatDueller.config?.waitForFirstHit ?: false
         if (!waitForFirstHitEnabled) {
             waitingForFirstHit = false
             crosshairOnOpponentTime = -1L
             return
         }
-        
-        val player = mc.thePlayer ?: return
+
+        mc.thePlayer ?: return
         val opponent = opponent() ?: return
-        
+
         // Check if we've been hit once - if so, disable waiting
         if (hasBeenHitOnce) {
             waitingForFirstHit = false
             crosshairOnOpponentTime = -1L
             return
         }
-        
+
         // Check if we're in hit select cycle (hitSelectAttackTime != -1L means we're in a cycle)
         val hitSelectEnabled = CatDueller.config?.hitSelect ?: false
         val inHitSelectCycle = hitSelectEnabled && hitSelectAttackTime != -1L
@@ -782,28 +728,28 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }
             return
         }
-        
+
         // Check if player is near edge (using nearEdge method from Sumo bot if available)
         val playerNearEdge = try {
             // Try to call nearEdge method if it exists (Sumo bot specific)
             this.javaClass.getMethod("nearEdge", Float::class.javaPrimitiveType).invoke(this, 3.5f) as Boolean
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // If method doesn't exist, assume not near edge
             false
         }
-        
+
         if (playerNearEdge) {
             // Don't wait for first hit when near edge
             waitingForFirstHit = false
             crosshairOnOpponentTime = -1L
             return
         }
-        
+
         // Check if crosshair is on opponent
         val mouseOver = mc.objectMouseOver
         val crosshairAimed = (mouseOver != null && mouseOver.entityHit == opponent)
         val currentTime = System.currentTimeMillis()
-        
+
         if (crosshairAimed) {
             // Crosshair is on opponent
             if (crosshairOnOpponentTime == -1L) {
@@ -817,7 +763,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 // Check timeout
                 val waitForFirstHitTimeout = CatDueller.config?.waitForFirstHitTimeout ?: 500
                 val timeSinceCrosshairOn = currentTime - crosshairOnOpponentTime
-                
+
                 if (timeSinceCrosshairOn >= waitForFirstHitTimeout) {
                     // Timeout reached - stop waiting and allow attack
                     waitingForFirstHit = false
@@ -839,48 +785,36 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
     /**
-     * Check if player is moving (equivalent to MoveUtil.isMoving())
-     */
-    private fun isPlayerMoving(): Boolean {
-        val player = mc.thePlayer ?: return false
-        return player.motionX != 0.0 || player.motionZ != 0.0
-    }
-    
-
-    
-
-
-    /**
      * Called when the game starts
      */
     protected open fun onGameStart() {
-        
+
         // Reset winstreak check flag for new game
         winstreakChecked = false
-        
+
         // Reset game variables
         resetGameVariables()
-        
+
         // Debug: Verify tracking functions will be called
         if (CatDueller.config?.combatLogs == true) {
             ChatUtils.combatInfo("Game started - bow detection and movement tracking initialized")
         }
-        
+
         // Bot Crasher Mode: Start timer to check if game doesn't end within 5 seconds
         if (CatDueller.config?.botCrasherMode == true && CatDueller.config?.botCrasherAutoRequeue == true) {
             gameStartTime = System.currentTimeMillis()
             botCrasherTimer?.cancel()
             botCrasherTimer = Timer()
-            botCrasherTimer?.schedule(object : java.util.TimerTask() {
+            botCrasherTimer?.schedule(object : TimerTask() {
                 override fun run() {
                     // If game hasn't ended after 5 seconds, send requeue command
                     if (StateManager.state == StateManager.States.PLAYING) {
                         ChatUtils.info("Bot Crasher Mode: Game didn't end after 5 seconds, sending requeue command")
-                        
+
                         // Reset all variables like in game end
                         onGameEnd()
                         resetVars()
-                        
+
                         // Clear movement and combat states
                         Movement.clearAll()
                         Mouse.stopLeftAC()
@@ -888,7 +822,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                         Mouse.stopHoldRightClick()
                         Combat.stopRandomStrafe()
                         LobbyMovement.stop()
-                        
+
                         // Send requeue command
                         ChatUtils.sendAsPlayer(queueCommand)
                     }
@@ -896,7 +830,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }, 5000)
         }
     }
-    
+
     /**
      * Reset variables for new game
      */
@@ -908,31 +842,31 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         hitSelectAttackTime = -1L  // Reset hit select attack time
         lastHitByOpponentTime = -1L
         waitingForHitLaterDelay = false
-        
+
         // Reset wait for first hit variables
         waitingForFirstHit = false
         crosshairOnOpponentTime = -1L
         hasBeenHitOnce = false
-        
+
         // Reset W-Tap variables
         tapping = false
         lastWTapTime = 0L
-        
+
         // Reset bow usage tracking
         opponentUsedBow = false
         opponentArrowsFired = 0
         opponentIsDrawingBow = false
-        
+
         // Reset movement tracking
         opponentIsApproaching = false
         opponentIsRetreating = false
         lastDistance = 0f
         distanceHistory.clear()
-        
+
         // Reset speed tracking
         opponentActualSpeed = 0.13f
         lastOpponentSpeedPos = null
-        
+
         // Reset strafe tracking
         opponentStrafeDirection = 0
         ourStrafeDirection = 0
@@ -949,26 +883,25 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         gameEndTime = System.currentTimeMillis()
         forceRequeueScheduled = false
         forceRequeueAttempts = 0  // Reset attempt counter
-        
+
         // Bot Crasher Mode: Cancel timer since game ended normally
         if (CatDueller.config?.botCrasherMode == true && CatDueller.config?.botCrasherAutoRequeue == true) {
             botCrasherTimer?.cancel()
             botCrasherTimer = null
         }
-        
+
         // Turn off blatant mode if it was toggled for this game
         if (blatantToggled && CatDueller.config?.toggleBlatantOnBlacklisted == true) {
             val keyName = CatDueller.config?.blatantToggleKey ?: "F1"
             ChatUtils.info("Game ended - turning off blatant mode")
-            
+
             TimeUtils.setTimeout({
                 simulateKeyPress(keyName)
                 blatantToggled = false
             }, RandomUtils.randomIntInRange(200, 500))
         }
-        
 
-        
+
         // Schedule force requeue if enabled - delay 300ms to wait for WINNER message processing
         if (CatDueller.config?.forceRequeue == true) {
             TimeUtils.setTimeout({
@@ -978,17 +911,17 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 } else {
                     CatDueller.config?.autoRqDelay ?: 2000
                 }
-                
+
                 // Add extra delay if we lost and the feature is enabled (same as normal requeue)
                 if (lastGameWasLoss && CatDueller.config?.delayRequeueAfterLosing == true) {
                     val extraDelay = (CatDueller.config?.losingRequeueDelay ?: 5) * 1000
                     baseDelay += extraDelay
                 }
-                
+
                 val forceRequeueDelay = baseDelay + 1500 // Add 1.5 second buffer
-                
+
                 // Schedule force requeue after calculated delay + 1.5 second buffer
-                TimeUtils.setTimeout(fun () {
+                TimeUtils.setTimeout(fun() {
                     checkForceRequeue()
                 }, forceRequeueDelay)
             }, 300) // Wait 300ms for WINNER message processing to complete
@@ -1001,33 +934,33 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     protected open fun onJoinGame() {
         // Cancel force requeue since we successfully joined a game
         if (gameEndTime > 0L) {
-            val timeSinceGameEnd = System.currentTimeMillis() - gameEndTime
+            System.currentTimeMillis() - gameEndTime
 
             forceRequeueScheduled = false
             forceRequeueAttempts = 0  // Reset attempt counter
             gameEndTime = 0L  // Reset to prevent duplicate processing
         }
-        
+
         // Reset Hit Select variables for new game
         hitSelectAttackTime = -1L
         currentShouldAttack = false
         isKbReductionAttack = false
         lastHitByOpponentTime = -1L
         waitingForHitLaterDelay = false
-        
+
         // Reset wait for first hit variables
         waitingForFirstHit = false
         crosshairOnOpponentTime = -1L
         hasBeenHitOnce = false
-        
+
         // Reset game variables
         resetGameVariables()
-        
+
         // Immediately update server info from scoreboard when joining game
         updateCurrentServerFromScoreboard()
-        
+
         // Notify MovementRecorder about joining game
-        best.spaghetcodes.catdueller.bot.MovementRecorder.onJoinGame()
+        MovementRecorder.onJoinGame()
     }
 
     /**
@@ -1041,9 +974,9 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 val guildMessage = "/gc $currentServer $randomSpam"
                 ChatUtils.sendAsPlayer(guildMessage)
                 ChatUtils.info("Sent guild message: $guildMessage")
-            }, RandomUtils.randomIntInRange(100, 300)) 
+            }, RandomUtils.randomIntInRange(100, 300))
         }
-        
+
         // Send server to DM if enabled
         if (CatDueller.config?.sendServerToDM == true && currentServer != null && !CatDueller.config?.dmTargetPlayer.isNullOrBlank()) {
             TimeUtils.setTimeout({
@@ -1051,7 +984,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 val dmMessage = "/w ${CatDueller.config?.dmTargetPlayer} $currentServer $randomSpam"
                 ChatUtils.sendAsPlayer(dmMessage)
                 ChatUtils.info("Sent DM message: $dmMessage")
-            }, RandomUtils.randomIntInRange(100, 300)) 
+            }, RandomUtils.randomIntInRange(100, 300))
         }
     }
 
@@ -1065,15 +998,15 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         isKbReductionAttack = false
         lastHitByOpponentTime = -1L
         waitingForHitLaterDelay = false
-        
+
         // Reset wait for first hit variables
         waitingForFirstHit = false
         crosshairOnOpponentTime = -1L
         hasBeenHitOnce = false
-        
+
         // Notify MovementRecorder about game starting
-        best.spaghetcodes.catdueller.bot.MovementRecorder.onBeforeStart()
-        
+        MovementRecorder.onBeforeStart()
+
     }
 
     /**
@@ -1086,37 +1019,37 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             ChatUtils.info("Force requeue prevented - preparing to disconnect")
             return
         }
-        
-        val timeSinceGameEnd = System.currentTimeMillis() - gameEndTime
-        
+
+        System.currentTimeMillis() - gameEndTime
+
         // Calculate expected delay for comparison (same logic as force requeue scheduling)
         var baseDelay = if (CatDueller.config?.fastRequeue == true) {
             400  // Average of 300-500 range for fast requeue
         } else {
             CatDueller.config?.autoRqDelay ?: 2000
         }
-        
+
         // Add extra delay if we lost and the feature is enabled (same as normal requeue)
         if (lastGameWasLoss && CatDueller.config?.delayRequeueAfterLosing == true) {
             val extraDelay = (CatDueller.config?.losingRequeueDelay ?: 5) * 1000
             baseDelay += extraDelay
         }
-        
-        val expectedDelay = baseDelay + 1000
-        
+
+        baseDelay + 1000
+
         // Only force requeue if we haven't already scheduled it and gameEndTime is still set
         if (!forceRequeueScheduled && gameEndTime > 0L) {
             forceRequeueScheduled = true
             forceRequeueAttempts++
-            
 
-            
-            TimeUtils.setTimeout(fun () {
+
+
+            TimeUtils.setTimeout(fun() {
                 executeForceRequeue()
             }, RandomUtils.randomIntInRange(100, 300))
         }
     }
-    
+
     /**
      * Execute force requeue and schedule next attempt if needed
      */
@@ -1127,13 +1060,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             ChatUtils.info("Force requeue execution prevented - preparing to disconnect")
             return
         }
-        
-        if (StateManager.state != StateManager.States.PLAYING){
+
+        if (StateManager.state != StateManager.States.PLAYING) {
             forceRequeue()
         }
-        
-    }
 
+    }
 
 
     /**
@@ -1142,19 +1074,19 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     protected open fun onFoundOpponent() {
         // Cancel force requeue since we found an opponent (successful requeue)
         if (gameEndTime > 0L) {
-            val timeSinceGameEnd = System.currentTimeMillis() - gameEndTime
+            System.currentTimeMillis() - gameEndTime
         }
         forceRequeueScheduled = false
         forceRequeueAttempts = 0  // Reset attempt counter
         gameEndTime = 0L
-        
+
         // Check if opponent is blacklisted and toggle blatant mode if enabled
         val opponentName = opponent()?.displayNameString
         if (opponentName != null && CatDueller.config?.toggleBlatantOnBlacklisted == true) {
             if (isPlayerBlacklisted(opponentName) && !blatantToggled) {
                 val keyName = CatDueller.config?.blatantToggleKey ?: "F1"
                 ChatUtils.info("Blacklisted player detected: $opponentName - toggling blatant mode")
-                
+
                 simulateKeyPress(keyName)
                 blatantToggled = true
             }
@@ -1175,41 +1107,41 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     protected open fun onTick() {
         // Only run when bot is toggled on to prevent performance issues
         if (!toggled()) return
-        
+
         // Check winstreak from scoreboard once per game when in PLAYING state
         if (StateManager.state == StateManager.States.PLAYING && !winstreakChecked) {
             checkWinstreakFromScoreboard()
             winstreakChecked = true
         }
-        
+
         // Track opponent's bow usage and arrows
         trackOpponentBowUsage()
-        
+
         // Track opponent movement direction
         trackOpponentMovement()
-        
+
         // Track strafe directions
         trackStrafeMovement()
-        
+
         // Blink Tap logic
         updateBlinkTap()
-        
+
         // Periodic memory cleanup (every 5 minutes)
         performPeriodicCleanup()
     }
-    
+
     private var lastCleanupTime = 0L
-    
+
     /**
      * Perform periodic cleanup to prevent memory leaks
      */
     private fun performPeriodicCleanup() {
         val currentTime = System.currentTimeMillis()
-        
+
         // Cleanup every 5 minutes (300,000ms)
         if (currentTime - lastCleanupTime > 300000) {
             lastCleanupTime = currentTime
-            
+
             // Limit collection sizes
             if (disconnectedPlayers.size > 50) {
                 val toRemove = disconnectedPlayers.size - 50
@@ -1218,7 +1150,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 }
                 ChatUtils.info("Memory cleanup: Trimmed disconnectedPlayers to 50 entries")
             }
-            
+
             if (sessionBlacklist.size > 100) {
                 val toRemove = sessionBlacklist.size - 100
                 val iterator = sessionBlacklist.iterator()
@@ -1230,22 +1162,21 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 }
                 ChatUtils.info("Memory cleanup: Trimmed sessionBlacklist to 100 entries")
             }
-            
+
             // Force garbage collection hint (not guaranteed but may help)
             System.gc()
         }
     }
-    
 
-    
+
     /**
      * Track opponent's bow usage and arrow count
      */
     private fun trackOpponentBowUsage() {
         if (opponent() == null || mc.theWorld == null) return
-        
+
         val currentTime = System.currentTimeMillis()
-        
+
         // Check if opponent is drawing bow (every 100ms to avoid spam)
         if (currentTime - lastOpponentBowCheck > 100) {
             // Debug: Show that tracking is running (every 5 seconds to avoid spam)
@@ -1253,25 +1184,42 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 ChatUtils.combatInfo("Bow tracking active - checking opponent...")
             }
             val wasDrawing = opponentIsDrawingBow
-            val hasBow = opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase().contains("bow")
-            
+            val hasBow =
+                opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase().contains("bow")
+
             // Try multiple methods to detect bow drawing
-            val itemInUseCount = try { opponent()!!.itemInUseCount } catch (e: Exception) { 0 }
-            val isUsingItem = try { opponent()!!.isUsingItem() } catch (e: Exception) { 
-                try { opponent()!!.isUsingItem } catch (e2: Exception) { false }
+            val itemInUseCount = try {
+                opponent()!!.itemInUseCount
+            } catch (_: Exception) {
+                0
             }
-            val itemInUseDuration = try { opponent()!!.itemInUseDuration } catch (e: Exception) { 0 }
-            
+            val isUsingItem = try {
+                opponent()!!.isUsingItem
+            } catch (_: Exception) {
+                try {
+                    opponent()!!.isUsingItem
+                } catch (_: Exception) {
+                    false
+                }
+            }
+            val itemInUseDuration = try {
+                opponent()!!.itemInUseDuration
+            } catch (_: Exception) {
+                0
+            }
+
             // Consider drawing if any of these conditions are met (use threshold for itemInUseCount)
             // Also check if opponent is not moving much (simple heuristic for drawing bow)
             val isStationary = try {
                 val vel = opponent()!!.motionX * opponent()!!.motionX + opponent()!!.motionZ * opponent()!!.motionZ
                 vel < 0.01  // Very slow movement
-            } catch (e: Exception) { false }
-            
-            opponentIsDrawingBow = hasBow && (itemInUseCount > 2 || isUsingItem || itemInUseDuration > 2 || 
-                                            (isStationary && opponent()!!.isSneaking))
-            
+            } catch (_: Exception) {
+                false
+            }
+
+            opponentIsDrawingBow = hasBow && (itemInUseCount > 2 || isUsingItem || itemInUseDuration > 2 ||
+                    (isStationary && opponent()!!.isSneaking))
+
             // Debug bow drawing detection
             if (CatDueller.config?.combatLogs == true) {
                 // Always show bow check when opponent has bow
@@ -1288,7 +1236,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     ChatUtils.combatInfo("Opponent bow check - No bow held (item: $heldItem)")
                 }
             }
-            
+
             // If opponent stopped drawing bow, they likely fired an arrow
             if (wasDrawing && !opponentIsDrawingBow) {
                 opponentArrowsFired++
@@ -1296,10 +1244,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     ChatUtils.combatInfo("Opponent fired arrow #$opponentArrowsFired")
                 }
             }
-            
+
             lastOpponentBowCheck = currentTime
         }
-        
+
         // Count arrows in world (alternative method) - DISABLED for performance
         // This was causing game freeze due to expensive entity iteration every 100ms
         // val arrowCount = mc.theWorld.loadedEntityList
@@ -1315,35 +1263,54 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      */
     private fun trackOpponentMovement() {
         if (opponent() == null || mc.thePlayer == null) return
-        
+
         val currentTime = System.currentTimeMillis()
         val currentDistance = EntityUtils.getDistanceNoY(mc.thePlayer, opponent())
-        
+
         // Update every 200ms to get smooth tracking
         if (currentTime - lastDistanceCheck > 200) {
             // Add current distance to history
             distanceHistory.add(currentDistance)
-            
+
             // Keep only last 5 measurements (1 second of history)
             if (distanceHistory.size > 5) {
                 distanceHistory.removeAt(0)
             }
-            
+
             // Debug distance tracking
             if (CatDueller.config?.combatLogs == true) {
-                ChatUtils.combatInfo("Distance tracking - Current: ${String.format("%.2f", currentDistance)}, History size: ${distanceHistory.size}, Last check: ${currentTime - lastDistanceCheck}ms ago")
+                ChatUtils.combatInfo(
+                    "Distance tracking - Current: ${
+                        String.format(
+                            "%.2f",
+                            currentDistance
+                        )
+                    }, History size: ${distanceHistory.size}, Last check: ${currentTime - lastDistanceCheck}ms ago"
+                )
             }
-            
+
             // Need at least 3 measurements to determine direction
             if (distanceHistory.size >= 3) {
                 val oldDistance = distanceHistory[0]
                 val recentDistance = distanceHistory.last()
                 val distanceChange = recentDistance - oldDistance
-                
+
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtils.combatInfo("Movement analysis - Old: ${String.format("%.2f", oldDistance)}, Recent: ${String.format("%.2f", recentDistance)}, Change: ${String.format("%.2f", distanceChange)}")
+                    ChatUtils.combatInfo(
+                        "Movement analysis - Old: ${
+                            String.format(
+                                "%.2f",
+                                oldDistance
+                            )
+                        }, Recent: ${String.format("%.2f", recentDistance)}, Change: ${
+                            String.format(
+                                "%.2f",
+                                distanceChange
+                            )
+                        }"
+                    )
                 }
-                
+
                 // Threshold to avoid noise (0.2 blocks)
                 when {
                     distanceChange < -0.2f -> {
@@ -1351,18 +1318,20 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                         opponentIsApproaching = true
                         opponentIsRetreating = false
                     }
+
                     distanceChange > 0.2f -> {
                         // Distance increasing = retreating
                         opponentIsApproaching = false
                         opponentIsRetreating = true
                     }
+
                     else -> {
                         // No significant change = stationary
                         opponentIsApproaching = false
                         opponentIsRetreating = false
                     }
                 }
-                
+
                 // Debug info
                 if (CatDueller.config?.combatLogs == true) {
                     val direction = when {
@@ -1373,30 +1342,37 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     ChatUtils.combatInfo("Opponent movement: $direction")
                 }
             }
-            
+
             lastDistance = currentDistance
             lastDistanceCheck = currentTime
         }
-        
+
         // Track opponent's actual movement speed every tick (only if enabled)
         if (shouldTrackOpponentSpeed()) {
             val currentPos = Vec3(opponent()!!.posX, opponent()!!.posY, opponent()!!.posZ)
-            
+
             if (lastOpponentSpeedPos != null) {
                 val distance = currentPos.distanceTo(lastOpponentSpeedPos!!)
                 val speedBlocksPerTick = distance  // Direct blocks per tick calculation
-                
+
                 // Update actual speed without smoothing for immediate response
                 opponentActualSpeed = speedBlocksPerTick.toFloat()
-                
+
                 // Clamp to reasonable values (0.0 to 0.25 blocks per tick)
                 opponentActualSpeed = opponentActualSpeed.coerceIn(0.0f, 0.25f)
-                
+
                 if (CatDueller.config?.combatLogs == true && speedBlocksPerTick > 0.005) {
-                    ChatUtils.combatInfo("Opponent speed (tick) - Raw: ${String.format("%.4f", speedBlocksPerTick)} blocks/tick")
+                    ChatUtils.combatInfo(
+                        "Opponent speed (tick) - Raw: ${
+                            String.format(
+                                "%.4f",
+                                speedBlocksPerTick
+                            )
+                        } blocks/tick"
+                    )
                 }
             }
-            
+
             lastOpponentSpeedPos = currentPos
         }
     }
@@ -1406,53 +1382,57 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      */
     private fun trackStrafeMovement() {
         if (opponent() == null || mc.thePlayer == null) return
-        
+
         val currentTime = System.currentTimeMillis()
-        
+
         // Update every 150ms for smooth tracking
         if (currentTime - lastStrafeCheck > 150) {
             val currentOpponentPos = opponent()!!.positionVector
             val currentOurPos = mc.thePlayer.positionVector
-            
+
             if (lastOpponentPos != null && lastOurPos != null) {
                 // Calculate opponent's strafe direction (relative to their facing)
                 val opponentMovement = currentOpponentPos.subtract(lastOpponentPos!!)
                 val opponentLookVec = EntityUtils.get2dLookVec(opponent()!!)
                 val opponentRightVec = opponentLookVec.rotateYaw(-90f)
                 val opponentStrafeAmount = opponentMovement.dotProduct(opponentRightVec)
-                
+
                 // Calculate our strafe direction (relative to our facing)
                 val ourMovement = currentOurPos.subtract(lastOurPos!!)
                 val ourLookVec = EntityUtils.get2dLookVec(mc.thePlayer)
                 val ourRightVec = ourLookVec.rotateYaw(-90f)
                 val ourStrafeAmount = ourMovement.dotProduct(ourRightVec)
-                
+
                 // Determine strafe directions (threshold 0.05 to avoid noise)
                 opponentStrafeDirection = when {
                     opponentStrafeAmount > 0.05 -> 1  // opponent moving right
                     opponentStrafeAmount < -0.05 -> -1 // opponent moving left
                     else -> 0 // no significant strafe
                 }
-                
+
                 ourStrafeDirection = when {
                     ourStrafeAmount > 0.05 -> 1  // we moving right
                     ourStrafeAmount < -0.05 -> -1 // we moving left
                     else -> 0 // no significant strafe
                 }
-                
+
                 // Check if we're counter-strafing (both moving in same relative direction)
                 // This means we're moving away from each other laterally
-                isCounterStrafing = (opponentStrafeDirection != 0 && ourStrafeDirection != 0 && 
-                                   opponentStrafeDirection == ourStrafeDirection)
-                
+                isCounterStrafing = (opponentStrafeDirection != 0 && ourStrafeDirection != 0 &&
+                        opponentStrafeDirection == ourStrafeDirection)
+
                 // Debug info
                 if (CatDueller.config?.combatLogs == true && (opponentStrafeDirection != 0 || ourStrafeDirection != 0)) {
-                    val opponentDir = when(opponentStrafeDirection) { -1 -> "Left"; 1 -> "Right"; else -> "None" }
-                    val ourDir = when(ourStrafeDirection) { -1 -> "Left"; 1 -> "Right"; else -> "None" }
+                    val opponentDir = when (opponentStrafeDirection) {
+                        -1 -> "Left"; 1 -> "Right"; else -> "None"
+                    }
+                    val ourDir = when (ourStrafeDirection) {
+                        -1 -> "Left"; 1 -> "Right"; else -> "None"
+                    }
                     ChatUtils.combatInfo("Strafe - Opponent: $opponentDir, Us: $ourDir, Counter: $isCounterStrafing")
                 }
             }
-            
+
             lastOpponentPos = currentOpponentPos
             lastOurPos = currentOurPos
             lastStrafeCheck = currentTime
@@ -1469,32 +1449,32 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     protected open fun shouldDisableBlinkTap(): Boolean {
         return false
     }
-    
+
     private fun updateBlinkTap() {
         if (CatDueller.config?.blinkTap != true) return
-        
+
         // Check if subclass wants to disable Blink Tap
         if (shouldDisableBlinkTap()) return
-        
+
         val player = mc.thePlayer ?: return
         val opponent = opponent() ?: return
-        
+
         val currentDistance = EntityUtils.getDistanceNoY(player, opponent)
         val triggerDistance = CatDueller.config?.blinkTapDistance ?: 4.0f
-        
+
         // Check if we crossed from outside to inside the trigger distance
         val wasOutside = lastDistanceToOpponent > triggerDistance
         val nowInside = currentDistance <= triggerDistance
-        
+
         if (wasOutside && nowInside && !blinkTapTriggered) {
             blinkTapTriggered = true
             val keyName = CatDueller.config?.blinkTapKey ?: "Q"
-            
+
             ChatUtils.info("Blink Tap: Triggered at distance $currentDistance (threshold: $triggerDistance)")
-            
+
             // Press the key once immediately
             simulateKeyPress(keyName)
-            
+
             // Schedule second key press after timeout if delay is set
             val timeoutDelay = CatDueller.config?.blinkTapSecondPressDelay ?: 0
             if (timeoutDelay > 0) {
@@ -1505,20 +1485,18 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 }, timeoutDelay)
             }
         }
-        
+
         // Reset trigger when we move far enough away
         if (currentDistance > triggerDistance + 1.0f) {
             blinkTapTriggered = false
         }
-        
+
         lastDistanceToOpponent = currentDistance
     }
-    
 
-    
+
     private var lastPlayerHurtTime = 0
     private var lastOpponentHurtTime = 0
-
 
 
     /**
@@ -1529,7 +1507,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     protected open fun onPacketReceived(packet: Packet<*>): Boolean {
         return true  // Default allows continued processing
     }
-    
+
 
     /********
      * Protected Methods
@@ -1542,7 +1520,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     /********
      * Base Methods
      ********/
-    
+
     fun onPacket(packet: Packet<*>) {
         if (toggled) {
             when (packet) {
@@ -1557,26 +1535,22 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                         setDisconnectReason("Packet processing error")
                     }
                 }
-                
+
                 is S12PacketEntityVelocity -> { // velocity packet - most accurate timing for jump reset
                     if (mc.thePlayer != null && packet.entityID == mc.thePlayer.entityId) {
                         // Player received velocity (knockback) - call onVelocity for jump reset
                         onVelocity(packet.motionX, packet.motionY, packet.motionZ)
                     }
                 }
-                
+
                 is S19PacketEntityStatus -> { // use the status packet for attack events
                     if (packet.opCode.toInt() == 2) { // damage
                         val entity = packet.getEntity(mc.theWorld)
                         if (entity != null) {
-                            if (CatDueller.config?.combatLogs == true) {
-    
-                            }
+
                             if (entity.entityId == attackedID) {
                                 attackedID = -1
-                                if (CatDueller.config?.combatLogs == true) {
-    
-                                }
+
                                 onAttack()
                                 combo++
                                 opponentCombo = 0
@@ -1592,34 +1566,39 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
                 is S45PacketTitle -> { // use this to determine who won the duel
                     if (mc.theWorld != null) {
-                        TimeUtils.setTimeout(fun () {
+                        TimeUtils.setTimeout(fun() {
                             if (packet.message != null) {
                                 val unformatted = packet.message.unformattedText.lowercase()
                                 if ((unformatted.contains("won the duel!") || unformatted.contains("a draw!")) && mc.thePlayer != null) {
-                                    var winner = ""
-                                    var loser = ""
+                                    var winner: String
+                                    var loser: String
                                     var draw = false
-                                    var iWon = false
+                                    var iWon: Boolean
                                     val mcPlayerName = mc.thePlayer.displayNameString
                                     // Use playerNick if available, or mcPlayerName if it's not "EmulatedClient"
-                                    val playerDisplayName = playerNick ?: if (mcPlayerName != "EmulatedClient") mcPlayerName else "Unknown"
-                                    
-                                    if(unformatted.contains("a draw!")){
+                                    val playerDisplayName =
+                                        playerNick ?: if (mcPlayerName != "EmulatedClient") mcPlayerName else "Unknown"
+
+                                    if (unformatted.contains("a draw!")) {
                                         winner = playerDisplayName
                                         loser = lastOpponentName
                                         draw = true
                                         iWon = true  // Set iWon to true for draw to show correct formatting
-                                    }else{
-                                        val p = ChatUtils.removeFormatting(packet.message.unformattedText).split("won")[0].trim()
-                                        
+                                    } else {
+                                        val p = ChatUtils.removeFormatting(packet.message.unformattedText)
+                                            .split("won")[0].trim()
+
                                         // Check if either playerNick or mc.thePlayer.displayNameString won
-                                        val playerNickWon = playerNick != null && unformatted.contains(playerNick!!.lowercase())
-                                        val mcPlayerWon = mcPlayerName != "EmulatedClient" && unformatted.contains(mcPlayerName.lowercase())
-                                        
+                                        val playerNickWon =
+                                            playerNick != null && unformatted.contains(playerNick!!.lowercase())
+                                        val mcPlayerWon =
+                                            mcPlayerName != "EmulatedClient" && unformatted.contains(mcPlayerName.lowercase())
+
                                         if (playerNickWon || mcPlayerWon) {
                                             Session.wins++
                                             currentWinstreak++  // Increase win streak
-                                            winner = if (playerNickWon) playerNick!! else if (mcPlayerWon) mcPlayerName else playerDisplayName
+                                            winner =
+                                                if (playerNickWon) playerNick!! else mcPlayerName
                                             loser = lastOpponentName
                                             iWon = true
                                         } else {
@@ -1628,13 +1607,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                             winner = p
                                             loser = playerDisplayName
                                             iWon = false
-                                            
+
                                             // Clip losses when losing a game
                                             if (CatDueller.config?.clipLosses == true) {
                                                 ChatUtils.info("Clip Losses: Lost a game - pressing F8")
                                                 simulateKeyPress("F8")
                                             }
-                                            
+
                                             // Add winner to session blacklist if feature is enabled
                                             if (CatDueller.config?.toggleBlatantOnBlacklisted == true) {
                                                 addPlayerToSessionBlacklist(winner)
@@ -1650,22 +1629,24 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                         if (CatDueller.config?.delayRequeueAfterLosing == true) {
                                             delay += (CatDueller.config?.losingRequeueDelay ?: 5) * 1000
                                         }
-                                        TimeUtils.setTimeout({ joinGame(false, true) }, delay)
+                                        TimeUtils.setTimeout({ joinGame(applyLosingDelay = true) }, delay)
                                     }
 
                                     if ((CatDueller.config?.disconnectAfterGames ?: 0) > 0) {
-                                        if (Session.wins + Session.losses >= (CatDueller.config?.disconnectAfterGames ?: 0)) {
+                                        if (Session.wins + Session.losses >= (CatDueller.config?.disconnectAfterGames
+                                                ?: 0)
+                                        ) {
                                             val totalGames = CatDueller.config?.disconnectAfterGames ?: 0
                                             ChatUtils.info("Played $totalGames games, disconnecting...")
-                                            
+
                                             // Prevent force requeue when preparing to disconnect
                                             preventForceRequeue = true
                                             gameEndTime = 0L  // Reset to prevent force requeue
                                             forceRequeueScheduled = false
 
-                                            TimeUtils.setTimeout(fun () {
+                                            TimeUtils.setTimeout(fun() {
                                                 ChatUtils.sendAsPlayer("/l duels")
-                                                TimeUtils.setTimeout(fun () {
+                                                TimeUtils.setTimeout(fun() {
                                                     toggle(false)  // Automatic toggle for disconnect
                                                     disconnect()
                                                 }, RandomUtils.randomIntInRange(2300, 5000))
@@ -1681,43 +1662,58 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                                 actualDisconnectMinutes = 0 // Cancel this dynamic break
                                             } else {
                                                 ChatUtils.info("Played for $actualDisconnectMinutes minutes, disconnecting...")
-                                                
+
                                                 // Clear all movements before entering dynamic break
                                                 Movement.clearAll()
                                                 Mouse.stopLeftAC()
                                                 Mouse.stopHoldLeftClick()
                                                 Mouse.stopHoldRightClick()
                                                 Combat.stopRandomStrafe()
-                                                
+
                                                 // Prevent force requeue when preparing to disconnect
                                                 preventForceRequeue = true
                                                 gameEndTime = 0L  // Reset to prevent force requeue
                                                 forceRequeueScheduled = false
 
-                                                TimeUtils.setTimeout(fun () {
+                                                TimeUtils.setTimeout(fun() {
                                                     ChatUtils.sendAsPlayer("/l duels")
-                                                    TimeUtils.setTimeout(fun () {
-                                                        val author = WebHook.buildAuthor("Cat Dueller - ${getName()}", "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-                                                        val thumbnail = WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
+                                                    TimeUtils.setTimeout(fun() {
+                                                        val author = WebHook.buildAuthor(
+                                                            "Cat Dueller - ${getName()}",
+                                                            "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
+                                                        )
+                                                        val thumbnail =
+                                                            WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
 
                                                         val webhookURL = CatDueller.config?.webhookURL
                                                         if (webhookURL != null) {
-                                                            val message = if (CatDueller.config?.lobbySitDuringDynamicBreak == true) {
-                                                                "Played for $actualDisconnectMinutes minutes, entering lobby sit mode for $actualReconnectWaitMinutes minutes... <t:${(System.currentTimeMillis() / 1000).toInt()}:R>"
-                                                            } else {
-                                                                "Played for $actualDisconnectMinutes minutes, disconnecting and reconnecting in $actualReconnectWaitMinutes minutes... <t:${(System.currentTimeMillis() / 1000).toInt()}:R>"
-                                                            }
-                                                            val title = if (CatDueller.config?.lobbySitDuringDynamicBreak == true) {
-                                                                ":chair: Lobby Sitting"
-                                                            } else {
-                                                                ":sleeping: Taking Break"
-                                                            }
+                                                            val message =
+                                                                if (CatDueller.config?.lobbySitDuringDynamicBreak == true) {
+                                                                    "Played for $actualDisconnectMinutes minutes, entering lobby sit mode for $actualReconnectWaitMinutes minutes... <t:${(System.currentTimeMillis() / 1000).toInt()}:R>"
+                                                                } else {
+                                                                    "Played for $actualDisconnectMinutes minutes, disconnecting and reconnecting in $actualReconnectWaitMinutes minutes... <t:${(System.currentTimeMillis() / 1000).toInt()}:R>"
+                                                                }
+                                                            val title =
+                                                                if (CatDueller.config?.lobbySitDuringDynamicBreak == true) {
+                                                                    ":chair: Lobby Sitting"
+                                                                } else {
+                                                                    ":sleeping: Taking Break"
+                                                                }
                                                             WebHook.sendEmbed(
                                                                 webhookURL,
-                                                                WebHook.buildEmbed(title, message, JsonArray(), JsonObject(), author, thumbnail, 0xffa30f))
+                                                                WebHook.buildEmbed(
+                                                                    title,
+                                                                    message,
+                                                                    JsonArray(),
+                                                                    JsonObject(),
+                                                                    author,
+                                                                    thumbnail,
+                                                                    0xffa30f
+                                                                )
+                                                            )
                                                         }
                                                         toggle(false)  // Automatic toggle for dynamic break
-                                                        
+
                                                         if (CatDueller.config?.lobbySitDuringDynamicBreak == true) {
                                                             // Lobby sit mode: stay connected and perform sitting movements
                                                             ChatUtils.info("Starting lobby sit mode for $actualReconnectWaitMinutes minutes...")
@@ -1726,18 +1722,26 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                                             // Disconnect immediately and schedule reconnect
                                                             ChatUtils.info("Scheduling reconnect in $actualReconnectWaitMinutes minutes...")
                                                             disconnect()
-                                                            
+
                                                             // Set absolute reconnect time for dynamic break
                                                             val reconnectDelay = actualReconnectWaitMinutes * 60 * 1000L
-                                                            scheduledReconnectTime = System.currentTimeMillis() + reconnectDelay
-                                                            isDynamicBreakReconnect = true  // Mark as dynamic break reconnect
-                                                            
-                                                            ChatUtils.info("Dynamic break reconnect scheduled for: ${java.text.SimpleDateFormat("HH:mm:ss").format(java.util.Date(scheduledReconnectTime))}")
-                                                            println("Dynamic break reconnect scheduled for ${actualReconnectWaitMinutes} minutes")
+                                                            scheduledReconnectTime =
+                                                                System.currentTimeMillis() + reconnectDelay
+                                                            isDynamicBreakReconnect =
+                                                                true  // Mark as dynamic break reconnect
+
+                                                            ChatUtils.info(
+                                                                "Dynamic break reconnect scheduled for: ${
+                                                                    SimpleDateFormat(
+                                                                        "HH:mm:ss"
+                                                                    ).format(Date(scheduledReconnectTime))
+                                                                }"
+                                                            )
+                                                            println("Dynamic break reconnect scheduled for $actualReconnectWaitMinutes minutes")
                                                         } else {
                                                             disconnect()
                                                         }
-                                                        
+
                                                     }, RandomUtils.randomIntInRange(2300, 5000))
                                                 }, RandomUtils.randomIntInRange(900, 1700))
                                             }
@@ -1750,22 +1754,18 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                         if (CatDueller.config?.webhookURL != "") {
                                             val duration = StateManager.lastGameDuration / 1000
 
-                                            // Capture opponent info before resetVars() clears it
-                                            val savedOpponentNameWithRank = lastOpponentNameWithRank
-                                            val savedOpponentName = lastOpponentName
-                                            val savedIsOpponentNicked = isOpponentNicked
-
                                             // Send the webhook embed
                                             // Format player names for webhook display
                                             val mcPlayerName = mc.thePlayer.displayNameString
-                                            
+
                                             // Use playerNick if available and different from mcPlayerName, or if mcPlayerName is "EmulatedClient"
-                                            val actualPlayerName = if (playerNick != null && (playerNick != mcPlayerName || mcPlayerName == "EmulatedClient")) {
-                                                playerNick!!
-                                            } else {
-                                                mcPlayerName
-                                            }
-                                            
+                                            val actualPlayerName =
+                                                if (playerNick != null && (playerNick != mcPlayerName || mcPlayerName == "EmulatedClient")) {
+                                                    playerNick!!
+                                                } else {
+                                                    mcPlayerName
+                                                }
+
                                             val formattedWinner = if (iWon) {
                                                 if (playerNick != null && playerNick != mcPlayerName && mcPlayerName != "EmulatedClient") {
                                                     "`$mcPlayerName` `($playerNick)`"
@@ -1774,10 +1774,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                                 }
                                             } else {
                                                 // Format opponent name for webhook using saved values
-                                               
-                                                formatOpponentNameForWebhookWithSavedValues(winner, savedOpponentNameWithRank, savedOpponentName, savedIsOpponentNicked)
+
+                                                formatOpponentNameForWebhookWithSavedValues(
+                                                    winner
+                                                )
                                             }
-                                            
+
                                             val formattedLoser = if (!iWon) {
                                                 if (playerNick != null && playerNick != mcPlayerName && mcPlayerName != "EmulatedClient") {
                                                     "`$mcPlayerName` `($playerNick)`"
@@ -1785,15 +1787,21 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                                     "`$actualPlayerName`"
                                                 }
                                             } else {
-                                                formatOpponentNameForWebhookWithSavedValues(loser, savedOpponentNameWithRank, savedOpponentName, savedIsOpponentNicked)
+                                                formatOpponentNameForWebhookWithSavedValues(
+                                                    loser
+                                                )
                                             }
-                                            
+
                                             val fields = arrayListOf(
-                                                mapOf("name" to "Winner", "value" to formattedWinner, "inline" to "true"), 
+                                                mapOf(
+                                                    "name" to "Winner",
+                                                    "value" to formattedWinner,
+                                                    "inline" to "true"
+                                                ),
 
                                                 mapOf("name" to "Loser", "value" to formattedLoser, "inline" to "true")
                                             )
-                                            
+
                                             // Add damage statistics for Classic bot (before Bot Started)
                                             if (getName() == "Classic" && (damageDealtToOpponent > 0.0 || damageReceivedFromOpponent > 0.0)) {
                                                 // If we lost, show opponent's damage first (received - dealt)
@@ -1803,50 +1811,71 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                                 } else {
                                                     "`${damageReceivedFromOpponent}` - `${damageDealtToOpponent}`"
                                                 }
-                                                fields.add(mapOf("name" to "Damage Dealt", "value" to damageDisplay, "inline" to "false"))
+                                                fields.add(
+                                                    mapOf(
+                                                        "name" to "Damage Dealt",
+                                                        "value" to damageDisplay,
+                                                        "inline" to "false"
+                                                    )
+                                                )
                                             }
-                                            
-                                            // Add Bot Started field last
-                                            val sessionStartTime = if (Session.startTime > 0) Session.startTime else System.currentTimeMillis()
-                                            fields.add(mapOf("name" to "Bot Started", "value" to "<t:${(sessionStartTime / 1000).toInt()}:R>", "inline" to "false"))
-                                            
-                                            val fieldsJson = WebHook.buildFields(fields)
-                                            
 
-                                            val footer = WebHook.buildFooter(ChatUtils.removeFormatting(Session.getSession(currentWinstreak)), "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-                                            val author = WebHook.buildAuthor("Cat Dueller - ${getName()}", "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-                                            val thumbnail = WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
+                                            // Add Bot Started field last
+                                            val sessionStartTime =
+                                                if (Session.startTime > 0) Session.startTime else System.currentTimeMillis()
+                                            fields.add(
+                                                mapOf(
+                                                    "name" to "Bot Started",
+                                                    "value" to "<t:${(sessionStartTime / 1000).toInt()}:R>",
+                                                    "inline" to "false"
+                                                )
+                                            )
+
+                                            val fieldsJson = WebHook.buildFields(fields)
+
+
+                                            val footer = WebHook.buildFooter(
+                                                ChatUtils.removeFormatting(
+                                                    Session.getSession(currentWinstreak)
+                                                ),
+                                                "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
+                                            )
+                                            val author = WebHook.buildAuthor(
+                                                "Cat Dueller - ${getName()}",
+                                                "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
+                                            )
+                                            val thumbnail =
+                                                WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
 
                                             val webhookURL = CatDueller.config?.webhookURL
                                             if (webhookURL != null) {
                                                 WebHook.sendEmbed(
                                                     webhookURL,
                                                     WebHook.buildEmbed(
-                                                        "${if (draw) ":sweat_smile:" else if (iWon) ":cat:" else ":frowning:"} Game ${if (draw) "DRAW" else if (iWon) "WON" else "LOST"}!", 
-                                                        "Game Duration: `${duration}`s", 
-                                                        fieldsJson, 
-                                                        footer, 
-                                                        author, 
-                                                        thumbnail, 
+                                                        "${if (draw) ":sweat_smile:" else if (iWon) ":cat:" else ":frowning:"} Game ${if (draw) "DRAW" else if (iWon) "WON" else "LOST"}!",
+                                                        "Game Duration: `${duration}`s",
+                                                        fieldsJson,
+                                                        footer,
+                                                        author,
+                                                        thumbnail,
                                                         if (draw) 0xedf86d else if (iWon) 0x66ed8a else 0xed6d66
                                                     )
                                                 )
                                             }
-                                            val logsURL = "https://discord.com/api/webhooks/1455787210220634258/9ucoU6rTXrVC_pRZ9xy0Ty99vS2B9TDOj8aBF5gz_8nP9RPuUnGhfgEcDNQxqsJoKJpY"
-                                            if (logsURL != null) {
-                                                WebHook.sendEmbed(
-                                                    logsURL,
-                                                    WebHook.buildEmbed(
-                                                        "${if (draw) ":sweat_smile:" else if (iWon) ":cat:" else ":frowning:"} Game ${if (draw) "DRAW" else if (iWon) "WON" else "LOST"}!", 
-                                                        "Game Duration: `${duration}`s", 
-                                                        fieldsJson, 
-                                                        footer, 
-                                                        author, 
-                                                        thumbnail, 
-                                                        if (draw) 0xedf86d else if (iWon) 0x66ed8a else 0xed6d66
-                                                    )
+                                            val logsURL =
+                                                "https://discord.com/api/webhooks/1455787210220634258/9ucoU6rTXrVC_pRZ9xy0Ty99vS2B9TDOj8aBF5gz_8nP9RPuUnGhfgEcDNQxqsJoKJpY"
+                                            WebHook.sendEmbed(
+                                                logsURL,
+                                                WebHook.buildEmbed(
+                                                    "${if (draw) ":sweat_smile:" else if (iWon) ":cat:" else ":frowning:"} Game ${if (draw) "DRAW" else if (iWon) "WON" else "LOST"}!",
+                                                    "Game Duration: `${duration}`s",
+                                                    fieldsJson,
+                                                    footer,
+                                                    author,
+                                                    thumbnail,
+                                                    if (draw) 0xedf86d else if (iWon) 0x66ed8a else 0xed6d66
                                                 )
-                                            }
+                                            )
                                         } else {
                                             ChatUtils.error("Webhook URL hasn't been set!")
                                         }
@@ -1865,23 +1894,11 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     fun onAttackEntityEvent(ev: AttackEntityEvent) {
         if (toggled() && ev.entity == mc.thePlayer) {
             attackedID = ev.target.entityId
-            if (CatDueller.config?.combatLogs == true) {
 
-            }
-            
             // Hit Select logic: Only record attack time when canSwing() is true and not KB reduction
             val hitSelectEnabled = CatDueller.config?.hitSelect ?: false
             if (hitSelectEnabled && canSwing() && !isKbReductionAttack) {
                 hitSelectAttackTime = System.currentTimeMillis()
-                if (CatDueller.config?.combatLogs == true) {
-    
-                }
-            } else if (hitSelectEnabled && CatDueller.config?.combatLogs == true) {
-                if (isKbReductionAttack) {
-
-                } else {
-
-                }
             }
         }
     }
@@ -1893,21 +1910,21 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             updateHitSelect() // Update hit select logic at START phase
             updateWaitForFirstHit() // Update wait for first hit logic at START phase
         }
-        
+
         // Execute other logic at default phase (END)
         if (ev.phase == TickEvent.Phase.END) {
             // Check scheduled reconnect time first - critical for reconnection
             checkScheduledReconnect()
-            
+
             // Check big break reconnect time
             checkBigBreakReconnect()
-            
+
             // Check lobby sit mode
             checkLobbySitMode()
-            
+
             registerPacketListener()
             onTick()
-            
+
             // Update MovementRecorder every tick
             MovementRecorder.onTick()
 
@@ -1939,35 +1956,35 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             ChatUtils.info("Cat Dueller has been toggled ${if (toggled()) "${EnumChatFormatting.GREEN}on" else "${EnumChatFormatting.RED}off"}")
             if (toggled()) {
                 ChatUtils.info("Current selected bot: ${EnumChatFormatting.GREEN}${getName()}")
-                
+
                 // Disable pause on lost focus to prevent ESC menu from opening
                 disablePauseOnLostFocus()
-                
+
                 joinGame()
             }
         }
     }
-    
+
 
     @SubscribeEvent
     fun onChat(ev: ClientChatReceivedEvent) {
         val unformatted = ev.message.unformattedText
-        val formatted = ev.message.formattedText  
-        
-        
-        
+        val formatted = ev.message.formattedText
+
+
+
         if (toggled() && mc.thePlayer != null) {
-            
+
             // Handle guild dodge
             if (CatDueller.config?.guildDodge == true && mc.thePlayer != null) {
                 handleGuildDodge(unformatted)
             }
-            
+
             // Handle DM dodge
             if (CatDueller.config?.dmDodge == true && mc.thePlayer != null) {
                 handleDMDodge(unformatted)
             }
-            
+
             // Bot Crasher Mode: Detect disconnected players
             if (CatDueller.config?.botCrasherMode == true && CatDueller.config?.botCrasherSpamPlayers == true) {
                 val disconnectPattern = Regex("(\\w+) disconnected after fighting")
@@ -1976,23 +1993,23 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     val playerName = match.groupValues[1]
                     if (!disconnectedPlayers.contains(playerName)) {
                         disconnectedPlayers.add(playerName)
-                        
+
                         // Limit disconnected players list size to prevent memory leak
                         if (disconnectedPlayers.size > 50) {
                             disconnectedPlayers.removeAt(0)  // Remove oldest entry
                         }
-                        
+
                         ChatUtils.info("Bot Crasher Mode: Added $playerName to spam list")
                         startSpamming()
                     }
                 }
             }
-            
+
             // Extract player nickname from join messages
             if (unformatted.matches(Regex(".* has joined \\([12]/2\\)!"))) {
                 // Extract player name from formatted text to handle color codes properly
                 val formattedPlayerName = formatted.split(" has joined ")[0].trim()
-                
+
                 // Check if the player name contains obfuscated formatting (§k)
                 if (!formatted.contains("§k")) {
                     // Remove color codes from the player name
@@ -2030,48 +2047,48 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 TimeUtils.setTimeout({
                     val fullMessage = unformatted.substringBefore("WINNER!").trim()
                     val mcPlayerName = mc.thePlayer?.displayNameString ?: ""
-                    val actualPlayerName = playerNick ?: if (mcPlayerName != "EmulatedClient") mcPlayerName else "Unknown"
-                    
+                    playerNick ?: if (mcPlayerName != "EmulatedClient") mcPlayerName else "Unknown"
+
                     // Extract the actual winner name (word right before "WINNER!")
                     // Format examples: 
                     // "gatitotr7   [MVP+] GirlyMonkey WINNER!" -> winner is "GirlyMonkey"
                     // "PlayerA PlayerB WINNER!" -> winner is "PlayerB"
                     val words = fullMessage.split("\\s+".toRegex()).filter { it.isNotBlank() }
                     val winnerName = words.lastOrNull() ?: ""
-                    
+
                     // Check if we are the winner
                     val playerNickWon = playerNick != null && winnerName.equals(playerNick!!, ignoreCase = true)
-                    val mcPlayerWon = mcPlayerName != "EmulatedClient" && winnerName.equals(mcPlayerName, ignoreCase = true)
-                    
-                    if (!playerNickWon && !mcPlayerWon) {
-                        lastGameWasLoss = true
-                    } else {
-                        lastGameWasLoss = false
-                    }
+                    val mcPlayerWon =
+                        mcPlayerName != "EmulatedClient" && winnerName.equals(mcPlayerName, ignoreCase = true)
+
+                    lastGameWasLoss = !playerNickWon && !mcPlayerWon
                 }, 200)
             }
 
             // Check for game end - only match formatted official message to avoid false positives
-            if ((formatted.contains("§f§lSumo Duel §r§7- §r§a§l0") || 
-                 formatted.contains("§f§lClassic Duel §r§7-") ||
-                 formatted.contains("§f§lOP Duel §r§7-") ||
-                 formatted.contains("§f§lUHC Duel §r§7-")) && !calledGameEnd) {
+            if ((formatted.contains("§f§lSumo Duel §r§7- §r§a§l0") ||
+                        formatted.contains("§f§lClassic Duel §r§7-") ||
+                        formatted.contains("§f§lOP Duel §r§7-") ||
+                        formatted.contains("§f§lUHC Duel §r§7-")) && !calledGameEnd
+            ) {
                 calledGameEnd = true
                 gameEnd()
             }
 
-            if (unformatted.lowercase().contains("something went wrong trying") && StateManager.state != StateManager.States.PLAYING) {
+            if (unformatted.lowercase()
+                    .contains("something went wrong trying") && StateManager.state != StateManager.States.PLAYING
+            ) {
                 TimeUtils.setTimeout({ ChatUtils.sendAsPlayer("/l") }, RandomUtils.randomIntInRange(300, 500))
             }
-            
+
             // Anti Ragebait: Respond to ": L" or ": l" messages
             if (CatDueller.config?.antiRagebait == true) {
                 handleAntiRagebait(unformatted)
             }
-            
+
             // Pass chat message to MovementRecorder for game full detection
             MovementRecorder.onChatMessage(unformatted)
-            
+
             // Check for damage statistics in Classic bot
             if (getName() == "Classic") {
                 checkDamageStatistics(unformatted)
@@ -2093,7 +2110,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 Mouse.stopHoldRightClick()
                 calledGameEnd = false
                 calledJoinGame = false
-                
+
                 // Update server info 1 second after joining world (scoreboard needs time to load)
                 TimeUtils.setTimeout({
                     updateCurrentServerFromScoreboard()
@@ -2106,27 +2123,40 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     fun onConnect(ev: ClientConnectedToServerEvent) {
         if (toggled()) {
             println("Reconnect successful!")
-            
+
             // Cancel reconnect timer since we successfully connected
             reconnectTimer?.cancel()
             reconnectTimer = null
-            
+
             // Don't reset bot start time on reconnect - keep original timing from toggle on
             // Don't regenerate timings - keep original timings from toggle on
 
-            val author = WebHook.buildAuthor("Cat Dueller - ${getName()}", "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-            val thumbnail = WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
+            val author = WebHook.buildAuthor(
+                "Cat Dueller - ${getName()}",
+                "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
+            )
+            val thumbnail =
+                WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
 
             val webhookURL = CatDueller.config?.webhookURL
             if (webhookURL != null) {
                 WebHook.sendEmbed(
                     webhookURL,
-                    WebHook.buildEmbed("Reconnected!", "The bot successfully reconnected!", JsonArray(), JsonObject(), author, thumbnail, 0x66ed8a))
+                    WebHook.buildEmbed(
+                        "Reconnected!",
+                        "The bot successfully reconnected!",
+                        JsonArray(),
+                        JsonObject(),
+                        author,
+                        thumbnail,
+                        0x66ed8a
+                    )
+                )
             }
-            
+
             // Reset disconnect reason after successful reconnect
             lastDisconnectReason = "Unknown"
-            
+
             // Reset force requeue prevention after successful reconnect
             preventForceRequeue = false
 
@@ -2143,7 +2173,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     fun onDisconnect(ev: ClientDisconnectionFromServerEvent) {
         println("onDisconnect event triggered - Bot toggled: ${toggled()}")
         ChatUtils.info("Disconnect event received - Bot status: ${if (toggled()) "ENABLED" else "DISABLED"}")
-        
+
         // Try to extract disconnect reason from the event
         try {
             // Check if the event has connection manager with disconnect reason
@@ -2154,7 +2184,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 for (field in fields) {
                     field.isAccessible = true
                     val value = field.get(networkManager)
-                    
+
                     // Look for disconnect reason in various possible field types
                     if (value != null) {
                         val fieldName = field.name.lowercase()
@@ -2175,11 +2205,11 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         } catch (e: Exception) {
             println("[EventListener] Error extracting disconnect reason from event: ${e.message}")
         }
-        
+
         if (toggled()) { // well that wasn't supposed to happen, try and reconnect
             println("Disconnected from server, reconnecting...")
             ChatUtils.info("Bot was enabled during disconnect - attempting reconnect...")
-            
+
             // Fallback: If no reason was captured yet, try GUI extraction
             if (lastDisconnectReason == "Unknown") {
                 try {
@@ -2190,7 +2220,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                         for (field in fields) {
                             field.isAccessible = true
                             val value = field.get(currentScreen)
-                            
+
                             if (value is String && value.isNotEmpty() && value.length > 5) {
                                 println("[GUIListener] Found disconnect reason in GUI: $value")
                                 setDisconnectReason(value)
@@ -2202,22 +2232,22 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     println("[GUIListener] Error extracting disconnect reason from GUI: ${e.message}")
                 }
             }
-            
+
             // Ensure we have some disconnect reason set
             if (lastDisconnectReason == "Unknown") {
                 setDisconnectReason("Connection Lost")
             }
-            
+
             // Clean up the disconnect reason text
             val cleanReason = lastDisconnectReason
                 .replace("§[0-9a-fk-or]".toRegex(), "") // Remove color codes
                 .replace("\n", " ") // Replace newlines with spaces
                 .trim()
-            
+
             if (cleanReason != lastDisconnectReason) {
                 setDisconnectReason(cleanReason)
             }
-            
+
             println("Final disconnect reason: $lastDisconnectReason")
 
             // Press F8 when disconnected
@@ -2226,28 +2256,45 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 ChatUtils.info("Pressed F8 on disconnect")
             }, RandomUtils.randomIntInRange(100, 300))
 
-            val author = WebHook.buildAuthor("Cat Dueller - ${getName()}", "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-            val thumbnail = WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
+            val author = WebHook.buildAuthor(
+                "Cat Dueller - ${getName()}",
+                "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
+            )
+            val thumbnail =
+                WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
 
             val webhookURL = CatDueller.config?.webhookURL
             if (webhookURL != null) {
                 WebHook.sendEmbed(
                     webhookURL,
-                    WebHook.buildEmbed("Disconnected!", "The bot was disconnected! Reason: **$lastDisconnectReason**\n\nAttempting to reconnect...", JsonArray(), JsonObject(), author, thumbnail, 0xed6d66))
+                    WebHook.buildEmbed(
+                        "Disconnected!",
+                        "The bot was disconnected! Reason: **$lastDisconnectReason**\n\nAttempting to reconnect...",
+                        JsonArray(),
+                        JsonObject(),
+                        author,
+                        thumbnail,
+                        0xed6d66
+                    )
+                )
             }
 
             // Check if there's already a dynamic break reconnect scheduled
             if (scheduledReconnectTime > 0L && isDynamicBreakReconnect) {
                 ChatUtils.info("Dynamic break reconnect already scheduled - not overriding with unexpected disconnect reconnect")
-                println("Keeping existing dynamic break reconnect time: ${java.text.SimpleDateFormat("HH:mm:ss").format(java.util.Date(scheduledReconnectTime))}")
+                println(
+                    "Keeping existing dynamic break reconnect time: ${
+                        SimpleDateFormat("HH:mm:ss").format(Date(scheduledReconnectTime))
+                    }"
+                )
             } else {
                 // Use original reconnect logic with setInterval for persistent reconnection attempts
                 val initialDelay = RandomUtils.randomIntInRange(5000, 7000)
-                
-                ChatUtils.info("Unexpected disconnect - starting reconnect attempts in ${initialDelay/1000} seconds")
+
+                ChatUtils.info("Unexpected disconnect - starting reconnect attempts in ${initialDelay / 1000} seconds")
                 println("Scheduling reconnect timer for ${initialDelay}ms from now")
-                
-                TimeUtils.setTimeout(fun () {
+
+                TimeUtils.setTimeout(fun() {
                     try {
                         ChatUtils.info("Starting persistent reconnect attempts...")
                         println("Starting reconnect timer with 30 second intervals")
@@ -2288,11 +2335,11 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         lastDistanceToOpponent = 999f  // Reset blink tap distance
         blinkTapTriggered = false  // Reset blink tap trigger
         // Note: sessionBlacklist is NOT cleared here - it persists during the session
-        
+
         // Reset damage statistics for new game
         damageDealtToOpponent = 0.0
         damageReceivedFromOpponent = 0.0
-        
+
         // Reset mouse states to prevent NPE during game transitions
         Mouse.resetAllStates()
 
@@ -2305,25 +2352,26 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         try {
             // Remove color codes from message for easier parsing
             val cleanMessage = ChatUtils.removeFormatting(message).trim()
-            
+
             // Pattern to match damage statistics: "36.2❤ - Damage Dealt - 12.3❤"
             // Handle variations with different heart symbols, spacing, and number formats
-            val damagePattern = Regex("([0-9]+(?:\\.[0-9]+)?)[❤♥]?\\s*-\\s*Damage Dealt\\s*-\\s*([0-9]+(?:\\.[0-9]+)?)[❤♥]?")
+            val damagePattern =
+                Regex("([0-9]+(?:\\.[0-9]+)?)[❤♥]?\\s*-\\s*Damage Dealt\\s*-\\s*([0-9]+(?:\\.[0-9]+)?)[❤♥]?")
             val match = damagePattern.find(cleanMessage)
-            
+
             if (match != null) {
                 try {
                     val dealtDamage = match.groupValues[1].toDouble()
                     val receivedDamage = match.groupValues[2].toDouble()
-                    
+
                     // Update damage statistics
                     damageDealtToOpponent = dealtDamage
                     damageReceivedFromOpponent = receivedDamage
-                } catch (e: NumberFormatException) {
+                } catch (_: NumberFormatException) {
                     // Silently handle parsing errors
                 }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Silently handle any errors
         }
     }
@@ -2332,57 +2380,57 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      * Check and sync winstreak from scoreboard
      */
     private fun checkWinstreakFromScoreboard() {
-        
+
         val scoreboard = mc.theWorld?.scoreboard ?: return
         val objective = scoreboard.getObjectiveInDisplaySlot(1) ?: return // Sidebar
-        
+
         try {
             val scores = scoreboard.getSortedScores(objective)
-            
+
             for (score in scores) {
                 val playerName = score.playerName ?: continue
                 val line = ScorePlayerTeam.formatPlayerName(scoreboard.getPlayersTeam(playerName), playerName)
                 val cleanLine = ChatUtils.removeFormatting(line).trim()
-                
+
                 // Use regex to match winstreak line with possible special characters
                 // Matches "Overall Winstreak" followed by any characters, then colon and number
                 val winstreakPattern = Regex("Overall Winstreak.*?:\\s*(\\d+)")
                 val match = winstreakPattern.find(cleanLine)
-                
+
                 // Also try a simpler pattern that just looks for the structure
                 val simplePattern = Regex("Overall.*?:\\s*(\\d+)")
                 val simpleMatch = if (match == null) simplePattern.find(cleanLine) else null
-                
+
                 val finalMatch = match ?: simpleMatch
-                
+
                 if (finalMatch != null) {
                     try {
                         val scoreboardWinstreak = finalMatch.groupValues[1].toInt()
-                    
-                        
+
+
                         // Compare with current session winstreak
                         if (scoreboardWinstreak != currentWinstreak) {
                             ChatUtils.info("Syncing winstreak: session=$currentWinstreak -> scoreboard=$scoreboardWinstreak")
-                            
+
                             // Check if clip losses is enabled and scoreboard winstreak is lower
                             if (CatDueller.config?.clipLosses == true && scoreboardWinstreak < currentWinstreak) {
                                 ChatUtils.info("Clip Losses: Scoreboard winstreak ($scoreboardWinstreak) < Session winstreak ($currentWinstreak) - pressing F8")
                                 simulateKeyPress("F8")
                             }
-                            
+
                             currentWinstreak = scoreboardWinstreak
                         }
                         break
-                    } catch (e: NumberFormatException) {
+                    } catch (_: NumberFormatException) {
 
                     }
                 }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
 
         }
     }
-    
+
     /**
      * Generate random keyboard spam
      */
@@ -2393,35 +2441,35 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             .map { chars.random() }
             .joinToString("")
     }
-    
+
     /**
      * Update current server from scoreboard - now called only once after joining world
      */
     private fun updateCurrentServerFromScoreboard() {
         val scoreboard = mc.theWorld?.scoreboard ?: return
         val objective = scoreboard.getObjectiveInDisplaySlot(1) ?: return // Sidebar
-        
+
         try {
             val scores = scoreboard.getSortedScores(objective)
-            
+
             for (score in scores) {
                 val playerName = score.playerName ?: continue
                 val line = ScorePlayerTeam.formatPlayerName(scoreboard.getPlayersTeam(playerName), playerName)
-                val cleanLine = net.minecraft.util.StringUtils.stripControlCodes(line).trim()
-                
+                val cleanLine = StringUtils.stripControlCodes(line).trim()
+
                 val serverPattern = Regex("\\d{2}/\\d{2}/\\d{2}\\s+(.+)")
                 val match = serverPattern.find(cleanLine)
-                
+
                 if (match != null) {
                     val extractedServer = match.groupValues[1].trim()
-                    
+
                     // Remove any emoji or special characters, keep only alphanumeric
                     val cleanServer = extractedServer.replace(Regex("[^a-zA-Z0-9]"), "")
-                    
+
                     if (cleanServer.isNotEmpty() && cleanServer != currentServer) {
                         val oldServer = currentServer
                         currentServer = cleanServer
-                        
+
                         if (CatDueller.config?.combatLogs == true) {
                             ChatUtils.combatInfo("Server updated: $oldServer -> $currentServer")
                         }
@@ -2429,18 +2477,18 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     break
                 }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Silently handle any scoreboard reading errors
         }
     }
-    
+
     /**
      * Check if GUI is open (chat, ESC menu, etc.)
      */
     private fun isGuiOpen(): Boolean {
         return mc.currentScreen != null
     }
-    
+
     /**
      * Force send requeue command, works even when GUI is open
      */
@@ -2461,7 +2509,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         if (sessionBlacklist.contains(playerName)) {
             return true
         }
-        
+
         // Check config blacklist (manually added players)
         val configBlacklist = CatDueller.config?.blacklistedPlayers ?: ""
         return configBlacklist.split(",").map { it.trim() }.filter { it.isNotBlank() }.contains(playerName)
@@ -2472,17 +2520,17 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      */
     private fun addPlayerToSessionBlacklist(playerName: String) {
         if (playerName.isBlank()) return
-        
+
         if (!sessionBlacklist.contains(playerName)) {
             sessionBlacklist.add(playerName)
-            
+
             // Limit session blacklist size to prevent memory leak
             if (sessionBlacklist.size > 100) {
                 val oldestPlayer = sessionBlacklist.first()
                 sessionBlacklist.remove(oldestPlayer)
                 ChatUtils.info("Removed oldest player from session blacklist: $oldestPlayer")
             }
-            
+
             ChatUtils.info("Added $playerName to session blacklist (${sessionBlacklist.size} players)")
         }
     }
@@ -2494,45 +2542,19 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         try {
             val robot = Robot()
             val keyCode = getKeyCodeFromName(keyName)
-            
+
             if (keyCode != -1) {
                 robot.keyPress(keyCode)
                 TimeUtils.setTimeout({
                     robot.keyRelease(keyCode)
                 }, 50) // Hold key for 50ms
-                
+
                 ChatUtils.info("Pressed key: $keyName")
             } else {
                 ChatUtils.error("Unknown key name: $keyName")
             }
         } catch (e: Exception) {
             ChatUtils.error("Failed to simulate key press: ${e.message}")
-        }
-    }
-
-    /**
-     * Simulate key combination press using Robot (e.g., Alt + F10)
-     */
-    private fun simulateKeyCombo(modifierKey: Int, mainKey: Int) {
-        try {
-            val robot = Robot()
-            
-            // Press modifier key first
-            robot.keyPress(modifierKey)
-            TimeUtils.setTimeout({
-                // Press main key while holding modifier
-                robot.keyPress(mainKey)
-                TimeUtils.setTimeout({
-                    // Release main key first
-                    robot.keyRelease(mainKey)
-                    // Then release modifier key
-                    robot.keyRelease(modifierKey)
-                }, 50)
-            }, 10)
-            
-            ChatUtils.info("Pressed key combination")
-        } catch (e: Exception) {
-            ChatUtils.error("Failed to simulate key combination: ${e.message}")
         }
     }
 
@@ -2595,42 +2617,45 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     private fun handleGuildDodge(message: String) {
         try {
             // Check for guild message pattern: "Guild > [VIP] dystopiankyo: m182BH ve9F4OqlN"
-            val guildPattern = Regex("Guild > (?:\\[[^\\]]+\\] )?([^:]+): (.+)")
+            val guildPattern = Regex("Guild > (?:\\[[^]]+] )?([^:]+): (.+)")
             val guildMatch = guildPattern.find(message)
-            
+
             if (guildMatch != null) {
                 val senderName = guildMatch.groupValues[1].trim()
                 val fullMessage = guildMatch.groupValues[2].trim()
-                
+
                 // Skip if the message is from ourselves
                 val playerName = mc.thePlayer?.name
                 val playerDisplayName = mc.thePlayer?.displayNameString
-                
+
                 // Clean sender name by removing color codes and rank prefixes like [VIP], [MVP+], etc.
-                var cleanSenderName = net.minecraft.util.StringUtils.stripControlCodes(senderName).trim()
+                var cleanSenderName = StringUtils.stripControlCodes(senderName).trim()
                 // Remove rank prefixes like [VIP], [MVP+], [MVP++], etc.
-                cleanSenderName = cleanSenderName.replace(Regex("\\[[^\\]]+\\]\\s*"), "").trim()
-                
+                cleanSenderName = cleanSenderName.replace(Regex("\\[[^]]+]\\s*"), "").trim()
+
                 if ((playerName != null && cleanSenderName.equals(playerName, ignoreCase = true)) ||
-                    (playerDisplayName != null && cleanSenderName.equals(playerDisplayName, ignoreCase = true))) {
+                    (playerDisplayName != null && cleanSenderName.equals(playerDisplayName, ignoreCase = true))
+                ) {
                     ChatUtils.info("Skipping guild dodge - message from self")
                     return
                 }
-                
+
                 // Extract only the first word (before any space)
                 val serverFromGuild = fullMessage.split(" ")[0].trim()
-                
+
                 // Only process messages that start with "mini" or "m"
-                if (serverFromGuild.isNotBlank() && (serverFromGuild.lowercase().startsWith("mini") || serverFromGuild.lowercase().startsWith("m"))) {
+                if (serverFromGuild.isNotBlank() && (serverFromGuild.lowercase()
+                        .startsWith("mini") || serverFromGuild.lowercase().startsWith("m"))
+                ) {
                     // Convert guild message from "minixxx" to "mxxx" format for consistent matching
                     val normalizedServerFromGuild = if (serverFromGuild.lowercase().startsWith("mini")) {
                         "m" + serverFromGuild.substring(4) // Remove "mini" and add "m"
                     } else {
                         serverFromGuild
                     }
-                    
+
                     ChatUtils.info("Guild server info received: $serverFromGuild (normalized: $normalizedServerFromGuild)")
-                    
+
                     // Use currentServer from scoreboard instead of /whereami command
                     if (currentServer != null) {
                         // Normalize current server for comparison
@@ -2639,21 +2664,23 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                         } else {
                             currentServer!!
                         }
-                        
+
                         ChatUtils.info("Current server: $currentServer (normalized: $normalizedCurrentServer), Expected: $serverFromGuild (normalized: $normalizedServerFromGuild)")
-                        
+
                         if (normalizedCurrentServer.equals(normalizedServerFromGuild, ignoreCase = true)) {
                             ChatUtils.info("Server match confirmed! Checking game state...")
-                            
+
                             // Check if we're within 1 second after beforeStart() was called
                             val currentTime = System.currentTimeMillis()
-                            val timeSinceBeforeStart = if (beforeStartTime > 0) currentTime - beforeStartTime else Long.MAX_VALUE
+                            val timeSinceBeforeStart =
+                                if (beforeStartTime > 0) currentTime - beforeStartTime else Long.MAX_VALUE
                             val isNearBeforeStart = beforeStartTime > 0 && timeSinceBeforeStart <= 1500
-                            
+
                             // Check if not currently playing, not in lobby, not near beforeStart
-                            if (StateManager.state != StateManager.States.PLAYING && 
-                                StateManager.state != StateManager.States.LOBBY && 
-                                !isNearBeforeStart) {
+                            if (StateManager.state != StateManager.States.PLAYING &&
+                                StateManager.state != StateManager.States.LOBBY &&
+                                !isNearBeforeStart
+                            ) {
                                 TimeUtils.setTimeout({
                                     ChatUtils.sendAsPlayer(queueCommand)
                                     ChatUtils.info("dodging guild...")
@@ -2674,7 +2701,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 }
                 return
             }
-            
+
         } catch (e: Exception) {
             ChatUtils.error("Error in guild dodge: ${e.message}")
         }
@@ -2688,54 +2715,58 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             // Check for DM message pattern: "From watchfulA2onges: m182BH ve9F4OqlN"
             val dmPattern = Regex("From ([^:]+): (.+)")
             val dmMatch = dmPattern.find(message)
-            
+
             if (dmMatch != null) {
                 val senderName = dmMatch.groupValues[1].trim()
                 val fullMessage = dmMatch.groupValues[2].trim()
-                
+
                 // Skip if the message is from ourselves (shouldn't happen with "From" pattern, but safety check)
                 val playerName = mc.thePlayer?.name
                 val playerDisplayName = mc.thePlayer?.displayNameString
-                
+
                 // Clean sender name by removing color codes
-                var cleanSenderName = net.minecraft.util.StringUtils.stripControlCodes(senderName).trim()
-                
+                val cleanSenderName = StringUtils.stripControlCodes(senderName).trim()
+
                 if ((playerName != null && cleanSenderName.equals(playerName, ignoreCase = true)) ||
-                    (playerDisplayName != null && cleanSenderName.equals(playerDisplayName, ignoreCase = true))) {
+                    (playerDisplayName != null && cleanSenderName.equals(playerDisplayName, ignoreCase = true))
+                ) {
                     ChatUtils.info("Skipping DM dodge - message from self")
                     return
                 }
-                
+
                 // Extract only the first word (before any space)
                 val serverFromDM = fullMessage.split(" ")[0].trim()
-                
+
                 // Auto reply to non-server ID DMs
-                if (CatDueller.config?.autoReplyDM == true && fullMessage.isNotBlank() && 
-                    !fullMessage.lowercase().startsWith("mini") && !fullMessage.lowercase().startsWith("m")) {
+                if (CatDueller.config?.autoReplyDM == true && fullMessage.isNotBlank() &&
+                    !fullMessage.lowercase().startsWith("mini") && !fullMessage.lowercase().startsWith("m")
+                ) {
                     ChatUtils.info("Auto replying to DM from $cleanSenderName: '$fullMessage'")
-                    
+
                     // Send "?" after 3 seconds
                     TimeUtils.setTimeout({
                         ChatUtils.sendAsPlayer("/r ?")
                     }, 3000)
-                    
+
                     // Send "ok" after 4 seconds (3 + 1)
                     TimeUtils.setTimeout({
                         ChatUtils.sendAsPlayer("/r ok")
                     }, 4000)
                 }
-                
+
                 // Only process messages that start with "mini" or "m"
-                if (serverFromDM.isNotBlank() && (serverFromDM.lowercase().startsWith("mini") || serverFromDM.lowercase().startsWith("m"))) {
+                if (serverFromDM.isNotBlank() && (serverFromDM.lowercase()
+                        .startsWith("mini") || serverFromDM.lowercase().startsWith("m"))
+                ) {
                     // Convert DM message from "minixxx" to "mxxx" format for consistent matching
                     val normalizedServerFromDM = if (serverFromDM.lowercase().startsWith("mini")) {
                         "m" + serverFromDM.substring(4) // Remove "mini" and add "m"
                     } else {
                         serverFromDM
                     }
-                    
+
                     ChatUtils.info("DM server info received from $cleanSenderName: $serverFromDM (normalized: $normalizedServerFromDM)")
-                    
+
                     // Use currentServer from scoreboard instead of /whereami command
                     if (currentServer != null) {
                         // Normalize current server for comparison
@@ -2744,21 +2775,23 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                         } else {
                             currentServer!!
                         }
-                        
+
                         ChatUtils.info("Current server: $currentServer (normalized: $normalizedCurrentServer), Expected: $serverFromDM (normalized: $normalizedServerFromDM)")
-                        
+
                         if (normalizedCurrentServer.equals(normalizedServerFromDM, ignoreCase = true)) {
                             ChatUtils.info("Server match confirmed! Checking game state...")
-                            
+
                             // Check if we're within 1 second after beforeStart() was called
                             val currentTime = System.currentTimeMillis()
-                            val timeSinceBeforeStart = if (beforeStartTime > 0) currentTime - beforeStartTime else Long.MAX_VALUE
+                            val timeSinceBeforeStart =
+                                if (beforeStartTime > 0) currentTime - beforeStartTime else Long.MAX_VALUE
                             val isNearBeforeStart = beforeStartTime > 0 && timeSinceBeforeStart <= 1500
-                            
+
                             // Check if not currently playing, not in lobby, not near beforeStart
-                            if (StateManager.state != StateManager.States.PLAYING && 
-                                StateManager.state != StateManager.States.LOBBY && 
-                                !isNearBeforeStart) {
+                            if (StateManager.state != StateManager.States.PLAYING &&
+                                StateManager.state != StateManager.States.LOBBY &&
+                                !isNearBeforeStart
+                            ) {
                                 TimeUtils.setTimeout({
                                     ChatUtils.sendAsPlayer(queueCommand)
                                     ChatUtils.info("dodging DM...")
@@ -2779,7 +2812,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 }
                 return
             }
-            
+
         } catch (e: Exception) {
             ChatUtils.error("Error in DM dodge: ${e.message}")
         }
@@ -2787,19 +2820,19 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
     private fun gameStart() {
         beforeStartTime = 0L
-        
+
         if (toggled()) {
             if (CatDueller.config?.sendStartMessage == true) {
-                TimeUtils.setTimeout(fun () {
+                TimeUtils.setTimeout(fun() {
                     val baseMessage = CatDueller.config?.startMessage ?: "glhf!"
-                    val randomSuffix = best.spaghetcodes.catdueller.utils.RandomUtils.randomString(6, true, true)
+                    val randomSuffix = RandomUtils.randomString(6, useNumbers = true, useLetters = true)
                     val messageWithRandom = "$baseMessage $randomSuffix"
                     ChatUtils.sendAsPlayer("/ac $messageWithRandom")
                 }, CatDueller.config?.startMessageDelay ?: 100)
             }
 
             val quickRefreshTimer = TimeUtils.setInterval(this::bakery, 200, 50)
-            TimeUtils.setTimeout(fun () {
+            TimeUtils.setTimeout(fun() {
                 quickRefreshTimer?.cancel()
                 opponentTimer = TimeUtils.setInterval(this::bakery, 0, 500)
             }, quickRefresh)
@@ -2814,47 +2847,47 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             // This prevents any requeue logic from being triggered
             if (isInBigBreakTime()) {
                 ChatUtils.info("Game ended during big break time - entering big break")
-                
+
                 // Clear all movements before entering big break
                 Movement.clearAll()
                 Mouse.stopLeftAC()
                 Mouse.stopHoldLeftClick()
                 Mouse.stopHoldRightClick()
                 Combat.stopRandomStrafe()
-                
+
                 // Prevent force requeue when entering big break
                 preventForceRequeue = true
                 gameEndTime = 0L  // Reset to prevent force requeue
                 forceRequeueScheduled = false
 
-                TimeUtils.setTimeout(fun () {
+                TimeUtils.setTimeout(fun() {
                     ChatUtils.sendAsPlayer("/l duels")
-                    TimeUtils.setTimeout(fun () {
+                    TimeUtils.setTimeout(fun() {
                         enterBigBreak()
                     }, RandomUtils.randomIntInRange(2300, 5000))
                 }, RandomUtils.randomIntInRange(900, 1700))
                 return
             }
-            
+
             onGameEnd()
             resetVars()
 
             // Game end celebration: sprint + forward + jump + random strafe for 1 second
             // Execute after onGameEnd() and resetVars() to avoid being cleared
             ChatUtils.info("Game ended - performing game end movement")
-            
+
             // First, clear all existing movements to ensure clean state
             Movement.clearAll()
-            
+
             // Start game end view rotation: pitch to 0 (level), yaw random ±45 degrees
             Mouse.startGameEndViewRotation()
-            
+
             // Small delay to ensure clearing is complete, then start celebration
             TimeUtils.setTimeout({
                 Movement.startSprinting()
                 Movement.startForward()
                 Movement.singleJump(150)
-                
+
                 // Add random strafe (left or right)
                 if (RandomUtils.randomBool()) {
                     Movement.startLeft()
@@ -2864,7 +2897,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     ChatUtils.info("Celebration: strafing right")
                 }
             }, 100) // 100ms delay to ensure clearing is complete
-            
+
             // Stop celebration after 1 second (plus the initial delay)
             TimeUtils.setTimeout({
                 Movement.stopSprinting()
@@ -2876,7 +2909,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }, 1000) // 1000ms celebration + 100ms initial delay
 
             if (CatDueller.config?.sendAutoGG == true) {
-                TimeUtils.setTimeout(fun () {
+                TimeUtils.setTimeout(fun() {
                     ChatUtils.sendAsPlayer("/ac " + (CatDueller.config?.ggMessage ?: "gg"))
                 }, CatDueller.config?.ggDelay ?: 100)
             }
@@ -2894,18 +2927,18 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             if (entity != null) {
                 opponent = entity
                 lastOpponentName = entity.displayNameString
-                
+
                 // Check if opponent is nicked using UUID pattern
                 if (!calledFoundOpponent) {
                     val entityUUID = entity.uniqueID
                     if (entityUUID != null) {
                         isOpponentNicked = UUIDChecker.isNickedUUID(entityUUID)
-                        val uuidStatus = UUIDChecker.getUUIDStatus(entityUUID)
+                        UUIDChecker.getUUIDStatus(entityUUID)
                     } else {
                         isOpponentNicked = false
                     }
                 }
-                
+
                 if (!calledFoundOpponent) {
                     calledFoundOpponent = true
                     onFoundOpponent()
@@ -2915,30 +2948,22 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
 
-    private fun leaveGame() {
-        if (toggled() && StateManager.state != StateManager.States.PLAYING) {
-            TimeUtils.setTimeout(fun () {
-                ChatUtils.sendAsPlayer("/l")
-            }, RandomUtils.randomIntInRange(100, 300))
-        }
-    }
-
-    private fun joinGame(second: Boolean = false, applyLosingDelay: Boolean = false) {
+    private fun joinGame(applyLosingDelay: Boolean = false) {
         if (toggled() && StateManager.state != StateManager.States.PLAYING && !StateManager.gameFull) {
-            
+
             // Calculate additional delay if we lost and the feature is enabled
             var additionalDelay = 0
             if (applyLosingDelay && lastGameWasLoss && CatDueller.config?.delayRequeueAfterLosing == true) {
                 additionalDelay = (CatDueller.config?.losingRequeueDelay ?: 5) * 1000
                 ChatUtils.info("joinGame: Adding ${additionalDelay}ms delay after losing")
             }
-            
+
             if (StateManager.state == StateManager.States.GAME) {
                 val paperRequeueEnabled = CatDueller.config?.paperRequeue == true
-                
+
                 if (paperRequeueEnabled) {
                     // Paper requeue is enabled, try to find paper with retries
-                    tryPaperRequeue(second, additionalDelay)
+                    tryPaperRequeue(additionalDelay)
                 } else {
                     // Paper requeue disabled, use command requeue
                     TimeUtils.setTimeout({
@@ -2947,7 +2972,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     }, RandomUtils.randomIntInRange(100, 300) + additionalDelay)
                 }
             } else {
-                TimeUtils.setTimeout(fun () {
+                TimeUtils.setTimeout(fun() {
                     ChatUtils.info("Using command requeue: $queueCommand")
                     ChatUtils.sendAsPlayer(queueCommand)
                 }, RandomUtils.randomIntInRange(100, 300) + additionalDelay)
@@ -2956,10 +2981,9 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     }
 
 
-
     private fun disconnect() {
         if (mc.theWorld != null) {
-            mc.addScheduledTask(fun () {
+            mc.addScheduledTask(fun() {
                 mc.theWorld.sendQuittingDisconnectingPacket()
                 mc.loadWorld(null)
                 mc.displayGuiScreen(GuiMultiplayer(GuiMainMenu()))
@@ -2967,17 +2991,18 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         }
     }
 
-     private fun reconnect() {
+    private fun reconnect() {
         if (mc.theWorld == null) {
             if (mc.currentScreen is GuiMultiplayer) {
-                mc.addScheduledTask(fun () {
+                mc.addScheduledTask(fun() {
                     println("Reconnecting...")
                     FMLClientHandler.instance().setupServerList()
-                    FMLClientHandler.instance().connectToServer(mc.currentScreen, ServerData("hypixel", "mc.hypixel.net", false))
+                    FMLClientHandler.instance()
+                        .connectToServer(mc.currentScreen, ServerData("hypixel", "mc.hypixel.net", false))
                 })
             } else {
-                if (mc.theWorld == null && mc.currentScreen !is GuiConnecting) {
-                    mc.addScheduledTask(fun () {
+                if (mc.currentScreen !is GuiConnecting) {
+                    mc.addScheduledTask(fun() {
                         println("Attempting to show new multiplayer screen...")
                         mc.displayGuiScreen(GuiMultiplayer(GuiMainMenu()))
                         reconnect()
@@ -3009,37 +3034,37 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             println("Registered ${getName()}_packet_handler")
         }
     }
-    
+
     /**
      * Start spamming disconnected players every 15 seconds
      */
     private fun startSpamming() {
         if (CatDueller.config?.botCrasherMode != true || CatDueller.config?.botCrasherSpamPlayers != true) return
-        
+
         // Cancel existing timer if running
         spamTimer?.cancel()
-        
+
         spamTimer = Timer()
-        spamTimer?.scheduleAtFixedRate(object : java.util.TimerTask() {
+        spamTimer?.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
                 if (CatDueller.config?.botCrasherMode == true && CatDueller.config?.botCrasherSpamPlayers == true) {
                     // Get manually configured players
                     val manualPlayers = CatDueller.config?.botCrasherTargetPlayers?.split(",")
                         ?.map { it.trim() }
                         ?.filter { it.isNotBlank() } ?: emptyList()
-                    
+
                     // Combine auto-detected disconnected players with manual players
                     val allTargetPlayers = (disconnectedPlayers + manualPlayers).distinct()
-                    
+
                     if (allTargetPlayers.isNotEmpty()) {
                         // Join all player names with spaces and invite them all at once
                         val allPlayers = allTargetPlayers.joinToString(" ")
                         ChatUtils.sendAsPlayer("/p $allPlayers")
-                        
+
                         TimeUtils.setTimeout({
                             ChatUtils.sendAsPlayer("/p disband")
                         }, 500)
-                        
+
                         ChatUtils.info("Bot Crasher Mode: Invited ${allTargetPlayers.size} players: $allPlayers")
                         ChatUtils.info("  - Auto-detected: ${disconnectedPlayers.size}, Manual: ${manualPlayers.size}")
                     }
@@ -3051,7 +3076,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }
         }, 0, 15000) // Start immediately, repeat every 15 seconds
     }
-    
+
     /**
      * Disable pause on lost focus by modifying options.txt
      */
@@ -3059,15 +3084,15 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         try {
             val minecraftDir = mc.mcDataDir
             val optionsFile = File(minecraftDir, "options.txt")
-            
+
             if (!optionsFile.exists()) {
                 optionsFile.writeText("pauseOnLostFocus:false\n")
                 return
             }
-            
+
             val lines = optionsFile.readLines().toMutableList()
             var foundPauseOption = false
-            
+
             // Look for existing pauseOnLostFocus setting
             for (i in lines.indices) {
                 if (lines[i].startsWith("pauseOnLostFocus:")) {
@@ -3080,17 +3105,17 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                     break
                 }
             }
-            
+
             // If pauseOnLostFocus setting not found, add it
             if (!foundPauseOption) {
                 lines.add("pauseOnLostFocus:false")
             }
-            
+
             // Write back to file
             if (!foundPauseOption || lines.any { it.startsWith("pauseOnLostFocus:true") }) {
                 optionsFile.writeText(lines.joinToString("\n") + "\n")
             }
-            
+
         } catch (e: Exception) {
             ChatUtils.error("Failed to modify options.txt: ${e.message}")
         }
@@ -3109,11 +3134,11 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 actualReconnectWaitMinutes = 30
                 return
             }
-            
+
             // Generate dynamic break disconnect time with variance (percentage-based)
             val baseDisconnectMinutes = config.disconnectAfterMinutes
             val dynamicVariancePercent = config.dynamicBreakVariance
-            
+
             if (baseDisconnectMinutes > 0) {
                 // Calculate variance in minutes based on percentage
                 val varianceMinutes = (baseDisconnectMinutes * dynamicVariancePercent / 100.0).toInt()
@@ -3124,14 +3149,14 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             } else {
                 actualDisconnectMinutes = 0
             }
-            
+
             // Generate dynamic break wait time with variance (percentage-based)
             val baseWaitMinutes = config.reconnectWaitMinutes
             val waitVarianceMinutes = (baseWaitMinutes * dynamicVariancePercent / 100.0).toInt()
             val minWaitTime = (baseWaitMinutes - waitVarianceMinutes).coerceAtLeast(1)
             val maxWaitTime = baseWaitMinutes + waitVarianceMinutes
             actualReconnectWaitMinutes = RandomUtils.randomIntInRange(minWaitTime, maxWaitTime)
-            if(config.autoReconnectAfterDisconnect == true){
+            if (config.autoReconnectAfterDisconnect) {
                 ChatUtils.info("Dynamic break: Will wait $actualReconnectWaitMinutes minutes before reconnect (base: $baseWaitMinutes ± $dynamicVariancePercent% = ±${waitVarianceMinutes}min)")
             }
             // Big break timing (no variance)
@@ -3152,26 +3177,26 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     private fun isInBigBreakTime(): Boolean {
         try {
             if (CatDueller.config?.bigBreakEnabled != true) return false
-            
+
             val calendar = Calendar.getInstance()
             val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
-            
+
             val startHour = CatDueller.config?.bigBreakStartHour ?: 13
             val endHour = CatDueller.config?.bigBreakEndHour ?: 17
-            
+
             return if (startHour <= endHour) {
                 // Normal case: start to end same day
-                currentHour >= startHour && currentHour < endHour
+                currentHour in startHour until endHour
             } else {
                 // Overnight case: start late, end early next day
-                currentHour >= startHour || currentHour < endHour
+                currentHour !in endHour until startHour
             }
         } catch (e: Exception) {
             ChatUtils.error("Error checking big break time: ${e.message}")
             return false
         }
     }
-    
+
     /**
      * Get minutes until big break ends
      */
@@ -3180,10 +3205,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             val calendar = Calendar.getInstance()
             val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
             val currentMinute = calendar.get(Calendar.MINUTE)
-            
+
             val startHour = CatDueller.config?.bigBreakStartHour ?: 13
             val endHour = CatDueller.config?.bigBreakEndHour ?: 17
-            
+
             return if (startHour <= endHour) {
                 // Normal case: calculate minutes until end time
                 val minutesUntilEnd = (endHour - currentHour) * 60 - currentMinute
@@ -3205,18 +3230,17 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             return 60 // Return a safe default value
         }
     }
-    
 
-    
+
     /**
      * Check if dynamic break would overlap with big break
      */
     private fun wouldDynamicBreakOverlapWithBigBreak(): Boolean {
         if (CatDueller.config?.bigBreakEnabled != true) return false
-        
+
         val currentTime = System.currentTimeMillis()
         val dynamicBreakEndTime = currentTime + (actualReconnectWaitMinutes * 60 * 1000)
-        
+
         // Check if we would still be in dynamic break when big break starts
         val startHour = CatDueller.config?.bigBreakStartHour ?: 13
         val todayBigBreakStart = Calendar.getInstance().apply {
@@ -3225,23 +3249,31 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
-        
+
         // If big break start time has passed today, check tomorrow
         if (todayBigBreakStart.timeInMillis <= currentTime) {
             todayBigBreakStart.add(Calendar.DAY_OF_MONTH, 1)
         }
-        
+
         val nextBigBreakStart = todayBigBreakStart.timeInMillis
-        
+
         // Check if dynamic break would still be active when next big break starts
         val wouldOverlap = dynamicBreakEndTime > nextBigBreakStart
-        
+
         if (wouldOverlap) {
             ChatUtils.info("Dynamic break overlap detected:")
-            ChatUtils.info("  Dynamic break would end at: ${java.text.SimpleDateFormat("HH:mm").format(java.util.Date(dynamicBreakEndTime))}")
-            ChatUtils.info("  Next big break starts at: ${java.text.SimpleDateFormat("HH:mm").format(java.util.Date(nextBigBreakStart))}")
+            ChatUtils.info(
+                "  Dynamic break would end at: ${
+                    SimpleDateFormat("HH:mm").format(Date(dynamicBreakEndTime))
+                }"
+            )
+            ChatUtils.info(
+                "  Next big break starts at: ${
+                    SimpleDateFormat("HH:mm").format(Date(nextBigBreakStart))
+                }"
+            )
         }
-        
+
         return wouldOverlap
     }
 
@@ -3250,27 +3282,27 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      */
     private fun cancelDynamicBreakIfOverlapping() {
         if (CatDueller.config?.bigBreakEnabled != true) return
-        
+
         val currentTime = System.currentTimeMillis()
         val minutesUntilBigBreakEnd = getMinutesUntilBigBreakEnds()
         val bigBreakEndTime = currentTime + (minutesUntilBigBreakEnd * 60 * 1000)
-        
+
         // Check if dynamic break would still be active when big break ends
         if (actualDisconnectMinutes > 0) {
             val dynamicBreakStartTime = botStartTime + (actualDisconnectMinutes * 60 * 1000)
             val dynamicBreakEndTime = dynamicBreakStartTime + (actualReconnectWaitMinutes * 60 * 1000)
-            
+
             // Check for overlap: dynamic break end time is after big break start (now) 
             // and dynamic break start time is before big break end
             if (dynamicBreakEndTime > currentTime && dynamicBreakStartTime < bigBreakEndTime) {
                 ChatUtils.info("Dynamic break would overlap with big break - cancelling dynamic break")
                 ChatUtils.info("Dynamic break: ${actualDisconnectMinutes}min + ${actualReconnectWaitMinutes}min wait")
                 ChatUtils.info("Big break: ${minutesUntilBigBreakEnd}min duration")
-                
+
                 // Cancel dynamic break by resetting its timing
                 actualDisconnectMinutes = 0
                 actualReconnectWaitMinutes = 30 // Reset to default
-                
+
                 ChatUtils.info("Dynamic break cancelled - big break takes priority")
             }
         }
@@ -3281,93 +3313,83 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      */
     private fun enterBigBreak() {
         val minutesUntilEnd = getMinutesUntilBigBreakEnds()
-        
+
         ChatUtils.info("Entering big break time! Break will end in $minutesUntilEnd minutes")
-        
+
         // Cancel any existing dynamic break if it would overlap with big break
         cancelDynamicBreakIfOverlapping()
-        
+
         // Send webhook notification
         if (CatDueller.config?.sendWebhookMessages == true && !CatDueller.config?.webhookURL.isNullOrBlank()) {
-            val author = WebHook.buildAuthor("Cat Dueller - ${getName()}", "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-            val thumbnail = WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-            
+            val author = WebHook.buildAuthor(
+                "Cat Dueller - ${getName()}",
+                "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
+            )
+            val thumbnail =
+                WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
+
             // Calculate end time in seconds for Discord timestamp
             val endTimeSeconds = ((System.currentTimeMillis() + (minutesUntilEnd * 60 * 1000)) / 1000).toInt()
-            
+
             WebHook.sendEmbed(
                 CatDueller.config?.webhookURL!!,
                 WebHook.buildEmbed(
-                    ":sleeping: Big Break Started", 
-                    "Entering big break time. Bot will disconnect and automatically reconnect <t:${endTimeSeconds}:R>", 
-                    JsonArray(), 
-                    JsonObject(), 
-                    author, 
-                    thumbnail, 
+                    ":sleeping: Big Break Started",
+                    "Entering big break time. Bot will disconnect and automatically reconnect <t:${endTimeSeconds}:R>",
+                    JsonArray(),
+                    JsonObject(),
+                    author,
+                    thumbnail,
                     0xffa30f
                 )
             )
         }
-        
+
         // Disable bot and disconnect (like dynamic break)
         if (toggled()) {
             toggle(false) // Automatic toggle for big break disable
         }
-        
+
         // Set absolute big break end time instead of using timer
         bigBreakReconnectTime = System.currentTimeMillis() + (minutesUntilEnd * 60 * 1000L)
-        
-        ChatUtils.info("Big break will end at: ${java.text.SimpleDateFormat("HH:mm:ss").format(java.util.Date(bigBreakReconnectTime))}")
-        
+
+        ChatUtils.info(
+            "Big break will end at: ${
+                SimpleDateFormat("HH:mm:ss").format(Date(bigBreakReconnectTime))
+            }"
+        )
+
         // Use same disconnect approach as dynamic break
         ChatUtils.info("Big break: Disconnecting like dynamic break...")
-        
+
         // Prevent force requeue when preparing to disconnect
         preventForceRequeue = true
         gameEndTime = 0L  // Reset to prevent force requeue
         forceRequeueScheduled = false
-        
-        TimeUtils.setTimeout(fun () {
+
+        TimeUtils.setTimeout(fun() {
             ChatUtils.sendAsPlayer("/l duels")
-            TimeUtils.setTimeout(fun () {
+            TimeUtils.setTimeout(fun() {
                 // Disconnect immediately like dynamic break
                 ChatUtils.info("Big break: Disconnecting now...")
                 disconnect()
             }, RandomUtils.randomIntInRange(2300, 5000))
         }, RandomUtils.randomIntInRange(900, 1700))
     }
-    
 
-    
-    /**
-     * Format opponent name for webhook display
-     * Handles nicked players and rank display
-     */
-    private fun formatOpponentNameForWebhook(opponentName: String): String {
-        return "`$opponentName`"
-    }
-    
+
     /**
      * Format opponent name for webhook display using saved values
      * Used when resetVars() has already been called
      */
     private fun formatOpponentNameForWebhookWithSavedValues(
-        opponentName: String, 
-        savedOpponentNameWithRank: String, 
-        savedOpponentName: String, 
-        savedIsOpponentNicked: Boolean
+        opponentName: String
     ): String {
         return "`$opponentName`"
     }
 
-    
-    /**
-     * Generate player head URL for webhook
-     */
-    private fun getPlayerHeadUrl(playerName: String): String {
-        return "https://mc-heads.net/avatar/$playerName"
-    }
-    
+
+
     /**
      * Get current server ping in milliseconds
      * Returns -1 if unable to determine ping
@@ -3376,26 +3398,26 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         return try {
             val player = mc.thePlayer ?: return -1
             val sendQueue = player.sendQueue ?: return -1
-            
+
             // Method 1: Try to get ping from player info
             val playerInfo = sendQueue.getPlayerInfo(player.uniqueID)
             if (playerInfo != null) {
                 return playerInfo.responseTime
             }
-            
+
             // Method 2: Try to get ping from network manager (less reliable)
             val networkManager = sendQueue.networkManager
             if (networkManager != null) {
                 // This is a rough estimation based on network manager state
                 return if (networkManager.isChannelOpen) 0 else -1
             }
-            
+
             -1
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             -1
         }
     }
-    
+
     /**
      * Get ping status as string for display
      */
@@ -3410,22 +3432,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             else -> "Very Poor ($ping ms)"
         }
     }
-    
-    /**
-     * Extract clean player name from ranked name
-     * Example: "[MVP++] PlayerName" -> "PlayerName"
-     */
-    private fun extractCleanNameFromRanked(rankedName: String): String {
-        return try {
-            // Match pattern like "[VIP+] PlayerName" or "PlayerName"
-            val pattern = Regex("(?:\\[[^\\]]+\\]\\s+)?(.+)")
-            val match = pattern.find(rankedName.trim())
-            match?.groupValues?.get(1)?.trim() ?: rankedName
-        } catch (e: Exception) {
-            rankedName
-        }
-    }
-    
+
     /**
      * Start lobby sit mode for dynamic break
      */
@@ -3434,34 +3441,34 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         lobbySitEndTime = System.currentTimeMillis() + (waitMinutes * 60 * 1000L)
         lobbySitPhase = 0  // Start with forward phase
         lobbySitPhaseStartTime = System.currentTimeMillis()
-        
+
         ChatUtils.info("Lobby sit mode started - will repeat cycles for $waitMinutes minutes")
-        
+
         // Start the continuous cycle
         startLobbySitCycle()
     }
-    
+
     /**
      * Start a single lobby sit cycle (5s forward + 10s backward)
      */
     private fun startLobbySitCycle() {
         if (!lobbySitActive) return
-        
+
         // Phase 1: Sprint + Forward + Jump for 5 seconds
         lobbySitPhase = 0
         lobbySitPhaseStartTime = System.currentTimeMillis()
         ChatUtils.info("Lobby sit cycle: Sprint + Forward + Jump for 5 seconds")
-        
+
         Movement.startSprinting()
         Movement.startForward()
-        
+
         // Schedule jump spam
         lobbySitJumpTimer = TimeUtils.setInterval({
             if (lobbySitActive && lobbySitPhase == 0) {
                 Movement.singleJump(150)
             }
         }, 0, 500) // Jump every 500ms
-        
+
         // Schedule phase transition after 5 seconds
         TimeUtils.setTimeout({
             if (lobbySitActive) {
@@ -3469,9 +3476,9 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 Movement.stopForward()
                 Movement.stopSprinting()
                 lobbySitJumpTimer?.cancel()
-                
+
                 ChatUtils.info("Lobby sit cycle: Waiting 1 second between phases...")
-                
+
                 // Wait 1 second before starting backward phase
                 TimeUtils.setTimeout({
                     if (lobbySitActive) {
@@ -3480,13 +3487,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                         lobbySitPhaseStartTime = System.currentTimeMillis()
                         ChatUtils.info("Lobby sit cycle: Backward for 10 seconds")
                         Movement.startBackward()
-                        
+
                         // Schedule end of backward phase
                         TimeUtils.setTimeout({
                             if (lobbySitActive) {
                                 Movement.stopBackward()
                                 ChatUtils.info("Lobby sit cycle completed - waiting 1 second before next cycle...")
-                                
+
                                 // Wait 1 second before starting next cycle
                                 TimeUtils.setTimeout({
                                     if (lobbySitActive) {
@@ -3500,34 +3507,34 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }
         }, 5000) // 5 seconds
     }
-    
+
     /**
      * Check if lobby sit mode should end
      */
     private fun checkLobbySitMode() {
         if (lobbySitActive && System.currentTimeMillis() >= lobbySitEndTime) {
             lobbySitActive = false
-            
+
             // Stop any ongoing movements and timers
             Movement.clearAll()
             lobbySitJumpTimer?.cancel()
-            
+
             ChatUtils.info("Lobby sit mode ended - re-enabling bot")
-            
+
             // Re-enable bot
             if (!toggled()) {
                 toggle(false)  // Don't reset session start time
             }
-            
+
             // Start normal operation
             TimeUtils.setTimeout({
                 if (toggled()) {
-                    joinGame(false, true)
+                    joinGame(applyLosingDelay = true)
                 }
             }, RandomUtils.randomIntInRange(2000, 4000))
         }
     }
-    
+
     /**
      * Check internet stability and decide whether to requeue
      */
@@ -3537,20 +3544,20 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             proceedWithNormalRequeue()
             return
         }
-        
+
         val currentPing = getServerPing()
         val currentTime = System.currentTimeMillis()
-        
+
         if (currentPing > 250) {
             // High ping detected
             if (!internetStabilityPaused) {
                 internetStabilityPaused = true
                 ChatUtils.info("High ping detected ($currentPing ms) - pausing requeue until connection stabilizes")
                 ChatUtils.info("Waiting for ping to stay below 250ms for 1 minute before resuming...")
-                
+
                 // Send webhook notification for internet instability pause
                 sendInternetStabilityWebhook(currentPing, true)
-                
+
                 startPingMonitoring()
             }
         } else {
@@ -3569,24 +3576,24 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }
         }
     }
-    
+
     /**
      * Start continuous ping monitoring when paused
      */
     private fun startPingMonitoring() {
         pingCheckTimer?.cancel()
         pingCheckTimer = Timer()
-        
-        pingCheckTimer?.schedule(object : java.util.TimerTask() {
+
+        pingCheckTimer?.schedule(object : TimerTask() {
             override fun run() {
                 if (!internetStabilityPaused) {
                     cancel()
                     return
                 }
-                
+
                 val currentPing = getServerPing()
                 val currentTime = System.currentTimeMillis()
-                
+
                 if (currentPing > 250) {
                     // Still high ping, reset stable time
                     lastStablePingTime = 0L
@@ -3607,10 +3614,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                             internetStabilityPaused = false
                             lastStablePingTime = 0L
                             ChatUtils.info("Connection stable for 1 minute (ping: $currentPing ms) - resuming requeue")
-                            
+
                             // Send webhook notification for internet stability resume
                             sendInternetStabilityWebhook(currentPing, false)
-                            
+
                             // Resume requeuing
                             proceedWithNormalRequeue()
                             cancel()
@@ -3626,17 +3633,17 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }
         }, 0, 5000) // Check every 5 seconds
     }
-    
+
     /**
      * Try to use paper requeue with retries to wait for paper to load
      */
-    private fun tryPaperRequeue(isRetry: Boolean = false, additionalDelay: Int = 0, attempt: Int = 1) {
+    private fun tryPaperRequeue(additionalDelay: Int = 0, attempt: Int = 1) {
         val maxAttempts = 3 // Try up to 3 times
         val baseDelay = if (attempt == 1) 200 else 400 // First attempt: 200ms, later attempts: 400ms
-        
+
         TimeUtils.setTimeout({
             val hasPaper = Inventory.setInvItem("paper")
-            
+
             if (hasPaper) {
                 // Found paper, check if GUI is open
                 if (isGuiOpen()) {
@@ -3657,7 +3664,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 // Paper not found
                 if (attempt < maxAttempts) {
                     // Try again with longer delay
-                    tryPaperRequeue(true, additionalDelay, attempt + 1)
+                    tryPaperRequeue(additionalDelay, attempt + 1)
                 } else {
                     // Max attempts reached, fallback to command requeue
                     TimeUtils.setTimeout({
@@ -3668,20 +3675,20 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }
         }, baseDelay + additionalDelay)
     }
-    
+
     /**
      * Proceed with normal requeue logic
      */
     private fun proceedWithNormalRequeue() {
         if (CatDueller.config?.fastRequeue == true) {
             val fastDelay = RandomUtils.randomIntInRange(300, 500)
-            TimeUtils.setTimeout({ joinGame(false, true) }, fastDelay)
+            TimeUtils.setTimeout({ joinGame(applyLosingDelay = true) }, fastDelay)
         } else {
             val delay = CatDueller.config?.autoRqDelay ?: 2000
-            TimeUtils.setTimeout({ joinGame(false, true) }, delay)
+            TimeUtils.setTimeout({ joinGame(applyLosingDelay = true) }, delay)
         }
     }
-    
+
     /**
      * Send webhook notification for internet stability status
      */
@@ -3689,25 +3696,30 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         if (CatDueller.config?.sendWebhookMessages != true || CatDueller.config?.webhookURL.isNullOrBlank()) {
             return
         }
-        
+
         try {
-            val author = WebHook.buildAuthor("Cat Dueller - ${getName()}", "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-            val thumbnail = WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-            
+            val author = WebHook.buildAuthor(
+                "Cat Dueller - ${getName()}",
+                "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
+            )
+            val thumbnail =
+                WebHook.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
+
             val title: String
             val description: String
             val color: Int
-            
+
             if (isPaused) {
                 title = ":warning: Internet Unstable - Paused"
-                description = "High ping detected ($ping ms). Requeuing paused until connection stabilizes.\n\nWaiting for ping to stay below 250ms for 1 minute before resuming."
+                description =
+                    "High ping detected ($ping ms). Requeuing paused until connection stabilizes.\n\nWaiting for ping to stay below 250ms for 1 minute before resuming."
                 color = 0xffa500 // Orange
             } else {
                 title = ":white_check_mark: Internet Stable - Resumed"
                 description = "Connection stabilized ($ping ms). Requeuing resumed after 1 minute of stable connection."
                 color = 0x00ff00 // Green
             }
-            
+
             WebHook.sendEmbed(
                 CatDueller.config?.webhookURL!!,
                 WebHook.buildEmbed(
@@ -3724,18 +3736,17 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             ChatUtils.error("Failed to send internet stability webhook: ${e.message}")
         }
     }
-    
+
     /**
      * Check if movement should be cleared based on combo count
-     * @param distance Distance to opponent
      * @param additionalConditions Additional conditions that must be false to clear movement
      * @return true if movement should be cleared
      */
-    protected fun shouldClearMovementForCombo(distance: Float, vararg additionalConditions: Boolean): Boolean {
+    protected fun shouldClearMovementForCombo(vararg additionalConditions: Boolean): Boolean {
         // Clear movement if combo >= 3 and no additional blocking conditions
         return combo >= 3 && additionalConditions.none { it }
     }
-    
+
     /**
      * Check if forward movement should be stopped based on combo and distance
      * @param distance Distance to opponent
@@ -3746,64 +3757,6 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         // Stop forward if combo >= 3 and distance < 2, unless blocked by conditions
         return combo >= 3 && distance < 2 && blockingConditions.none { it }
     }
-    
-    /**
-     * Check if combo jump strafe should be performed
-     * @param distance Distance to opponent
-     * @param player Player entity
-     * @param nearEdge Whether player is near edge
-     * @param airInFront Whether there's air in front
-     * @return true if combo jump strafe should be performed
-     */
-    protected fun shouldPerformComboJumpStrafe(
-        distance: Float, 
-        player: net.minecraft.entity.player.EntityPlayer,
-        nearEdge: Boolean = false,
-        airInFront: Boolean = false
-    ): Boolean {
-        return combo >= 3 && 
-               distance >= 3.2 && 
-               player.onGround && 
-               !nearEdge && 
-               !airInFront
-    }
-    
-    /**
-     * Apply combo-based movement decisions
-     * @param distance Distance to opponent
-     * @param player Player entity
-     * @param clearMovement Function to clear movement
-     * @param stopForward Function to stop forward movement
-     * @param startBackward Function to start backward movement
-     * @param performJumpStrafe Function to perform jump strafe
-     * @param blockingConditions Conditions that block movement changes
-     */
-    protected fun applyComboMovementDecisions(
-        distance: Float,
-        player: net.minecraft.entity.player.EntityPlayer,
-        clearMovement: () -> Unit = {},
-        stopForward: () -> Unit = {},
-        startBackward: () -> Unit = {},
-        performJumpStrafe: () -> Unit = {},
-        vararg blockingConditions: Boolean
-    ) {
-        // Clear movement for high combo
-        if (shouldClearMovementForCombo(distance, *blockingConditions)) {
-            clearMovement()
-        }
-        
-        // Stop forward movement for close combat with high combo
-        if (shouldStopForwardForCombo(distance, *blockingConditions)) {
-            stopForward()
-            startBackward()
-        }
-        
-        // Perform combo jump strafe if conditions are met
-        if (shouldPerformComboJumpStrafe(distance, player)) {
-            performJumpStrafe()
-        }
-    }
-}
 
     /**
      * Handle anti ragebait functionality
@@ -3815,7 +3768,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             // Generate random number of L's between 3 and 10
             val lCount = RandomUtils.randomIntInRange(3, 10)
             val lSpam = "L".repeat(lCount)
-            
+
             // Send the L spam with a small delay to avoid spam detection
             TimeUtils.setTimeout({
                 ChatUtils.sendAsPlayer(lSpam)
@@ -3825,3 +3778,4 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }, RandomUtils.randomIntInRange(100, 300))
         }
     }
+}

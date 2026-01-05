@@ -12,7 +12,6 @@ import best.spaghetcodes.catdueller.utils.*
 import net.minecraft.init.Blocks
 import net.minecraft.util.Vec3
 import java.util.*
-import kotlin.math.abs
 
 class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
 
@@ -26,37 +25,37 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
     override fun shouldStartAttacking(distance: Float): Boolean {
         val player = mc.thePlayer ?: return false
         val opponent = opponent() ?: return false
-        
+
         // If player hurtTime > 6, immediately allow attack (highest priority)
         if (player.hurtTime > 6) {
             return true
         }
-        
+
         // Boxing-specific distance check based on combo
         val maxDistance = if (combo < 3) {
             (CatDueller.config?.maxDistanceAttack ?: 10).toFloat()
         } else {
             3.5f
         }
-        
+
         if (distance > maxDistance) {
             return false
         }
-        
+
         // Use base class checks for other conditions (crosshair, visibility, etc.)
         val mouseOver = mc.objectMouseOver
         if (mouseOver == null || mouseOver.entityHit != opponent) {
             return false
         }
-        
+
         if (!player.canEntityBeSeen(opponent)) {
             return false
         }
-        
+
         if (player.isUsingItem) {
             return false
         }
-        
+
         return true
     }
 
@@ -91,14 +90,14 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
             } else {
                 Inventory.setInvItem("sword")
             }
-            fishTimer = TimeUtils.setTimeout(fun () {
+            fishTimer = TimeUtils.setTimeout(fun() {
                 fishFunc(!fish)
             }, RandomUtils.randomIntInRange(10000, 20000))
         }
     }
 
     override fun onGameEnd() {
-        TimeUtils.setTimeout(fun () {
+        TimeUtils.setTimeout(fun() {
             Movement.clearAll()
             Mouse.stopLeftAC()
             Combat.stopRandomStrafe()
@@ -111,7 +110,7 @@ class Boxing : BotBase("/play duels_boxing_duel"), MovePriority {
             tapping = true
             ChatUtils.info("W-Tap")
             Combat.wTap(100)
-            TimeUtils.setTimeout(fun () {
+            TimeUtils.setTimeout(fun() {
                 tapping = false
             }, 100)
         }

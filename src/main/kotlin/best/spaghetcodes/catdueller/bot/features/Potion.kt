@@ -1,10 +1,8 @@
 package best.spaghetcodes.catdueller.bot.features
 
-import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.bot.player.Inventory
 import best.spaghetcodes.catdueller.bot.player.Mouse
 import best.spaghetcodes.catdueller.utils.ChatUtils
-import best.spaghetcodes.catdueller.utils.EntityUtils
 import best.spaghetcodes.catdueller.utils.RandomUtils
 import best.spaghetcodes.catdueller.utils.TimeUtils
 
@@ -21,11 +19,11 @@ interface Potion {
                 TimeUtils.setTimeout(fun() {
                     Mouse.setUsingPotion(true)
 
-                    TimeUtils.setTimeout(fun () {
+                    TimeUtils.setTimeout(fun() {
                         val r = RandomUtils.randomIntInRange(80, 120)
                         Mouse.rClick(r)
 
-                        TimeUtils.setTimeout(fun () {
+                        TimeUtils.setTimeout(fun() {
                             Mouse.setUsingPotion(false)
                             TimeUtils.setTimeout(fun() {
                                 Inventory.setInvItem("sword")
@@ -56,10 +54,10 @@ interface Potion {
             Mouse.stopLeftAC()
             if (Inventory.setInvItemByDamage(dmg)) {
                 ChatUtils.info("About to use $dmg")
-                TimeUtils.setTimeout(fun () {
+                TimeUtils.setTimeout(fun() {
                     val r = RandomUtils.randomIntInRange(1900, 2050)
                     Mouse.rClick(r)
-                    TimeUtils.setTimeout(fun () {
+                    TimeUtils.setTimeout(fun() {
                         Inventory.setInvItem("sword")
                         TimeUtils.setTimeout(fun() {
                             Mouse.setRunningAway(false)

@@ -47,9 +47,9 @@ object RandomUtils {
             if (useLetters) append("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
             if (useNumbers) append("0123456789")
         }
-        
+
         if (chars.isEmpty()) return ""
-        
+
         return (1..length)
             .map { chars.random() }
             .joinToString("")

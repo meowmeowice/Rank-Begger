@@ -3,8 +3,9 @@
   "package": "best.spaghetcodes.catdueller.mixins",
   "refmap": "mixins.catdueller.refmap.json",
   "mixins": [
+    "MixinEffectRenderer",
     "MixinModList",
-    "MixinEffectRenderer"
+    "MixinNetworkManager"
   ],
   "verbose": true
 }

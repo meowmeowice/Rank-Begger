@@ -1,7 +1,6 @@
 package best.spaghetcodes.catdueller.bot.player
 
 import best.spaghetcodes.catdueller.CatDueller
-import best.spaghetcodes.catdueller.utils.RandomUtils
 import best.spaghetcodes.catdueller.utils.TimeUtils
 import net.minecraft.client.settings.KeyBinding
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
@@ -15,7 +14,7 @@ object Movement {
     private var jumping = false
     private var sprinting = false
     private var sneaking = false
-    
+
     // Long jump state tracking
     private var longJumpActive = false
     private var lastGuiState = false
@@ -263,7 +262,7 @@ object Movement {
         forceStopSneaking()
         Combat.stopRandomStrafe()
     }
-    
+
     /**
      * Start long jump mode - sets internal state but waits for GUI close to execute
      */
@@ -276,7 +275,7 @@ object Movement {
             sprinting = true
         }
     }
-    
+
     /**
      * Stop long jump mode
      */
@@ -286,14 +285,14 @@ object Movement {
         wasOnGroundLastTick = false
         // Don't stop any actions - let jump finish naturally and keep forward/sprint
     }
-    
+
     /**
      * Check if long jump is active
      */
     fun isLongJumpActive(): Boolean {
         return longJumpActive
     }
-    
+
     /**
      * GUI state monitoring for long jump functionality and jump queue processing
      */
@@ -301,9 +300,9 @@ object Movement {
     fun onTick(ev: TickEvent.ClientTickEvent) {
         if (CatDueller.mc.thePlayer == null) return
         val player = CatDueller.mc.thePlayer
-        
+
         val currentGuiState = CatDueller.mc.currentScreen != null
-        
+
         // Detect GUI closing (was open, now closed)
         if (lastGuiState && !currentGuiState && longJumpActive) {
             // GUI just closed and long jump is active - start forward and sprint, wait for ground to jump
@@ -313,15 +312,15 @@ object Movement {
                 sprinting = true
                 KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindForward.keyCode, true)
                 KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindSprint.keyCode, true)
-                
+
                 // Set flag to wait for onGround to jump
                 longJumpWaitingForGround = true
                 println("Long jump started: GUI closed, forward + sprint active, waiting for onGround to jump")
             }
         }
-        
+
         // Check for onGround transition to execute jump
-        
+
         if (player != null && longJumpWaitingForGround) {
             val currentOnGround = player.onGround
             // Detect landing (not on ground -> on ground)
@@ -330,15 +329,15 @@ object Movement {
                 if (CatDueller.bot?.toggled() == true) {
                     singleJump(100)  // Single jump with 100ms duration
                     println("Long jump executed: Player landed, executing single jump")
-                    
+
                     // Stop waiting for ground
                     longJumpWaitingForGround = false
                 }
             }
-            
+
             wasOnGroundLastTick = currentOnGround
         }
-        
+
         lastGuiState = currentGuiState
     }
 

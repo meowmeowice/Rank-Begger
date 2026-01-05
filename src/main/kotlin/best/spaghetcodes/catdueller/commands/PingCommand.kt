@@ -13,9 +13,9 @@ class PingCommand : Command("ping") {
         if (bot != null) {
             val pingStatus = bot.getPingStatus()
             val ping = bot.getServerPing()
-            
+
             ChatUtils.info("Current ping: $pingStatus")
-            
+
             if (!(ping >= 0)) {
                 ChatUtils.info("Cant get ping")
             }

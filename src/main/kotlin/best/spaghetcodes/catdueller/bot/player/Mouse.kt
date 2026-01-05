@@ -3,21 +3,18 @@ package best.spaghetcodes.catdueller.bot.player
 import best.spaghetcodes.catdueller.CatDueller
 import best.spaghetcodes.catdueller.utils.ChatUtils
 import best.spaghetcodes.catdueller.utils.EntityUtils
-
 import best.spaghetcodes.catdueller.utils.RandomUtils
 import best.spaghetcodes.catdueller.utils.TimeUtils
+import net.minecraft.client.Minecraft
 import net.minecraft.client.settings.KeyBinding
+import net.minecraft.entity.Entity
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import net.minecraftforge.fml.common.gameevent.TickEvent
-import net.minecraftforge.client.event.RenderWorldLastEvent
-import kotlin.math.abs
+import net.minecraftforge.fml.relauncher.ReflectionHelper
 import java.awt.Robot
 import java.awt.event.InputEvent
-import net.minecraft.network.play.client.C0APacketAnimation
-import net.minecraft.entity.Entity
-import net.minecraft.client.Minecraft
-import net.minecraftforge.fml.relauncher.ReflectionHelper
 import java.lang.reflect.Method
+import kotlin.math.abs
 
 object Mouse {
 
@@ -25,9 +22,9 @@ object Mouse {
     var rClickDown = false
 
     private var tracking = false
-    
+
     // Variables for Hold Left Click
-    private val robot by lazy { 
+    private val robot by lazy {
         try {
             Robot()
         } catch (e: Exception) {
@@ -60,9 +57,6 @@ object Mouse {
     private var gameEndTargetPitch = 0f
 
 
-    
-
-    
     // Reflection method for clickMouse
     private val clickMouseMethod: Method? by lazy {
         try {
@@ -89,11 +83,14 @@ object Mouse {
             CatDueller.mc.thePlayer.swingItem()
             KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindAttack.keyCode, true)
             if (CatDueller.mc.objectMouseOver != null && CatDueller.mc.objectMouseOver.entityHit != null) {
-                CatDueller.mc.playerController.attackEntity(CatDueller.mc.thePlayer, CatDueller.mc.objectMouseOver.entityHit)
+                CatDueller.mc.playerController.attackEntity(
+                    CatDueller.mc.thePlayer,
+                    CatDueller.mc.objectMouseOver.entityHit
+                )
             }
         }
     }
-    
+
     /**
      * Traditional left-click using KeyBinding (fallback method)
      */
@@ -102,11 +99,14 @@ object Mouse {
             KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindAttack.keyCode, true)
             CatDueller.mc.thePlayer.swingItem()
             if (CatDueller.mc.objectMouseOver != null && CatDueller.mc.objectMouseOver.entityHit != null) {
-                CatDueller.mc.playerController.attackEntity(CatDueller.mc.thePlayer, CatDueller.mc.objectMouseOver.entityHit)
+                CatDueller.mc.playerController.attackEntity(
+                    CatDueller.mc.thePlayer,
+                    CatDueller.mc.objectMouseOver.entityHit
+                )
             }
         }
     }
-    
+
     fun leftClick() {
         val mc = CatDueller.mc
         if (CatDueller.bot?.toggled() == true && mc.thePlayer != null && !mc.thePlayer.isUsingItem) {
@@ -134,9 +134,8 @@ object Mouse {
             }
         }
     }
-    
 
-    
+
     /**
      * Left-click using Robot (safer than KeyBinding)
      */
@@ -205,7 +204,7 @@ object Mouse {
             }
         }
     }
-    
+
     /**
      * Stop holding left click (using Robot)
      */
@@ -229,7 +228,7 @@ object Mouse {
             }
         }
     }
-    
+
     /**
      * Stop holding right click (using Robot)
      */
@@ -254,13 +253,12 @@ object Mouse {
         setRunningAway(false)
         setBlockingArrow(false)
         rClickDown = false
-        
+
         // Reset game end view rotation variables
         gameEndViewRotationActive = false
         gameEndTargetYaw = 0f
         gameEndTargetPitch = 0f
     }
-    
 
 
     fun startTracking() {
@@ -270,15 +268,15 @@ object Mouse {
     fun stopTracking() {
         tracking = false
     }
-    
+
     fun isTracking(): Boolean {
         return tracking
     }
-    
+
     fun setBlockingArrow(blocking: Boolean) {
         _blockingArrow = blocking
     }
-    
+
     fun isBlockingArrow(): Boolean {
         return _blockingArrow
     }
@@ -310,66 +308,66 @@ object Mouse {
     fun isRunningAway(): Boolean {
         return _runningAway
     }
-    
+
     /**
      * Start game end view rotation: pitch to 0 (level), yaw random ±45 degrees
      */
     fun startGameEndViewRotation() {
         if (CatDueller.mc.thePlayer == null) return
-        
+
         gameEndViewRotationActive = true
         gameEndTargetPitch = 0f  // Level view
-        
+
         // Random yaw rotation: current yaw ± 45 degrees
         val currentYaw = CatDueller.mc.thePlayer.rotationYaw
         val yawOffset = if (RandomUtils.randomBool()) 45f else -45f
         gameEndTargetYaw = currentYaw + yawOffset
     }
-    
+
     /**
      * Stop game end view rotation
      */
     fun stopGameEndViewRotation() {
         gameEndViewRotationActive = false
     }
-    
+
     /**
      * Handle game end view rotation during tick
      */
     private fun handleGameEndViewRotation() {
         val player = CatDueller.mc.thePlayer ?: return
-        
+
         val currentYaw = player.rotationYaw
         val currentPitch = player.rotationPitch
-        
+
         // Calculate yaw difference (handle wrapping around 360 degrees)
         var yawDiff = gameEndTargetYaw - currentYaw
         while (yawDiff > 180) yawDiff -= 360
         while (yawDiff < -180) yawDiff += 360
-        
+
         // Calculate pitch difference
         val pitchDiff = gameEndTargetPitch - currentPitch
-        
+
         // Use fixed speed of 10 for game end view rotation
         val fixedSpeed = 10f
-        
+
         // Apply rotation limits
         val dyaw = if (abs(yawDiff) > fixedSpeed) {
             if (yawDiff > 0) fixedSpeed else -fixedSpeed
         } else {
             yawDiff
         }
-        
+
         val dpitch = if (abs(pitchDiff) > fixedSpeed) {
             if (pitchDiff > 0) fixedSpeed else -fixedSpeed
         } else {
             pitchDiff
         }
-        
+
         // Apply rotation
         player.rotationYaw += dyaw
         player.rotationPitch += dpitch
-        
+
         // Stop rotation when close enough to target
         if (abs(yawDiff) < 1f && abs(pitchDiff) < 1f) {
             gameEndViewRotationActive = false
@@ -389,7 +387,7 @@ object Mouse {
             KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindUseItem.keyCode, true)
         }
     }
-    
+
     fun startRightClick() {
         rClickDown()
     }
@@ -404,39 +402,46 @@ object Mouse {
     @SubscribeEvent
     fun onTick(ev: TickEvent.ClientTickEvent) {
         if (CatDueller.mc.thePlayer == null) return
-        
+
         // Execute clicks at tick START to align with vanilla reduce/motion
         if (ev.phase == TickEvent.Phase.START && CatDueller.bot?.toggled() == true) {
             if (leftAC) {
                 // Update tick counter
                 tickCounter++
-                
+
                 // Simple tick-based left auto-click logic
                 if (!CatDueller.mc.thePlayer.isUsingItem) {
                     val targetCPS = CatDueller.config?.cps?.toDouble() ?: 12.0
-                    
+
                     // Calculate base probability of clicking this tick
                     // 20 TPS means each tick has targetCPS/20 chance of clicking
                     val baseProbability = targetCPS / 20.0
-                    
+
                     // Add some randomness: ±25% variance
                     val variance = 0.10
                     val randomFactor = 1.0 + RandomUtils.randomDoubleInRange(-variance, variance)
                     val finalProbability = (baseProbability * randomFactor).coerceIn(0.0, 1.0)
-                    
+
                     // Decide whether to click this tick
                     if (Math.random() < finalProbability) {
                         leftClick()
                         lastLeftClick = System.currentTimeMillis()
-                        
+
                         if (CatDueller.config?.combatLogs == true) {
-                            ChatUtils.combatInfo("Tick START click: probability=${String.format("%.3f", finalProbability)}, targetCPS=${targetCPS}")
+                            ChatUtils.combatInfo(
+                                "Tick START click: probability=${
+                                    String.format(
+                                        "%.3f",
+                                        finalProbability
+                                    )
+                                }, targetCPS=${targetCPS}"
+                            )
                         }
                     }
                 }
             }
         }
-        
+
         if (CatDueller.bot?.toggled() == true) {
 
             if (leftClickDur > 0) {
@@ -473,23 +478,23 @@ object Mouse {
      */
     private fun getAngleDifference(targetEntity: Entity?): Double {
         if (targetEntity == null) return 0.0
-        
+
         val player = CatDueller.mc.thePlayer ?: return 0.0
         val rotations = EntityUtils.getRotations(player, targetEntity, false) ?: return 0.0
-        
+
         val currentYaw = player.rotationYaw
         val currentPitch = player.rotationPitch
         val targetYaw = rotations[0]
         val targetPitch = rotations[1]
-        
+
         // Calculate yaw difference (handle wrapping around 360 degrees)
         var yawDiff = targetYaw - currentYaw
         while (yawDiff > 180) yawDiff -= 360
         while (yawDiff < -180) yawDiff += 360
-        
+
         // Calculate pitch difference
         val pitchDiff = targetPitch - currentPitch
-        
+
         // Return the combined angle difference (Euclidean distance in angle space)
         return kotlin.math.sqrt((yawDiff * yawDiff + pitchDiff * pitchDiff).toDouble())
     }
@@ -501,7 +506,7 @@ object Mouse {
         if (_runningAway) {
             _usingProjectile = false
         }
-        
+
         var rotations = EntityUtils.getRotations(CatDueller.mc.thePlayer, CatDueller.bot?.opponent(), false)
 
         if (rotations != null) {
@@ -529,7 +534,7 @@ object Mouse {
                     val candidateHeights = List(50) { i ->
                         opponentMinY + i * (opponentMaxY - opponentMinY) / 49.0
                     }
-                    val targetY = candidateHeights.minByOrNull { h -> kotlin.math.abs(playerEyeY - h) }
+                    val targetY = candidateHeights.minByOrNull { h -> abs(playerEyeY - h) }
                         ?: (opponentMinY + opponentMaxY) / 2.0
 
                     // Compute target pitch
@@ -546,8 +551,14 @@ object Mouse {
 
             // --- horizontal + vertical smoothing with distance-based slowdown ---
             val lookRand = (CatDueller.config?.lookRand ?: 0).toDouble()
-            var dyaw = ((rotations[0] - CatDueller.mc.thePlayer.rotationYaw) + RandomUtils.randomDoubleInRange(-lookRand, lookRand)).toFloat()
-            var dpitch = ((rotations[1] - CatDueller.mc.thePlayer.rotationPitch) + RandomUtils.randomDoubleInRange(-lookRand, lookRand)).toFloat()
+            var dyaw = ((rotations[0] - CatDueller.mc.thePlayer.rotationYaw) + RandomUtils.randomDoubleInRange(
+                -lookRand,
+                lookRand
+            )).toFloat()
+            var dpitch = ((rotations[1] - CatDueller.mc.thePlayer.rotationPitch) + RandomUtils.randomDoubleInRange(
+                -lookRand,
+                lookRand
+            )).toFloat()
 
             // Distance-based slowing factor (skip for runningAway and splashAim)
             val opponent = CatDueller.bot?.opponent()
@@ -576,7 +587,7 @@ object Mouse {
             val onTarget = CatDueller.mc.objectMouseOver != null &&
                     CatDueller.mc.objectMouseOver.typeOfHit == net.minecraft.util.MovingObjectPosition.MovingObjectType.ENTITY &&
                     CatDueller.mc.objectMouseOver.entityHit == CatDueller.bot?.opponent()
-            
+
             val onTargetFactor = if (onTarget) 0.85f else 1.0f
 
             // Combine all factors: distance * angle * onTarget
@@ -588,7 +599,7 @@ object Mouse {
             } else {
                 (CatDueller.config?.lookSpeedHorizontal ?: 10).toFloat() * combinedFactor
             }
-            
+
             val maxRotV = if (_runningAway) {
                 30.0f  // Fixed vertical speed for running away
             } else {
@@ -613,7 +624,24 @@ object Mouse {
 
             // Debug: Log rotation values to check if they're too high
             if (CatDueller.config?.combatLogs == true && (abs(dyaw) > 0.1f || abs(dpitch) > 0.1f)) {
-                ChatUtils.combatInfo("Immediate Mode - dyaw: ${String.format("%.2f", dyaw)}, dpitch: ${String.format("%.2f", dpitch)}, maxRotH: ${String.format("%.2f", maxRotH)}, maxRotV: ${String.format("%.2f", maxRotV)}, combinedFactor: ${String.format("%.2f", combinedFactor)}")
+                ChatUtils.combatInfo(
+                    "Immediate Mode - dyaw: ${
+                        String.format(
+                            "%.2f",
+                            dyaw
+                        )
+                    }, dpitch: ${String.format("%.2f", dpitch)}, maxRotH: ${
+                        String.format(
+                            "%.2f",
+                            maxRotH
+                        )
+                    }, maxRotV: ${String.format("%.2f", maxRotV)}, combinedFactor: ${
+                        String.format(
+                            "%.2f",
+                            combinedFactor
+                        )
+                    }"
+                )
             }
 
             CatDueller.mc.thePlayer.rotationYaw += dyaw

@@ -11,7 +11,11 @@ import net.minecraft.util.Vec3
 
 object WorldUtils {
 
-    fun blockInFront(player: EntityPlayer, distance: Float, yMod: Float = 0f): Block { // yMod = 0 -> feet, 1 -> 1 above feet etc
+    fun blockInFront(
+        player: EntityPlayer,
+        distance: Float,
+        yMod: Float = 0f
+    ): Block { // yMod = 0 -> feet, 1 -> 1 above feet etc
         val vec = Vec3(player.lookVec.xCoord * distance, 0.0, player.lookVec.zCoord * distance)
         return CatDueller.mc.theWorld.getBlockState(player.position.add(vec.xCoord, -0.2 + yMod, vec.zCoord)).block
     }
@@ -26,20 +30,20 @@ object WorldUtils {
     }
 
     fun airInFront(player: EntityPlayer, distance: Float): Boolean {
-        return airCheck(player, player.position, distance, EntityUtils.get2dLookVec(player))
+        return airCheck(player.position, distance, EntityUtils.get2dLookVec(player))
     }
 
     fun airInBack(player: EntityPlayer, distance: Float): Boolean {
-        return airCheck(player, player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(180f))
+        return airCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(180f))
     }
 
     fun airOnLeft(player: EntityPlayer, distance: Float): Boolean {
-        return airCheck(player, player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(90f))
+        return airCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(90f))
         //return circleAirCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(90f), 2, 2)
     }
 
     fun airOnRight(player: EntityPlayer, distance: Float): Boolean {
-        return airCheck(player, player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(-90f))
+        return airCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(-90f))
         //return circleAirCheck(player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(-90f), 2, 2)
     }
 
@@ -67,32 +71,15 @@ object WorldUtils {
         return 21.0f
     }
 
-    fun distanceToRightBarrier(player: EntityPlayer): Int {
-        for (i in 1..60) {
-            if (barrierCheck(player, player.position.add(0.0, player.eyeHeight.toDouble(), 0.0), i.toFloat(), EntityUtils.get2dLookVec(player).rotateYaw(-90f))) {
-                return i
-            }
-        }
-        return -1
-    }
-
-    fun distanceToLeftBarrier(player: EntityPlayer): Int {
-        for (i in 1..60) {
-            if (barrierCheck(player, player.position.add(0.0, player.eyeHeight.toDouble(), 0.0), i.toFloat(), EntityUtils.get2dLookVec(player).rotateYaw(90f))) {
-                return i
-            }
-        }
-        return -1
-    }
 
     fun entityOffEdge(player: EntityPlayer): Boolean {
         if (!player.onGround) {
             val pos = player.positionVector.subtract(Vec3(0.0, 4.0, 0.0))
             // Expand check radius by 0.2 blocks (from 0.4 to 0.6) to avoid misdetecting players standing on the edge
             val positions = arrayListOf(
-                pos.add(Vec3(0.6, 0.0, 0.0)), 
-                pos.add(Vec3(0.0, 0.0, 0.6)), 
-                pos.add(Vec3(-0.6, 0.0, 0.0)), 
+                pos.add(Vec3(0.6, 0.0, 0.0)),
+                pos.add(Vec3(0.0, 0.0, 0.6)),
+                pos.add(Vec3(-0.6, 0.0, 0.0)),
                 pos.add(Vec3(0.0, 0.0, -0.6)),
                 pos.add(Vec3(0.6, 0.0, 0.6)),
                 pos.add(Vec3(-0.6, 0.0, 0.6)),
@@ -128,37 +115,20 @@ object WorldUtils {
         return leftDist < rightDist
     }
 
-    fun airCheckAngle(player: EntityPlayer, distance: Float, angleMin: Float, angleMax: Float): Boolean {
-        if (angleMax < angleMin) {
-            for (i in angleMin.toInt() downTo angleMax.toInt()) {
-                if (airCheck(player, player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(i.toFloat()))) {
-                    return true
-                }
-            }
-        } else {
-            for (i in angleMin.toInt()..angleMax.toInt()) {
-                if (airCheck(player, player.position, distance, EntityUtils.get2dLookVec(player).rotateYaw(i.toFloat()))) {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
-    private fun airCheck(player: EntityPlayer, pos: BlockPos, distance: Float, lookVec: Vec3): Boolean {
+    private fun airCheck(pos: BlockPos, distance: Float, lookVec: Vec3): Boolean {
         for (i in 1..distance.toInt()) {
             val x = pos.x + lookVec.xCoord * i
             val z = pos.z + lookVec.zCoord * i
-            
+
             // Check three different Y levels: -0.2, -1.4, -2.2
             val y1 = pos.y - 0.2
             val y2 = pos.y - 1.4
             val y3 = pos.y - 2.2
-            
+
             val block1 = CatDueller.mc.theWorld.getBlockState(BlockPos(x, y1, z)).block
             val block2 = CatDueller.mc.theWorld.getBlockState(BlockPos(x, y2, z)).block
             val block3 = CatDueller.mc.theWorld.getBlockState(BlockPos(x, y3, z)).block
-            
+
             // Return true only if ALL three levels are air
             if (block1 == Blocks.air && block2 == Blocks.air && block3 == Blocks.air) {
                 return true
@@ -166,14 +136,4 @@ object WorldUtils {
         }
         return false
     }
-
-    private fun barrierCheck(player: EntityPlayer, pos: BlockPos, distance: Float, lookVec: Vec3): Boolean {
-        for (i in 1..distance.toInt()) {
-            if (CatDueller.mc.theWorld.getBlockState(BlockPos(pos.x + lookVec.xCoord * i, pos.y - (if (player.onGround) 0.2 else 1.4), pos.z + lookVec.zCoord * i)).block == Blocks.barrier) {
-                return true
-            }
-        }
-        return false
-    }
-    
 }

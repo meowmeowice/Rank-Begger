@@ -8,7 +8,7 @@ import net.minecraft.util.BlockPos
 import net.minecraftforge.client.ClientCommandHandler
 
 class HWIDCommand : CommandBase() {
-    
+
     fun register() {
         ClientCommandHandler.instance.registerCommand(this)
     }
@@ -23,18 +23,22 @@ class HWIDCommand : CommandBase() {
 
     override fun processCommand(sender: ICommandSender?, args: Array<out String>?) {
         println("[HWIDCommand] processCommand called")
-        
+
         val isAuthorized = HWIDLock.isAuthorized()
         val currentHWID = HWIDLock.getCurrentHWID()
-        
+
         ChatUtils.info("Your HWID: $currentHWID")
         ChatUtils.info("Authorized: ${if (isAuthorized) "§aTrue" else "§cFalse"}")
-        
+
         // Also print to console for debugging
         println("[HWIDCommand] HWID: $currentHWID, Authorized: $isAuthorized")
     }
 
-    override fun addTabCompletionOptions(sender: ICommandSender?, args: Array<out String>?, pos: BlockPos?): List<String> {
+    override fun addTabCompletionOptions(
+        sender: ICommandSender?,
+        args: Array<out String>?,
+        pos: BlockPos?
+    ): List<String> {
         return emptyList()
     }
 

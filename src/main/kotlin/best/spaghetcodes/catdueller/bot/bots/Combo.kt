@@ -63,7 +63,7 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
     }
 
     override fun onGameEnd() {
-        TimeUtils.setTimeout(fun () {
+        TimeUtils.setTimeout(fun() {
             Movement.clearAll()
             Mouse.stopLeftAC()
             Combat.stopRandomStrafe()
@@ -93,7 +93,9 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
 
             if (distance < (CatDueller.config?.maxDistanceAttack ?: 10)) {
                 if (shouldStartAttacking(distance)) {
-                    if (mc.thePlayer.heldItem != null && mc.thePlayer.heldItem.unlocalizedName.lowercase().contains("sword")) {
+                    if (mc.thePlayer.heldItem != null && mc.thePlayer.heldItem.unlocalizedName.lowercase()
+                            .contains("sword")
+                    ) {
                         if (!dontStartLeftAC) {
                             Mouse.startLeftAC()  // Start continuous attacking, hit select will handle cancellation
                         }
@@ -146,16 +148,16 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
                     Mouse.stopLeftAC()
                     dontStartLeftAC = true
                     if (armor[i]!! > 0) {
-                        TimeUtils.setTimeout(fun () {
+                        TimeUtils.setTimeout(fun() {
                             val a = Inventory.setInvItem(ArmorEnum.values()[i].name.lowercase())
                             if (a) {
                                 armor[i] = armor[i]!! - 1
-                                TimeUtils.setTimeout(fun () {
+                                TimeUtils.setTimeout(fun() {
                                     val r = RandomUtils.randomIntInRange(100, 150)
                                     Mouse.rClick(r)
-                                    TimeUtils.setTimeout(fun () {
+                                    TimeUtils.setTimeout(fun() {
                                         Inventory.setInvItem("sword")
-                                        TimeUtils.setTimeout(fun () {
+                                        TimeUtils.setTimeout(fun() {
                                             dontStartLeftAC = false
                                         }, RandomUtils.randomIntInRange(200, 300))
                                     }, r + RandomUtils.randomIntInRange(100, 150))
@@ -179,20 +181,24 @@ class Combo : BotBase("/play duels_combo_duel"), MovePriority, Gap, Potion {
             var clear = false
             var randomStrafe = false
 
-            if (distance > 18 && EntityUtils.entityFacingAway(opponent()!!, mc.thePlayer) && !Mouse.isRunningAway() && System.currentTimeMillis() - lastPearl > 5000 && pearls > 0) {
+            if (distance > 18 && EntityUtils.entityFacingAway(
+                    opponent()!!,
+                    mc.thePlayer
+                ) && !Mouse.isRunningAway() && System.currentTimeMillis() - lastPearl > 5000 && pearls > 0
+            ) {
                 lastPearl = System.currentTimeMillis()
                 Mouse.stopLeftAC()
                 dontStartLeftAC = true
-                TimeUtils.setTimeout(fun () {
+                TimeUtils.setTimeout(fun() {
                     if (Inventory.setInvItem("pearl")) {
                         pearls--
                         Mouse.setUsingProjectile(true)
-                        TimeUtils.setTimeout(fun () {
+                        TimeUtils.setTimeout(fun() {
                             Mouse.rClick(RandomUtils.randomIntInRange(100, 150))
-                            TimeUtils.setTimeout(fun () {
+                            TimeUtils.setTimeout(fun() {
                                 Mouse.setUsingProjectile(false)
                                 Inventory.setInvItem("sword")
-                                TimeUtils.setTimeout(fun () {
+                                TimeUtils.setTimeout(fun() {
                                     dontStartLeftAC = false
                                 }, RandomUtils.randomIntInRange(200, 300))
                             }, RandomUtils.randomIntInRange(250, 300))

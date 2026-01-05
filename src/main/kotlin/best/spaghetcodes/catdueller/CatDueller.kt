@@ -5,13 +5,13 @@ import best.spaghetcodes.catdueller.bot.StateManager
 import best.spaghetcodes.catdueller.bot.bots.Sumo
 import best.spaghetcodes.catdueller.bot.player.LobbyMovement
 import best.spaghetcodes.catdueller.bot.player.Mouse
+import best.spaghetcodes.catdueller.bot.player.Movement
 import best.spaghetcodes.catdueller.commands.ConfigCommand
 import best.spaghetcodes.catdueller.core.Config
-import best.spaghetcodes.catdueller.core.KeyBindings
 import best.spaghetcodes.catdueller.core.HWIDLock
-import best.spaghetcodes.catdueller.events.packet.PacketListener
-import best.spaghetcodes.catdueller.utils.ChatUtils
-import com.google.gson.Gson
+import best.spaghetcodes.catdueller.core.KeyBindings
+import best.spaghetcodes.catdueller.utils.ParticleDetector
+import best.spaghetcodes.catdueller.utils.TimeUtils
 import net.minecraft.client.Minecraft
 import net.minecraftforge.common.MinecraftForge
 import net.minecraftforge.fml.common.Mod
@@ -28,10 +28,9 @@ class CatDueller {
         const val MOD_ID = "catdueller"
         const val MOD_NAME = "CatDueller"
         const val VERSION = "0.1.0"
-        const val configLocation = "./config/catdueller.toml"
+        const val CONFIG_LOCATION = "./config/catdueller.toml"
 
         val mc: Minecraft = Minecraft.getMinecraft()
-        val gson = Gson()
         var config: Config? = null
         var bot: BotBase? = null
 
@@ -45,7 +44,7 @@ class CatDueller {
     @Mod.EventHandler
     fun init(event: FMLInitializationEvent) {
         println("[CatDueller] Starting initialization...")
-        
+
         // Initialize basic components first
         config = Config()
         config?.preload()
@@ -57,7 +56,7 @@ class CatDueller {
         best.spaghetcodes.catdueller.commands.PingCommand().register()
         best.spaghetcodes.catdueller.commands.ParticleTestCommand().register()
         KeyBindings.register()
-        
+
         // Initialize HWID lock system
         println("[CatDueller] Initializing HWID lock system...")
         if (!HWIDLock.initialize()) {
@@ -69,23 +68,22 @@ class CatDueller {
             println("[CatDueller] HWID verification successful")
         }
 
-        MinecraftForge.EVENT_BUS.register(PacketListener())
         MinecraftForge.EVENT_BUS.register(StateManager)
         MinecraftForge.EVENT_BUS.register(Mouse)
-        MinecraftForge.EVENT_BUS.register(best.spaghetcodes.catdueller.bot.player.Movement)
+        MinecraftForge.EVENT_BUS.register(Movement)
         MinecraftForge.EVENT_BUS.register(LobbyMovement)
         MinecraftForge.EVENT_BUS.register(KeyBindings)
-        MinecraftForge.EVENT_BUS.register(best.spaghetcodes.catdueller.utils.ParticleDetector)
+        MinecraftForge.EVENT_BUS.register(ParticleDetector)
 
         // Safely initialize bot after config is fully loaded
         val selectedBotIndex = config?.currentBot ?: 0
         val selectedBot = config?.bots?.get(selectedBotIndex) ?: Sumo()
         swapBot(selectedBot)
-        
+
         // Add shutdown hook to clean up timers when game closes
         Runtime.getRuntime().addShutdownHook(Thread {
             println("CatDueller shutting down, cleaning up timers...")
-            best.spaghetcodes.catdueller.utils.TimeUtils.cancelAllTimers()
+            TimeUtils.cancelAllTimers()
         })
     }
 }

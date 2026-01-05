@@ -6,7 +6,7 @@ import net.minecraft.util.EnumChatFormatting
 
 object ChatUtils {
 
-    fun removeFormatting(text: String): String{
+    fun removeFormatting(text: String): String {
         var t = ""
         var skip = false
         for (i in text.indices) {
@@ -30,20 +30,26 @@ object ChatUtils {
     }
 
     fun info(message: String) {
-        sendChatMessage("${EnumChatFormatting.GOLD}[${EnumChatFormatting.LIGHT_PURPLE}${EnumChatFormatting.BOLD}Cat${EnumChatFormatting.RESET}${EnumChatFormatting.DARK_PURPLE}Dueller${EnumChatFormatting.GOLD}] ${EnumChatFormatting.WHITE}$message", false)
+        sendChatMessage(
+            "${EnumChatFormatting.GOLD}[${EnumChatFormatting.LIGHT_PURPLE}${EnumChatFormatting.BOLD}Cat${EnumChatFormatting.RESET}${EnumChatFormatting.DARK_PURPLE}Dueller${EnumChatFormatting.GOLD}] ${EnumChatFormatting.WHITE}$message",
+            false
+        )
     }
 
     fun error(message: String) {
-        sendChatMessage("${EnumChatFormatting.GOLD}[${EnumChatFormatting.LIGHT_PURPLE}${EnumChatFormatting.BOLD}Cat${EnumChatFormatting.RESET}${EnumChatFormatting.DARK_PURPLE}Dueller${EnumChatFormatting.GOLD}] ${EnumChatFormatting.RED}$message", false)
+        sendChatMessage(
+            "${EnumChatFormatting.GOLD}[${EnumChatFormatting.LIGHT_PURPLE}${EnumChatFormatting.BOLD}Cat${EnumChatFormatting.RESET}${EnumChatFormatting.DARK_PURPLE}Dueller${EnumChatFormatting.GOLD}] ${EnumChatFormatting.RED}$message",
+            false
+        )
     }
 
     fun combatInfo(message: String) {
-        sendChatMessage("${EnumChatFormatting.GOLD}[${EnumChatFormatting.LIGHT_PURPLE}${EnumChatFormatting.BOLD}Cat${EnumChatFormatting.RESET}${EnumChatFormatting.DARK_PURPLE}Dueller${EnumChatFormatting.GOLD}] ${EnumChatFormatting.YELLOW}$message", true)
+        sendChatMessage(
+            "${EnumChatFormatting.GOLD}[${EnumChatFormatting.LIGHT_PURPLE}${EnumChatFormatting.BOLD}Cat${EnumChatFormatting.RESET}${EnumChatFormatting.DARK_PURPLE}Dueller${EnumChatFormatting.GOLD}] ${EnumChatFormatting.YELLOW}$message",
+            true
+        )
     }
 
-    fun combatError(message: String) {
-        sendChatMessage("${EnumChatFormatting.GOLD}[${EnumChatFormatting.LIGHT_PURPLE}${EnumChatFormatting.BOLD}Cat${EnumChatFormatting.RESET}${EnumChatFormatting.DARK_PURPLE}Dueller${EnumChatFormatting.GOLD}] ${EnumChatFormatting.RED}$message", true)
-    }
 
     private fun sendChatMessage(message: String, isCombatMessage: Boolean = false) {
         if (CatDueller.mc.thePlayer != null) {

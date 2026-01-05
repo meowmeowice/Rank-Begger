@@ -14,29 +14,29 @@ interface Bow {
         if (Mouse.isUsingProjectile() || Mouse.isBlockingArrow()) {
             return
         }
-        
+
         // Stop attacking based on config
         if (CatDueller.config?.holdLeftClick == true) {
             Mouse.stopHoldLeftClick()
         } else {
             Mouse.stopLeftAC()
         }
-        
+
         // Use bow directly without evasive maneuver (dodge is only for enemy bow)
         Mouse.setUsingProjectile(true)
-        TimeUtils.setTimeout(fun () {
+        TimeUtils.setTimeout(fun() {
             Inventory.setInvItem("bow")
-            TimeUtils.setTimeout(fun () {
+            TimeUtils.setTimeout(fun() {
                 val r = when (distance) {
                     in 0f..7f -> RandomUtils.randomIntInRange(700, 900)
                     in 7f..15f -> RandomUtils.randomIntInRange(700, 900)
                     else -> RandomUtils.randomIntInRange(900, 1100)
                 }
                 Mouse.rClick(r)
-                TimeUtils.setTimeout(fun () {
+                TimeUtils.setTimeout(fun() {
                     Mouse.setUsingProjectile(false)
                     Inventory.setInvItem("sword")
-                    TimeUtils.setTimeout(fun () {
+                    TimeUtils.setTimeout(fun() {
                         if (StateManager.state == StateManager.States.PLAYING) {
                             // Don't start attacking here - let the distance control logic in onTick handle it
                             cb()

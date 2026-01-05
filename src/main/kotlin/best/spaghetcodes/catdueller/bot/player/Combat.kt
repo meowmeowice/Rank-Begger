@@ -40,13 +40,15 @@ object Combat {
     }
 
     fun spamA(hold: Int, duration: Int) {
-        val spamTimer = TimeUtils.setInterval(fun () { aTap(hold) }, 0, hold * 2 + RandomUtils.randomIntInRange(0, hold/5))
-        TimeUtils.setTimeout(fun () { spamTimer?.cancel() }, duration)
+        val spamTimer =
+            TimeUtils.setInterval(fun() { aTap(hold) }, 0, hold * 2 + RandomUtils.randomIntInRange(0, hold / 5))
+        TimeUtils.setTimeout(fun() { spamTimer?.cancel() }, duration)
     }
 
     fun spamD(hold: Int, duration: Int) {
-        val spamTimer = TimeUtils.setInterval(fun () { dTap(hold) }, 0, hold * 2 + RandomUtils.randomIntInRange(0, hold/5))
-        TimeUtils.setTimeout(fun () { spamTimer?.cancel() }, duration)
+        val spamTimer =
+            TimeUtils.setInterval(fun() { dTap(hold) }, 0, hold * 2 + RandomUtils.randomIntInRange(0, hold / 5))
+        TimeUtils.setTimeout(fun() { spamTimer?.cancel() }, duration)
     }
 
     fun startRandomStrafe(min: Int, max: Int) {

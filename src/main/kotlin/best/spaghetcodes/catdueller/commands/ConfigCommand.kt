@@ -18,29 +18,31 @@ class ConfigCommand : Command("CatDueller") {
         ChatUtils.info("Opening config GUI...")
         EssentialAPI.getGuiUtil().openScreen(CatDueller.config?.gui())
     }
-    
+
     @SubCommand("session")
     fun sessionCommand(action: String? = null) {
         when (action?.lowercase()) {
             "reset" -> {
                 resetSession()
             }
+
             "show", "stats", null -> {
                 showSession()
             }
+
             else -> {
                 ChatUtils.info("Usage: /catdueller session [reset|show]")
             }
         }
     }
-    
+
     private fun resetSession() {
         Session.wins = 0
         Session.losses = 0
         Session.startTime = System.currentTimeMillis()
         ChatUtils.info("Session statistics have been reset!")
     }
-    
+
     private fun showSession() {
         val currentBot = CatDueller.bot
         val winstreak = if (currentBot != null) {
@@ -55,7 +57,7 @@ class ConfigCommand : Command("CatDueller") {
         } else {
             0
         }
-        
+
         ChatUtils.info(Session.getSession(winstreak))
     }
 }

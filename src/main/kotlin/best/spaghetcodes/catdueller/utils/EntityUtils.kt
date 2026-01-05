@@ -11,6 +11,7 @@ import net.minecraft.util.MathHelper
 import net.minecraft.util.Vec3
 import kotlin.math.abs
 import kotlin.math.acos
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -57,7 +58,10 @@ object EntityUtils {
             if (center) {
                 pos = Vec3(target.posX, target.posY + target.eyeHeight, target.posZ)
             } else {
-                if (!Mouse.isUsingProjectile() || (CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()?.contains("rod") != true && CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()?.contains("bow") != true)) {
+                if (!Mouse.isUsingProjectile() || (CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()
+                        ?.contains("rod") != true && CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()
+                        ?.contains("bow") != true)
+                ) {
                     val box = target.entityBoundingBox
 
                     // get the four corners of the hitbox
@@ -90,12 +94,12 @@ object EntityUtils {
                             a = b
                             b = temp
                         }
-                        if (p.xCoord < a.xCoord) {
-                            pos = a
+                        pos = if (p.xCoord < a.xCoord) {
+                            a
                         } else if (p.xCoord > b.xCoord) {
-                            pos = b
+                            b
                         } else {
-                            pos = Vec3(p.xCoord, a.yCoord, a.zCoord)
+                            Vec3(p.xCoord, a.yCoord, a.zCoord)
                         }
                     } else {
                         if (a.zCoord > b.zCoord) {
@@ -103,48 +107,51 @@ object EntityUtils {
                             a = b
                             b = temp
                         }
-                        if (p.zCoord < a.zCoord) {
-                            pos = a
+                        pos = if (p.zCoord < a.zCoord) {
+                            a
                         } else if (p.zCoord > b.zCoord) {
-                            pos = b
+                            b
                         } else {
-                            pos = Vec3(a.xCoord, a.yCoord, p.zCoord)
+                            Vec3(a.xCoord, a.yCoord, p.zCoord)
                         }
                     }
                 } else {
                     val dist = getDistanceNoY(player, target)
-                    
+
                     // Rod flight speed calculation
                     // Rod initial speed is ~1.5 blocks/tick, but decreases due to air resistance
                     // Average effective speed over distance is approximately 1.4 blocks/tick
 
                     val baseTicks = when (dist) {
-                        in 0f..8f -> dist.toDouble()      
-                        in 8f..15f -> 15.0              
+                        in 0f..8f -> dist.toDouble()
+                        in 8f..15f -> 15.0
                         in 15f..25f -> 20.0
-                        else -> 25.0                    
+                        else -> 25.0
                     }
-                    
+
                     // Apply speed effect multiplier if player has speed
                     val speedMultiplier = if (player.isPotionActive(Potion.moveSpeed)) 1.3 else 1.0
                     val adjustedBaseTicks = baseTicks * speedMultiplier
-                    
+
                     // Add ping compensation bonus from config
                     val pingBonus = CatDueller.config?.predictionTicksBonus ?: 0
-                    
+
                     // Apply counter strafe multiplier for bow/rod prediction
                     val counterStrafeMultiplier = CatDueller.bot?.getCounterStrafeMultiplier() ?: 1.0f
                     val basePredictionTicks = adjustedBaseTicks + pingBonus
                     val tickPredict = basePredictionTicks * counterStrafeMultiplier
-                    
+
                     // For bow/rod, use actual velocity but apply prediction compensation
                     val actualVelocity = target.getVelocity()
-                    val currentSpeed = kotlin.math.sqrt(actualVelocity.xCoord * actualVelocity.xCoord + actualVelocity.zCoord * actualVelocity.zCoord)
-                    
+                    val currentSpeed =
+                        kotlin.math.sqrt(actualVelocity.xCoord * actualVelocity.xCoord + actualVelocity.zCoord * actualVelocity.zCoord)
+
                     // Check if we're using bow or rod for different speed calculations
-                    val isUsingBow = CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()?.contains("bow") == true
-                    val isUsingRod = CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()?.contains("rod") == true
-                    
+                    val isUsingBow =
+                        CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()?.contains("bow") == true
+                    val isUsingRod =
+                        CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()?.contains("rod") == true
+
                     val opponentSpeed = if (isUsingBow) {
                         // Bow: Use opponent's actual tracked speed with maximum 0.15 for moving targets (no minimum limit)
                         val trackedSpeed = CatDueller.bot?.opponentActualSpeed ?: 0.13f
@@ -169,7 +176,7 @@ object EntityUtils {
                         // Default: Use tracked speed
                         CatDueller.bot?.opponentActualSpeed ?: 0.13f
                     }
-                    
+
                     val adjustedVelocity = if (currentSpeed > 0) {
                         // Scale to appropriate speed while maintaining direction
                         val scale = opponentSpeed / currentSpeed
@@ -178,7 +185,7 @@ object EntityUtils {
                         // If not moving, don't predict movement
                         Vec3(0.0, 0.0, 0.0)  // No movement prediction for stationary targets
                     }
-                    
+
                     val velocity = adjustedVelocity.scale(tickPredict)
                     val flatVelo = Vec3(velocity.xCoord, 0.0, velocity.zCoord)
                     val height = when (dist) {
@@ -187,7 +194,11 @@ object EntityUtils {
                         in 15f..25f -> target.eyeHeight * 1.5  // Normal height for long range
                         else -> target.eyeHeight * 2.0  // Normal height for very long range
                     }
-                    pos = target.positionVector.add(flatVelo).add(Vec3(0.0, height.toDouble(), 0.0)) ?: Vec3(target.posX, target.posY + target.eyeHeight, target.posZ)
+                    pos = target.positionVector.add(flatVelo).add(Vec3(0.0, height, 0.0)) ?: Vec3(
+                        target.posX,
+                        target.posY + target.eyeHeight,
+                        target.posZ
+                    )
                 }
             }
 
@@ -197,10 +208,17 @@ object EntityUtils {
             val diffY: Double = pos.yCoord - (player.posY + player.getEyeHeight().toDouble())
             val diffZ = pos.zCoord - player.posZ
             val dist = MathHelper.sqrt_double(diffX * diffX + diffZ * diffZ).toDouble()
-            val yaw = (Math.atan2(diffZ, diffX) * 180.0 / 3.141592653589793).toFloat() - 90.0f
-            val pitch = (-(Math.atan2(diffY, dist) * 180.0 / 3.141592653589793)).toFloat()
+            val yaw = (atan2(diffZ, diffX) * 180.0 / 3.141592653589793).toFloat() - 90.0f
+            val pitch = (-(atan2(diffY, dist) * 180.0 / 3.141592653589793)).toFloat()
 
-            if ((crossHairDistance(yaw, pitch, player) > 6 || dist in 2.5..4.0) || (Mouse.isUsingProjectile() && (CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()?.contains("rod") == true || CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()?.contains("bow") == true)) || Mouse.isUsingPotion()) {
+            if ((crossHairDistance(
+                    yaw,
+                    pitch,
+                    player
+                ) > 6 || dist in 2.5..4.0) || (Mouse.isUsingProjectile() && (CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()
+                    ?.contains("rod") == true || CatDueller.mc.thePlayer?.heldItem?.unlocalizedName?.lowercase()
+                    ?.contains("bow") == true)) || Mouse.isUsingPotion()
+            ) {
                 if (raw) {
                     floatArrayOf(
                         MathHelper.wrapAngleTo180_float(yaw - player.rotationYaw),
@@ -237,41 +255,48 @@ object EntityUtils {
         } else {
             val diffX = player.posX - target.posX
             val diffZ = player.posZ - target.posZ
-            MathHelper.sqrt_double(diffX * diffX + diffZ * diffZ).toFloat()
+            MathHelper.sqrt_double(diffX * diffX + diffZ * diffZ)
         }
     }
 
     fun get2dLookVec(entity: Entity): Vec3 {
-        val yaw = ((entity.rotationYaw + 90)  * Math.PI) / 180
+        val yaw = ((entity.rotationYaw + 90) * Math.PI) / 180
         return Vec3(cos(yaw), 0.0, sin(yaw))
     }
 
     fun entityMovingLeft(entity: Entity, target: Entity): Boolean {
-        var lookVec = get2dLookVec(entity).rotateYaw(90f)
-        var entityVec = target.getVelocity()
+        val lookVec = get2dLookVec(entity).rotateYaw(90f)
+        val entityVec = target.getVelocity()
 
-        val angle = acos((lookVec.xCoord * entityVec.xCoord + lookVec.zCoord * entityVec.zCoord) / (lookVec.lengthVector() * entityVec.lengthVector())) * 180 / Math.PI
+        val angle =
+            acos((lookVec.xCoord * entityVec.xCoord + lookVec.zCoord * entityVec.zCoord) / (lookVec.lengthVector() * entityVec.lengthVector())) * 180 / Math.PI
         return angle > 90
     }
 
     fun entityMovingRight(entity: Entity, target: Entity): Boolean {
-        var lookVec = get2dLookVec(entity).rotateYaw(90f)
-        var entityVec = target.getVelocity()
+        val lookVec = get2dLookVec(entity).rotateYaw(90f)
+        val entityVec = target.getVelocity()
 
-        val angle = acos((lookVec.xCoord * entityVec.xCoord + lookVec.zCoord * entityVec.zCoord) / (lookVec.lengthVector() * entityVec.lengthVector())) * 180 / Math.PI
+        val angle =
+            acos((lookVec.xCoord * entityVec.xCoord + lookVec.zCoord * entityVec.zCoord) / (lookVec.lengthVector() * entityVec.lengthVector())) * 180 / Math.PI
         return angle < 90
     }
 
     fun entityFacingAway(entity: Entity, target: Entity): Boolean {
-        var vec1 = get2dLookVec(entity)
-        var vec2 = get2dLookVec(target)
+        val vec1 = get2dLookVec(entity)
+        val vec2 = get2dLookVec(target)
 
-        val angle = acos((vec1.xCoord * vec2.xCoord + vec1.zCoord * vec2.zCoord) / (vec1.lengthVector() * vec2.lengthVector())) * 180 / Math.PI
+        val angle =
+            acos((vec1.xCoord * vec2.xCoord + vec1.zCoord * vec2.zCoord) / (vec1.lengthVector() * vec2.lengthVector())) * 180 / Math.PI
         return angle in 20f..70f
     }
 
     private fun getClosestCorner(corner1: Vec3, corner2: Vec3, corner3: Vec3, corner4: Vec3): ArrayList<Vec3> {
-        val pos = Vec3(CatDueller.mc.thePlayer.posX, CatDueller.mc.thePlayer.posY + CatDueller.mc.thePlayer.eyeHeight, CatDueller.mc.thePlayer.posZ)
+        val pos = Vec3(
+            CatDueller.mc.thePlayer.posX,
+            CatDueller.mc.thePlayer.posY + CatDueller.mc.thePlayer.eyeHeight,
+            CatDueller.mc.thePlayer.posZ
+        )
 
         val smallest = arrayListOf(corner1, corner2, corner3, corner4)
         smallest.sortBy { abs(pos.distanceTo(it)) }

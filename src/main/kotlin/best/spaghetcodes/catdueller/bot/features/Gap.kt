@@ -20,10 +20,10 @@ interface Gap {
                 val r = RandomUtils.randomIntInRange(2100, 2200)
                 Mouse.rClick(r)
 
-                TimeUtils.setTimeout(fun () {
+                TimeUtils.setTimeout(fun() {
                     Inventory.setInvItem("sword")
 
-                    TimeUtils.setTimeout(fun () {
+                    TimeUtils.setTimeout(fun() {
                         Mouse.setRunningAway(false)
                     }, RandomUtils.randomIntInRange(40, 70))
                 }, r + RandomUtils.randomIntInRange(40, 70))
@@ -40,7 +40,7 @@ interface Gap {
             Mouse.setRunningAway(true)
             Movement.startJumping()
 
-            TimeUtils.setTimeout(fun () { gap() }, time)
+            TimeUtils.setTimeout(fun() { gap() }, time)
         } else {
             gap()
         }

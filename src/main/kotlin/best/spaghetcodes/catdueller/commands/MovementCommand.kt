@@ -1,7 +1,6 @@
 package best.spaghetcodes.catdueller.commands
 
 import best.spaghetcodes.catdueller.bot.MovementRecorder
-import best.spaghetcodes.catdueller.bot.StateManager
 import best.spaghetcodes.catdueller.utils.ChatUtils
 import gg.essential.api.commands.Command
 import gg.essential.api.commands.DefaultHandler
@@ -19,7 +18,6 @@ class MovementCommand : Command("movement") {
     }
 
 
-
     @SubCommand("list")
     fun listPatterns() {
         MovementRecorder.listPatterns()
@@ -31,10 +29,9 @@ class MovementCommand : Command("movement") {
             ChatUtils.info("Please provide a pattern name to delete!")
             return
         }
-        
+
         MovementRecorder.deletePattern(name)
     }
-
 
 
     @SubCommand("record")

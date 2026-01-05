@@ -14,7 +14,10 @@ object WebHook {
         val body = JsonObject()
         body.addProperty("content", "")
         body.addProperty("username", "Cat Dueller")
-        body.addProperty("avatar_url", "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
+        body.addProperty(
+            "avatar_url",
+            "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
+        )
 
         val arr = JsonArray()
         arr.add(embed)
@@ -46,7 +49,15 @@ object WebHook {
         }
     }
 
-    fun buildEmbed(title: String, description: String, fields: JsonArray, footer: JsonObject, author: JsonObject, thumbnail: JsonObject, color: Int): JsonObject {
+    fun buildEmbed(
+        title: String,
+        description: String,
+        fields: JsonArray,
+        footer: JsonObject,
+        author: JsonObject,
+        thumbnail: JsonObject,
+        color: Int
+    ): JsonObject {
         val obj = JsonObject()
         obj.addProperty("title", title)
         if (description != "")
@@ -56,22 +67,6 @@ object WebHook {
         obj.add("author", author)
         obj.add("thumbnail", thumbnail)
         obj.add("fields", fields)
-        return obj
-    }
-
-    fun buildEmbedWithImage(title: String, description: String, fields: JsonArray, footer: JsonObject, author: JsonObject, thumbnail: JsonObject, image: JsonObject?, color: Int): JsonObject {
-        val obj = JsonObject()
-        obj.addProperty("title", title)
-        if (description != "")
-            obj.addProperty("description", description)
-        obj.addProperty("color", color)
-        obj.add("footer", footer)
-        obj.add("author", author)
-        obj.add("thumbnail", thumbnail)
-        obj.add("fields", fields)
-        if (image != null) {
-            obj.add("image", image)
-        }
         return obj
     }
 
@@ -104,12 +99,6 @@ object WebHook {
         val obj = JsonObject()
         obj.addProperty("text", text)
         obj.addProperty("icon_url", icon)
-        return obj
-    }
-
-    fun buildImage(url: String): JsonObject {
-        val obj = JsonObject()
-        obj.addProperty("url", url)
         return obj
     }
 

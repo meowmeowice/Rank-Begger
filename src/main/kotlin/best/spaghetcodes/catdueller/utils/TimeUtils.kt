@@ -15,7 +15,7 @@ object TimeUtils {
         try {
             val timer = Timer("TimeUtils-setTimeout-${System.currentTimeMillis()}", true) // daemon thread
             activeTimers[timer] = "setTimeout-${delay}ms"
-            
+
             timer.schedule(
                 object : TimerTask() {
                     override fun run() {
@@ -29,7 +29,7 @@ object TimeUtils {
                             activeTimers.remove(timer)
                             try {
                                 timer.cancel()
-                            } catch (e: Exception) {
+                            } catch (_: Exception) {
                                 // Ignore cleanup errors
                             }
                         }
@@ -51,7 +51,7 @@ object TimeUtils {
         try {
             val timer = Timer("TimeUtils-setInterval-${System.currentTimeMillis()}", true) // daemon thread
             activeTimers[timer] = "setInterval-${delay}ms-${interval}ms"
-            
+
             timer.schedule(
                 object : TimerTask() {
                     override fun run() {
@@ -73,19 +73,6 @@ object TimeUtils {
         return null
     }
 
-    /**
-     * Cancel a specific timer and remove it from tracking
-     */
-    fun cancelTimer(timer: Timer?) {
-        if (timer != null) {
-            try {
-                activeTimers.remove(timer)
-                timer.cancel()
-            } catch (e: Exception) {
-                println("Error canceling timer: ${e.message}")
-            }
-        }
-    }
 
     /**
      * Cancel all active timers - call this when shutting down or disabling bot
@@ -93,7 +80,7 @@ object TimeUtils {
     fun cancelAllTimers() {
         val timersToCancel = activeTimers.keys.toList()
         println("Canceling ${timersToCancel.size} active timers...")
-        
+
         for (timer in timersToCancel) {
             try {
                 timer.cancel()
@@ -101,23 +88,9 @@ object TimeUtils {
                 println("Error canceling timer: ${e.message}")
             }
         }
-        
+
         activeTimers.clear()
         println("All timers canceled")
-    }
-
-    /**
-     * Get count of active timers for debugging
-     */
-    fun getActiveTimerCount(): Int {
-        return activeTimers.size
-    }
-
-    /**
-     * Get info about active timers for debugging
-     */
-    fun getActiveTimersInfo(): String {
-        return "Active timers (${activeTimers.size}): ${activeTimers.values.joinToString(", ")}"
     }
 
 }

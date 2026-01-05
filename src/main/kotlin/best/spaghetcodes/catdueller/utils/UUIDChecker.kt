@@ -1,9 +1,9 @@
 package best.spaghetcodes.catdueller.utils
 
-import java.util.UUID
+import java.util.*
 
 object UUIDChecker {
-    
+
     /**
      * Check if a UUID indicates a nicked player
      * Valid UUIDs have '4' at position 13 (excluding dashes), nicked UUIDs have '2'
@@ -24,25 +24,7 @@ object UUIDChecker {
             false
         }
     }
-    
-    /**
-     * Check if a UUID indicates a valid (non-nicked) player
-     */
-    fun isValidUUID(uuid: UUID): Boolean {
-        return try {
-            val uuidString = uuid.toString().replace("-", "")
-            if (uuidString.length >= 13) {
-                val char13 = uuidString[12] // 0-indexed, so position 13 is index 12
-                char13 == '4'
-            } else {
-                false // Invalid UUID format
-            }
-        } catch (e: Exception) {
-            ChatUtils.info("Error checking UUID format: ${e.message}")
-            false
-        }
-    }
-    
+
     /**
      * Get UUID status as string for debugging
      */
@@ -50,8 +32,7 @@ object UUIDChecker {
         return try {
             val uuidString = uuid.toString().replace("-", "")
             if (uuidString.length >= 13) {
-                val char13 = uuidString[12]
-                when (char13) {
+                when (val char13 = uuidString[12]) {
                     '4' -> "VALID"
                     '2' -> "NICKED"
                     else -> "UNKNOWN (char13: $char13)"
