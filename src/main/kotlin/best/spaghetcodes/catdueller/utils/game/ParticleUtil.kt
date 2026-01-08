@@ -225,7 +225,7 @@ object ParticleUtil {
         y: Double,
         z: Double,
         particleType: EnumParticleTypes,
-        minRadius: Double = 1.0,
+        minRadius: Double = 5.0,
         maxRadius: Double = 20.0,
         debug: Boolean = false
     ): Boolean {

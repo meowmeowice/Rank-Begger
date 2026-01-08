@@ -154,7 +154,7 @@ object EntityUtil {
                     }
 
                     // Apply speed effect multiplier if player has speed
-                    val speedMultiplier = if (player.isPotionActive(Potion.moveSpeed)) 1.3 else 1.0
+                    val speedMultiplier = if (player.isPotionActive(Potion.moveSpeed)) 1.0 else 1.0
                     val adjustedBaseTicks = baseTicks * speedMultiplier
 
                     // Add ping compensation bonus from config

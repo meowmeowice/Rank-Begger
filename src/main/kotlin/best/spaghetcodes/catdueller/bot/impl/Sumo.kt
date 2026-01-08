@@ -831,17 +831,17 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             }
 
             if (ParticleUtil.hasParticleInRange(
-                    player.posX, player.posY, player.posZ, particleType, 1.0, 20.0, debug
+                    player.posX, player.posY, player.posZ, particleType, 2.0, 20.0, debug
                 )
             ) {
-                ChatUtil.info("Detected $particleName particles within 1-20 blocks - dodging!")
+                ChatUtil.info("Detected $particleName particles within 2-20 blocks - dodging!")
 
                 // Send queue command to dodge
                 TimerUtil.setTimeout(fun() {
                     ChatUtil.sendAsPlayer(queueCommand)
                 }, RandomUtil.randomIntInRange(100, 300))
             } else if (debug) {
-                ChatUtil.info("No $particleName particles detected within 1-20 blocks")
+                ChatUtil.info("No $particleName particles detected within 2-20 blocks")
             }
         } catch (e: Exception) {
             ChatUtil.info("Error checking for particles: ${e.message}")

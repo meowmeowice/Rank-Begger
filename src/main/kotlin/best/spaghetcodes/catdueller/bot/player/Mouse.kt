@@ -53,6 +53,9 @@ object Mouse {
     /** Whether the player is currently using a splash potion. */
     private var _usingPotion = false
 
+    /** Whether the player is currently using a golden apple (gap). */
+    private var _usingGap = false
+
     /** Whether the player is currently running away from the opponent. */
     private var _runningAway = false
 
@@ -231,6 +234,7 @@ object Mouse {
         stopTracking()
         setUsingProjectile(false)
         setUsingPotion(false)
+        setUsingGap(false)
         setRunningAway(false)
         setBlockingArrow(false)
         rClickDown = false
@@ -311,6 +315,22 @@ object Mouse {
      */
     fun isUsingPotion(): Boolean {
         return _usingPotion
+    }
+
+    /**
+     * Sets whether the player is using a golden apple (gap).
+     *
+     * @param gap True if using a gap, false otherwise.
+     */
+    fun setUsingGap(gap: Boolean) {
+        _usingGap = gap
+    }
+
+    /**
+     * Returns whether the player is using a golden apple (gap).
+     */
+    fun isUsingGap(): Boolean {
+        return _usingGap
     }
 
     /**
