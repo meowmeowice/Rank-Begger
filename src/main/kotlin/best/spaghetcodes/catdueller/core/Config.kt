@@ -868,15 +868,16 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
         category = "Queue Dodging",
     )
     val ircDodgeEnabled = true
-
+    /*
     @Property(
         type = PropertyType.TEXT,
         name = "IRC Server",
         description = "IRC server hostname or IP address",
         category = "Queue Dodging",
     )
+    */
     val ircServerHost = "catdueller.afterlike.org"
-
+    /*
     @Property(
         type = PropertyType.NUMBER,
         name = "IRC Port",
@@ -885,22 +886,25 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
         min = 1,
         max = 65535,
     )
+    */
     val ircServerPort = 443
-
+    /*
     @Property(
         type = PropertyType.SWITCH,
         name = "Show IRC Alerts",
         description = "Display chat notifications when other users queue",
         category = "Queue Dodging",
     )
-    val showIRCAlerts = true
-
+    */
+    val showIRCAlerts = false
+    /*
     @Property(
         type = PropertyType.SWITCH,
         name = "Auto IRC Dodge",
         description = "Automatically dodge when another user is on the same server",
         category = "Queue Dodging",
     )
+    */
     val autoIRCDodge = true
 
     @Property(

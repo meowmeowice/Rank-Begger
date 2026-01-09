@@ -299,7 +299,6 @@ object IRCDodgeClient {
             ChatUtil.info("IRC: $username queued $gamemode on $serverId ($map)")
         }
 
-        println("[IRCDodge] Queue alert: $username -> $gamemode on $serverId ($map)")
 
         onQueueAlert?.invoke(username, gamemode, serverId, map)
     }
@@ -317,7 +316,6 @@ object IRCDodgeClient {
             ChatUtil.info("IRC: $username left $serverId")
         }
 
-        println("[IRCDodge] Leave alert: $username left $serverId")
     }
 
     private fun handleUserJoin(args: List<String>) {
@@ -329,7 +327,6 @@ object IRCDodgeClient {
             ChatUtil.info("IRC: $username connected")
         }
 
-        println("[IRCDodge] User joined: $username (${onlineUsers.size} online)")
     }
 
     private fun handleUserLeave(args: List<String>) {
@@ -341,13 +338,11 @@ object IRCDodgeClient {
             ChatUtil.info("IRC: $username disconnected")
         }
 
-        println("[IRCDodge] User left: $username (${onlineUsers.size} online)")
     }
 
     private fun handleUserOnline(args: List<String>) {
         val username = args.getOrNull(0) ?: return
         onlineUsers.add(username)
-        println("[IRCDodge] User already online: $username")
     }
 
     private fun handleError(args: List<String>) {

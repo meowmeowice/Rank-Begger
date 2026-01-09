@@ -45,7 +45,7 @@ interface MovePriority {
                         Movement.startRight()
                     }
                 } else {
-                    Combat.startRandomStrafe(500, 2000)
+                    Combat.startRandomStrafe(300, 1000)
                 }
             } else {
                 Combat.stopRandomStrafe()

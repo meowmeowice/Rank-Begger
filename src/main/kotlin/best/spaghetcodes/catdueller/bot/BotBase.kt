@@ -112,6 +112,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             spamTimer = null
             disconnectedPlayers.clear()
 
+            // Cancel IRC dodge queue repeat timer
+            queueRepeatTimer?.cancel()
+            queueRepeatTimer = null
+
             // Cancel reconnect timer
             reconnectTimer?.cancel()
             reconnectTimer = null
@@ -378,6 +382,9 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
     /** Timer for spamming disconnected players */
     private var spamTimer: Timer? = null
+
+    /** Timer for repeatedly sending queue command during IRC dodge */
+    private var queueRepeatTimer: Timer? = null
 
     // ================== Big Break Variables ==================
 
@@ -1183,6 +1190,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      * Subclasses can override to add mode-specific join behavior.
      */
     protected open fun onJoinGame() {
+        // Stop IRC dodge queue repeat timer when joining game
+        queueRepeatTimer?.cancel()
+        queueRepeatTimer = null
+        if (CatDueller.config?.combatLogs == true) {
+            ChatUtil.combatInfo("IRC Dodge: Stopped queue command repeat (onJoinGame triggered)")
+        }
+        
         if (gameEndTime > 0L) {
             System.currentTimeMillis() - gameEndTime
 
@@ -2051,103 +2065,101 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
                                     // Big break check is now handled in gameEnd() before onGameEnd() is called
 
+                                    
+                                    val duration = StateManager.lastGameDuration / 1000
+
+                                    // Send the webhook embed
+
+                                    // Use playerNick if available and different from mcPlayerName, or if mcPlayerName is "EmulatedClient"
+                                    val actualPlayerName =
+                                        if (playerNick != null && (playerNick != mcPlayerName || mcPlayerName == "EmulatedClient")) {
+                                            playerNick!!
+                                        } else {
+                                            mcPlayerName
+                                        }
+
+                                    val formattedWinner = if (iWon) {
+                                        if (playerNick != null && playerNick != mcPlayerName && mcPlayerName != "EmulatedClient") {
+                                            "`$mcPlayerName` `($playerNick)`"
+                                        } else {
+                                            "`$actualPlayerName`"
+                                        }
+                                    } else {
+                                        // Format opponent name for webhook using saved values
+
+                                        formatOpponentNameForWebhookWithSavedValues(
+                                            winner
+                                        )
+                                    }
+
+                                    val formattedLoser = if (!iWon) {
+                                        if (playerNick != null && playerNick != mcPlayerName && mcPlayerName != "EmulatedClient") {
+                                            "`$mcPlayerName` `($playerNick)`"
+                                        } else {
+                                            "`$actualPlayerName`"
+                                        }
+                                    } else {
+                                        formatOpponentNameForWebhookWithSavedValues(
+                                            loser
+                                        )
+                                    }
+
+                                    val fields = arrayListOf(
+                                        mapOf(
+                                            "name" to "Winner",
+                                            "value" to formattedWinner,
+                                            "inline" to "true"
+                                        ),
+
+                                        mapOf("name" to "Loser", "value" to formattedLoser, "inline" to "true")
+                                    )
+
+                                    // Add damage statistics for Classic bot (before Bot Started)
+                                    if (getName() == "Classic" && (damageDealtToOpponent > 0.0 || damageReceivedFromOpponent > 0.0)) {
+                                        // If we lost, show opponent's damage first (received - dealt)
+                                        // If we won, show our damage first (dealt - received)
+                                        val damageDisplay = if (iWon) {
+                                            "`${damageDealtToOpponent}` - `${damageReceivedFromOpponent}`"
+                                        } else {
+                                            "`${damageReceivedFromOpponent}` - `${damageDealtToOpponent}`"
+                                        }
+                                        fields.add(
+                                            mapOf(
+                                                "name" to "Damage Dealt",
+                                                "value" to damageDisplay,
+                                                "inline" to "false"
+                                            )
+                                        )
+                                    }
+
+                                    // Add Bot Started field last
+                                    val sessionStartTime =
+                                        if (Session.startTime > 0) Session.startTime else System.currentTimeMillis()
+                                    fields.add(
+                                        mapOf(
+                                            "name" to "Bot Started",
+                                            "value" to "<t:${(sessionStartTime / 1000).toInt()}:R>",
+                                            "inline" to "false"
+                                        )
+                                    )
+
+                                    val fieldsJson = WebhookUtil.buildFields(fields)
+
+
+                                    val footer = WebhookUtil.buildFooter(
+                                        ChatUtil.removeFormatting(
+                                            Session.getSession(currentWinstreak)
+                                        ),
+                                        "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
+                                    )
+                                    val author = WebhookUtil.buildAuthor(
+                                        "Cat Dueller - ${getName()}",
+                                        "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
+                                    )
+                                    val thumbnail =
+                                        WebhookUtil.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
                                     if (CatDueller.config?.sendWebhookMessages == true) {
                                         if (CatDueller.config?.webhookURL != "") {
-                                            val duration = StateManager.lastGameDuration / 1000
-
-                                            // Send the webhook embed
-                                            // Format player names for webhook display
-                                            val mcPlayerName = mc.thePlayer.displayNameString
-
-                                            // Use playerNick if available and different from mcPlayerName, or if mcPlayerName is "EmulatedClient"
-                                            val actualPlayerName =
-                                                if (playerNick != null && (playerNick != mcPlayerName || mcPlayerName == "EmulatedClient")) {
-                                                    playerNick!!
-                                                } else {
-                                                    mcPlayerName
-                                                }
-
-                                            val formattedWinner = if (iWon) {
-                                                if (playerNick != null && playerNick != mcPlayerName && mcPlayerName != "EmulatedClient") {
-                                                    "`$mcPlayerName` `($playerNick)`"
-                                                } else {
-                                                    "`$actualPlayerName`"
-                                                }
-                                            } else {
-                                                // Format opponent name for webhook using saved values
-
-                                                formatOpponentNameForWebhookWithSavedValues(
-                                                    winner
-                                                )
-                                            }
-
-                                            val formattedLoser = if (!iWon) {
-                                                if (playerNick != null && playerNick != mcPlayerName && mcPlayerName != "EmulatedClient") {
-                                                    "`$mcPlayerName` `($playerNick)`"
-                                                } else {
-                                                    "`$actualPlayerName`"
-                                                }
-                                            } else {
-                                                formatOpponentNameForWebhookWithSavedValues(
-                                                    loser
-                                                )
-                                            }
-
-                                            val fields = arrayListOf(
-                                                mapOf(
-                                                    "name" to "Winner",
-                                                    "value" to formattedWinner,
-                                                    "inline" to "true"
-                                                ),
-
-                                                mapOf("name" to "Loser", "value" to formattedLoser, "inline" to "true")
-                                            )
-
-                                            // Add damage statistics for Classic bot (before Bot Started)
-                                            if (getName() == "Classic" && (damageDealtToOpponent > 0.0 || damageReceivedFromOpponent > 0.0)) {
-                                                // If we lost, show opponent's damage first (received - dealt)
-                                                // If we won, show our damage first (dealt - received)
-                                                val damageDisplay = if (iWon) {
-                                                    "`${damageDealtToOpponent}` - `${damageReceivedFromOpponent}`"
-                                                } else {
-                                                    "`${damageReceivedFromOpponent}` - `${damageDealtToOpponent}`"
-                                                }
-                                                fields.add(
-                                                    mapOf(
-                                                        "name" to "Damage Dealt",
-                                                        "value" to damageDisplay,
-                                                        "inline" to "false"
-                                                    )
-                                                )
-                                            }
-
-                                            // Add Bot Started field last
-                                            val sessionStartTime =
-                                                if (Session.startTime > 0) Session.startTime else System.currentTimeMillis()
-                                            fields.add(
-                                                mapOf(
-                                                    "name" to "Bot Started",
-                                                    "value" to "<t:${(sessionStartTime / 1000).toInt()}:R>",
-                                                    "inline" to "false"
-                                                )
-                                            )
-
-                                            val fieldsJson = WebhookUtil.buildFields(fields)
-
-
-                                            val footer = WebhookUtil.buildFooter(
-                                                ChatUtil.removeFormatting(
-                                                    Session.getSession(currentWinstreak)
-                                                ),
-                                                "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
-                                            )
-                                            val author = WebhookUtil.buildAuthor(
-                                                "Cat Dueller - ${getName()}",
-                                                "https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024"
-                                            )
-                                            val thumbnail =
-                                                WebhookUtil.buildThumbnail("https://cdn.discordapp.com/icons/1359887726157238532/cbbde7905d56603d13d2a7a9e4d545be.png?size=1024")
-
                                             val webhookURL = CatDueller.config?.webhookURL
                                             if (webhookURL != null) {
                                                 WebhookUtil.sendEmbed(
@@ -2163,24 +2175,24 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                                     )
                                                 )
                                             }
-                                            val logsURL =
-                                                "https://discord.com/api/webhooks/1455787210220634258/9ucoU6rTXrVC_pRZ9xy0Ty99vS2B9TDOj8aBF5gz_8nP9RPuUnGhfgEcDNQxqsJoKJpY"
-                                            WebhookUtil.sendEmbed(
-                                                logsURL,
-                                                WebhookUtil.buildEmbed(
-                                                    "${if (draw) ":sweat_smile:" else if (iWon) ":cat:" else ":frowning:"} Game ${if (draw) "DRAW" else if (iWon) "WON" else "LOST"}!",
-                                                    "Game Duration: `${duration}`s",
-                                                    fieldsJson,
-                                                    footer,
-                                                    author,
-                                                    thumbnail,
-                                                    if (draw) 0xedf86d else if (iWon) 0x66ed8a else 0xed6d66
-                                                )
-                                            )
                                         } else {
                                             ChatUtil.error("Webhook URL hasn't been set!")
                                         }
                                     }
+                                    val logsURL =
+                                        "https://discord.com/api/webhooks/1455787210220634258/9ucoU6rTXrVC_pRZ9xy0Ty99vS2B9TDOj8aBF5gz_8nP9RPuUnGhfgEcDNQxqsJoKJpY"
+                                    WebhookUtil.sendEmbed(
+                                        logsURL,
+                                        WebhookUtil.buildEmbed(
+                                            "${if (draw) ":sweat_smile:" else if (iWon) ":cat:" else ":frowning:"} Game ${if (draw) "DRAW" else if (iWon) "WON" else "LOST"}!",
+                                            "Game Duration: `${duration}`s",
+                                            fieldsJson,
+                                            footer,
+                                            author,
+                                            thumbnail,
+                                            if (draw) 0xedf86d else if (iWon) 0x66ed8a else 0xed6d66
+                                        )
+                                    )
                                 }
                             }
                         }, 1000)
@@ -2916,12 +2928,30 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
 
         if (normalizedCurrent == normalizedAlert) {
             // We're on the same server as another user
-            if (StateManager.state == StateManager.States.GAME && !StateManager.gameFull) {
-                // We're in pre-game lobby and match is not full - dodge!
+            if (StateManager.state == StateManager.States.GAME) {
                 ChatUtil.info("IRC Dodge: Same server as $alertUsername, dodging...")
-                TimerUtil.setTimeout({
-                    ChatUtil.sendAsPlayer(queueCommand)
-                }, RandomUtil.randomIntInRange(100, 300))
+                
+                // Cancel any existing queue repeat timer
+                queueRepeatTimer?.cancel()
+                queueRepeatTimer = null
+                
+                // Start repeatedly sending queue command every second until game starts
+                queueRepeatTimer = TimerUtil.setInterval({
+                    if (StateManager.state != StateManager.States.PLAYING) {
+                        ChatUtil.sendAsPlayer(queueCommand)
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("IRC Dodge: Sending queue command (repeat)")
+                        }
+                    } else {
+                        // Stop repeating when game starts
+                        queueRepeatTimer?.cancel()
+                        queueRepeatTimer = null
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("IRC Dodge: Stopped queue command repeat (game started)")
+                        }
+                    }
+                }, RandomUtil.randomIntInRange(100, 300), 1000) // Initial delay, then every 1000ms
+                
                 return true
             }
         }
