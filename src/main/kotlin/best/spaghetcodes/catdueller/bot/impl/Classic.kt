@@ -99,14 +99,32 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
     /** Flag indicating bow counter-attack is in progress. */
     private var bowCounterAttackActive = false
 
+    /** Flag indicating arrow dodging is currently active. */
+    private var isDodgingArrow = false
+
+    /** Timer for switching between forward and backward movement during arrow dodge. */
+    private var dodgeMovementTimer: java.util.Timer? = null
+
+    /** Current dodge movement direction: true=forward, false=backward. */
+    private var dodgeMovingForward = true
+
     /** Previous tick's opponent bow drawing state. */
     private var lastTickOpponentDrawingBow = false
 
     /** Timestamp when opponent started drawing bow. */
     private var opponentBowStartTime = 0L
 
+    /** Timestamp when opponent stopped drawing bow. */
+    private var opponentBowStopTime = 0L
+
     /** Flag to prevent multiple scheduling of blocking end. */
     private var blockingEndScheduled = false
+
+    /** Timestamp when dodge arrow last ended for cooldown tracking. */
+    private var lastDodgeArrowEndTime = 0L
+
+    /** Timestamp when dodge arrow started for timeout tracking. */
+    private var dodgeArrowStartTime = 0L
 
     /** Previous tick's distance to opponent. */
     private var lastOpponentDistance = 0f
@@ -142,12 +160,22 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         lastRetreatEndTime = 0L
         bowCounterAttackActive = false
         opponentBowStartTime = 0L
+        opponentBowStopTime = 0L
         blockingEndScheduled = false
         lastWeaponSwitchTime = 0
         lastOpponentDistance = 0f
         isOpponentApproaching = false
         movementPausedForApproach = false
         lastRodHitTime = 0L
+        lastDodgeArrowEndTime = 0L
+        dodgeArrowStartTime = 0L
+
+        // Reset Dodge Arrow state
+        isDodgingArrow = false
+        dodgeMovementTimer?.cancel()
+        dodgeMovementTimer = null
+        dodgeMovingForward = true
+        Mouse.setDodgingArrow(false)
 
         Movement.startSprinting()
         Movement.startForward()
@@ -163,6 +191,13 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
         shotsFired = 0
         shouldHoldLeftClick = false
+
+        // Clean up Dodge Arrow state
+        isDodgingArrow = false
+        dodgeMovementTimer?.cancel()
+        dodgeMovementTimer = null
+        dodgeMovingForward = true
+        Mouse.setDodgingArrow(false)
 
         cleanupGameResources()
 
@@ -211,6 +246,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
         bowCounterAttackActive = false
         opponentBowStartTime = 0L
+        opponentBowStopTime = 0L
         blockingEndScheduled = false
 
         rodHitDistance = 0f
@@ -419,15 +455,143 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             } else if (lastTickOpponentDrawingBow && !opponentIsDrawingBow) {
                 // Opponent stopped drawing bow (fired arrow)
                 opponentBowStartTime = 0L  // Reset bow start time
+                opponentBowStopTime = System.currentTimeMillis()  // Record when opponent stopped drawing bow
 
                 if (CatDueller.config?.combatLogs == true) {
-                    ChatUtil.combatInfo("Opponent stopped drawing bow")
+                    ChatUtil.combatInfo("Opponent stopped drawing bow - recorded stop time for Dodge Arrow delay")
+                }
+            }
+
+            // Dodge Arrow logic
+            val distance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
+            val cooldownRemaining = if (lastDodgeArrowEndTime > 0) {
+                500 - (currentTime - lastDodgeArrowEndTime)
+            } else {
+                0
+            }
+            val isOnCooldown = cooldownRemaining > 0
+            
+            val shouldDodgeArrow = CatDueller.config?.dodgeArrow == true && 
+                                   opponentIsDrawingBow && 
+                                   distance > 8f &&
+                                   !isOnCooldown
+
+            // Check if we should stop dodging with delay
+            val shouldStopDodging = if (isDodgingArrow) {
+                val dodgeArrowDuration = currentTime - dodgeArrowStartTime
+                
+                // Check for 3-second timeout first
+                if (dodgeArrowDuration >= 3000) {
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("Dodge Arrow: 3秒超時，自動結束閃避")
+                    }
+                    true
+                } else if (!opponentIsDrawingBow && distance > 6f && opponentBowStopTime > 0) {
+                    // If opponent stopped drawing bow and distance > 6, wait 500ms before stopping
+                    currentTime - opponentBowStopTime >= 500
+                } else if (!opponentIsDrawingBow && distance <= 6f) {
+                    // If distance <= 6, stop immediately when opponent stops drawing
+                    true
+                } else if (distance <= 6f) {
+                    // If distance becomes <= 6, stop immediately regardless of bow state
+                    true
+                } else {
+                    // Continue dodging if opponent is still drawing bow
+                    false
+                }
+            } else {
+                false
+            }
+
+            if (shouldDodgeArrow && !isDodgingArrow) {
+                // Check if we should complete our current bow usage before dodging
+                val shouldCompleteOurBow = Mouse.isUsingProjectile() && isUsingBow && 
+                                          (System.currentTimeMillis() - ourBowStartTime) > 500 // If we've been drawing for more than 500ms
+                
+                if (shouldCompleteOurBow) {
+                    // Delay dodge arrow until we finish our bow shot
+                    if (CatDueller.config?.combatLogs == true) {
+                        val drawTime = System.currentTimeMillis() - ourBowStartTime
+                        ChatUtil.combatInfo("Dodge Arrow: Delaying dodge - completing our bow shot (drawn for ${drawTime}ms)")
+                    }
+                    // Don't start dodging yet, let the bow shot complete
+                } else {
+                    // Start dodging arrows immediately
+                    isDodgingArrow = true
+                    Mouse.setDodgingArrow(true)
+                    dodgeArrowStartTime = System.currentTimeMillis()  // Record start time for timeout
+                    
+                    // Stop all strafe movements
+                    Combat.stopRandomStrafe()
+                    Movement.clearLeftRight()
+                    hurtStrafeDirection = 0  // Cancel any active hurt strafe
+                    
+                    // Stop any ongoing bow or rod usage
+                    if (Mouse.isUsingProjectile()) {
+                        Mouse.setUsingProjectile(false)
+                        if (isUsingBow) {
+                            isUsingBow = false
+                            bowCounterAttackActive = false
+                            if (CatDueller.config?.combatLogs == true) {
+                                val drawTime = System.currentTimeMillis() - ourBowStartTime
+                                ChatUtil.combatInfo("Dodge Arrow: Interrupted bow usage (drawn for ${drawTime}ms < 500ms)")
+                            }
+                        }
+                        // Interrupt rod usage
+                        immediateRetractRod()
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("Dodge Arrow: Interrupted rod usage")
+                        }
+                    }
+                    
+                    // Switch to sword for safety
+                    Inventory.setInvItem("sword")
+                    Mouse.rClickUp()
+                    
+                    // Start movement switching timer (300-1000ms intervals)
+                    startDodgeMovementTimer()
+                    
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("Dodge Arrow: Started dodging - opponent drawing bow at distance $distance, all strafe cancelled")
+                    }
+                }
+            } else if (shouldStopDodging) {
+                // Stop dodging arrows
+                isDodgingArrow = false
+                Mouse.setDodgingArrow(false)
+                
+                // Record dodge arrow end time for cooldown
+                lastDodgeArrowEndTime = System.currentTimeMillis()
+                
+                // Cancel movement timer
+                dodgeMovementTimer?.cancel()
+                dodgeMovementTimer = null
+                
+                // Resume normal movement
+                Movement.stopBackward()
+                if (!tapping) {
+                    Movement.startForward()
+                }
+                
+                if (CatDueller.config?.combatLogs == true) {
+                    val dodgeArrowDuration = System.currentTimeMillis() - dodgeArrowStartTime
+                    val reason = if (dodgeArrowDuration >= 3000) {
+                        "3秒超時自動結束"
+                    } else if (!opponentIsDrawingBow && distance > 6f && opponentBowStopTime > 0) {
+                        "敵人停止拉弓後500ms延遲結束 (距離 > 6)"
+                    } else if (!opponentIsDrawingBow && distance <= 6f) {
+                        "敵人停止拉弓立即結束 (距離 <= 6)"
+                    } else if (distance <= 6f) {
+                        "距離變近立即結束 (<= 6格)"
+                    } else {
+                        "條件不再滿足"
+                    }
+                    ChatUtil.combatInfo("Dodge Arrow: 停止閃避 - $reason (持續時間: ${dodgeArrowDuration}ms)")
                 }
             }
 
             // Start arrow blocking after 700ms of opponent drawing bow
             // But only if distance is greater than 6 blocks (close range doesn't need blocking)
-            val distance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
             if (CatDueller.config?.enableArrowBlocking == true && opponentIsDrawingBow && opponentBowStartTime > 0 &&
                 currentTime - opponentBowStartTime >= 500 && !Mouse.isBlockingArrow() && distance > 6f
             ) {
@@ -611,9 +775,16 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
         if (mc.thePlayer != null) {
             // Then check for block in front (always check, even when dodging)
-            if (WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && mc.thePlayer.onGround) {
+            // But don't jump during Dodge Arrow - let the dodge movement handle obstacles
+            if (WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && mc.thePlayer.onGround && !isDodgingArrow) {
                 needJump = true
                 Movement.singleJump(RandomUtil.randomIntInRange(150, 250))
+            } else if (WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && isDodgingArrow) {
+                // During Dodge Arrow, just set needJump flag but don't actually jump
+                needJump = true
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Block detected during Dodge Arrow - jump suppressed")
+                }
             }
         }
 
@@ -735,24 +906,42 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 // Use opponentIsDrawingBow for more accurate dodge detection
                 if (opponentIsDrawingBow) {
                     isDodging = true
-                    if (!EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!) && !needJump && !rodHitNeedJump) {
+                    if (!EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!) && !needJump && !rodHitNeedJump && !isDodgingArrow) {
                         Movement.stopJumping()
                         if (CatDueller.config?.combatLogs == true) {
                             ChatUtil.combatInfo("Dodge: Opponent drawing bow - stopping jump")
                         }
-                    } else {
+                    } else if (!isDodgingArrow) {
                         Movement.startJumping()
                         if (CatDueller.config?.combatLogs == true) {
                             ChatUtil.combatInfo("Dodge: Opponent drawing bow - continuing jump (facing away or needJump or rodHitNeedJump)")
                         }
+                    } else {
+                        // Dodge Arrow is active - stop jumping
+                        Movement.stopJumping()
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("Dodge: Stopping jump - Dodge Arrow active")
+                        }
                     }
-                } else {
+                } else if (!isDodgingArrow) {
                     Movement.startJumping()
                     isDodging = false
+                } else {
+                    // Dodge Arrow is active - stop jumping
+                    Movement.stopJumping()
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("Dodge: Stopping jump - Dodge Arrow active (no opponent bow)")
+                    }
                 }
             } else {
-                if (needJump || rodHitNeedJump) {
+                if ((needJump || rodHitNeedJump) && !isDodgingArrow) {
                     Movement.startJumping()
+                } else if (isDodgingArrow) {
+                    // Dodge Arrow is active - stop jumping
+                    Movement.stopJumping()
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("Dodge: Stopping jump - Dodge Arrow active (close range)")
+                    }
                 } else {
                     Movement.stopJumping()
                 }
@@ -817,7 +1006,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     }
                     ChatUtil.combatInfo(retreatReason)
                 }
-            } else {
+            } else if(!isDodgingArrow){
                 Movement.stopBackward()  // Stop retreating when not needed
 
                 // Reset retreat state if conditions no longer met OR if distance is outside retreat range
@@ -925,7 +1114,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             }
 
 
-            if ((shouldUseDefensiveRod || shouldUseOffensiveRod) && !Mouse.isUsingProjectile() && !Mouse.isBlockingArrow() && !shouldAvoidRodDueToCloseRangeBow) {
+            if ((shouldUseDefensiveRod || shouldUseOffensiveRod) && !Mouse.isUsingProjectile() && !Mouse.isBlockingArrow() && !shouldAvoidRodDueToCloseRangeBow && !isDodgingArrow) {
                 if (CatDueller.config?.combatLogs == true) {
                     val rodType = if (shouldUseDefensiveRod) "defensive" else "offensive"
                     val rangeInfo = if (distance in rodDistance2Min..rodDistance2Max) "Range2" else "Range1"
@@ -939,18 +1128,16 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     )
                 }
                 useRodWithTracking(shouldUseDefensiveRod)  // Pass true if defensive, false if offensive
-            } else if ((shouldUseDefensiveRod || shouldUseOffensiveRod) && shouldAvoidRodDueToCloseRangeBow) {
-                // Debug: explain why rod usage is skipped due to close range + opponent drawing bow
+            } else if ((shouldUseDefensiveRod || shouldUseOffensiveRod) && (shouldAvoidRodDueToCloseRangeBow || isDodgingArrow)) {
+                // Debug: explain why rod usage is skipped due to close range + opponent drawing bow or dodge arrow
                 if (CatDueller.config?.combatLogs == true) {
                     val rodType = if (shouldUseDefensiveRod) "defensive" else "offensive"
-                    ChatUtil.combatInfo(
-                        "Rod usage skipped ($rodType) - close range (${
-                            String.format(
-                                "%.1f",
-                                distance
-                            )
-                        } blocks ≤ 6) + opponent drawing bow"
-                    )
+                    val reason = if (shouldAvoidRodDueToCloseRangeBow) {
+                        "close range (${String.format("%.1f", distance)} blocks ≤ 6) + opponent drawing bow"
+                    } else {
+                        "dodge arrow active"
+                    }
+                    ChatUtil.combatInfo("Rod usage skipped ($rodType) - $reason")
                 }
             }
 
@@ -1067,7 +1254,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             if ((situation1 || situation2 || situation3 || situation4) && !Mouse.isBlockingArrow()) {
                 val canUseBow = if (situation1) {
                     // Situation 1: Start bow usage if not already active
-                    val canStart = distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows
+                    val canStart = distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows && !isDodgingArrow
 
                     if (canStart && !bowCounterAttackActive) {
                         bowCounterAttackActive = true
@@ -1080,7 +1267,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 } else if (situation2) {
                     // Situation 2: Start bow usage if not already active (requires opponentUsedBow)
                     val canStart =
-                        distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows && opponentUsedBow
+                        distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows && opponentUsedBow && !isDodgingArrow
 
                     if (canStart && !bowCounterAttackActive) {
                         bowCounterAttackActive = true
@@ -1092,7 +1279,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     canStart || (bowCounterAttackActive && Mouse.isUsingProjectile())
                 } else if (situation3) {
                     // Situation 3: Start bow usage if not already active
-                    val canStart = !Mouse.isUsingProjectile() && shotsFired < maxArrows
+                    val canStart = !Mouse.isUsingProjectile() && shotsFired < maxArrows && !isDodgingArrow
 
                     if (canStart && !bowCounterAttackActive) {
                         bowCounterAttackActive = true
@@ -1104,7 +1291,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     canStart || (bowCounterAttackActive && Mouse.isUsingProjectile())
                 } else run {
                     // Situation 4: Start bow usage if not already active
-                    val canStart = !Mouse.isUsingProjectile() && shotsFired < maxArrows
+                    val canStart = !Mouse.isUsingProjectile() && shotsFired < maxArrows && !isDodgingArrow
 
                     if (canStart && !bowCounterAttackActive) {
                         bowCounterAttackActive = true
@@ -1119,6 +1306,8 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 if (CatDueller.config?.combatLogs == true) {
                     if (opponentIsDrawingBow && !bowCounterAttackActive) {
                         ChatUtil.combatInfo("Bow usage waiting - opponent is drawing bow")
+                    } else if (isDodgingArrow) {
+                        ChatUtil.combatInfo("Bow usage blocked - dodge arrow active")
                     }
                 }
 
@@ -1141,6 +1330,35 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                                 ChatUtil.combatInfo("Bow counter-attack completed - reset flag")
                             }
                         }
+                        
+                        // Check if we need to start Dodge Arrow after completing our bow shot
+                        val currentDistance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
+                        val shouldStartDodgeArrow = CatDueller.config?.dodgeArrow == true && 
+                                                   opponentIsDrawingBow && 
+                                                   currentDistance > 6f &&
+                                                   !isDodgingArrow
+                        
+                        if (shouldStartDodgeArrow) {
+                            isDodgingArrow = true
+                            Mouse.setDodgingArrow(true)
+                            dodgeArrowStartTime = System.currentTimeMillis()  // Record start time for timeout
+                            
+                            // Stop all strafe movements
+                            Combat.stopRandomStrafe()
+                            Movement.clearLeftRight()
+                            hurtStrafeDirection = 0  // Cancel any active hurt strafe
+                            
+                            // Switch to sword for safety
+                            Inventory.setInvItem("sword")
+                            Mouse.rClickUp()
+                            
+                            // Start movement switching timer
+                            startDodgeMovementTimer()
+                            
+                            if (CatDueller.config?.combatLogs == true) {
+                                ChatUtil.combatInfo("Dodge Arrow: Started dodging after completing bow shot - opponent still drawing at distance $currentDistance, all strafe cancelled")
+                            }
+                        }
                     })
                 } else {
                     clear = false
@@ -1159,7 +1377,8 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     }
                 } else {
                     // Distance <= 8.8: Always use random strafe regardless of opponent's weapon or state
-                    if (distance <= 11.0f) {
+                    // But disable all strafe during Dodge Arrow
+                    if (distance <= 11.0f && !isDodgingArrow) {
                         randomStrafe = true
                         if (!needJump && !rodHitNeedJump) {
                             Movement.stopJumping()
@@ -1175,12 +1394,20 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                                 } blocks (≤ 8.8)"
                             )
                         }
-                    } else if (distance in 15f..8.8f) {
+                    } else if (distance in 15f..8.8f && !isDodgingArrow) {
                         randomStrafe = true
+                    } else if (isDodgingArrow) {
+                        // Dodge Arrow is active - stop jumping and disable strafe
+                        randomStrafe = false
+                        Movement.stopJumping()
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("Random strafe disabled and jumping stopped - Dodge Arrow active")
+                        }
                     } else {
                         randomStrafe = false
                         // Dodge strafe when opponent is drawing bow, has rod, or when we're in dodge mode
-                        if (opponent() != null) {
+                        // But disable all strafe during Dodge Arrow
+                        if (opponent() != null && !isDodgingArrow) {
                             val hasRod =
                                 opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase()
                                     .contains("rod")
@@ -1188,14 +1415,22 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                             // Use opponentIsDrawingBow for more accurate detection
                             if (hasRod || opponentIsDrawingBow || isDodging) {
                                 randomStrafe = true
-                                if (distance < 15 && !needJump && !rodHitNeedJump) {
+                                if (distance < 15 && !needJump && !rodHitNeedJump && !isDodgingArrow) {
                                     Movement.stopJumping()
+                                } else if (isDodgingArrow) {
+                                    // Dodge Arrow is active - stop jumping
+                                    Movement.stopJumping()
+                                    if (CatDueller.config?.combatLogs == true) {
+                                        ChatUtil.combatInfo("Dodge strafe jumping stopped - Dodge Arrow active")
+                                    }
                                 }
 
                                 if (CatDueller.config?.combatLogs == true && (opponentIsDrawingBow || isDodging)) {
                                     ChatUtil.combatInfo("Dodge strafe activated - opponent drawing bow: $opponentIsDrawingBow, dodging: $isDodging")
                                 }
                             }
+                        } else if (isDodgingArrow && CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("All strafe disabled - Dodge Arrow active")
                         }
 
                     }
@@ -1220,7 +1455,8 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             val currentHurtTime = player?.hurtTime ?: 0
 
             // Check for hurt strafe activation (at hurtTime = 4, which is 400ms after hit)
-            if (currentHurtTime == 4 && CatDueller.config?.hurtStrafe == true) {
+            // But disable hurt strafe during Dodge Arrow
+            if (currentHurtTime == 4 && CatDueller.config?.hurtStrafe == true && !isDodgingArrow) {
                 // Always activate hurt strafe - decide direction randomly
                 hurtStrafeDirection = decideRandomStrafeDirection()
 
@@ -1228,14 +1464,17 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 TimerUtil.setTimeout({
                     hurtStrafeDirection = 0
                 }, 400)
+            } else if (currentHurtTime == 4 && isDodgingArrow && CatDueller.config?.combatLogs == true) {
+                ChatUtil.combatInfo("Hurt strafe blocked - Dodge Arrow active")
             }
 
             // Check if hurt strafe is active
             val hasActiveHurtStrafe = hurtStrafeDirection != 0 &&
                     opponent() != null &&
-                    mc.thePlayer != null
+                    mc.thePlayer != null &&
+                    !isDodgingArrow  // Disable hurt strafe during Dodge Arrow
 
-            // HURT STRAFE HAS THE HIGHEST PRIORITY - but consider walls
+            // HURT STRAFE HAS THE HIGHEST PRIORITY - but consider walls and Dodge Arrow
             if (hasActiveHurtStrafe) {
                 // Force execute hurt strafe but avoid walls
                 Combat.stopRandomStrafe()
@@ -1298,11 +1537,13 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 }
             }
 
-            // Check if hurt strafe is active - if so, skip handle() to avoid being overridden
-            if (!hasActiveHurtStrafe) {
+            // Check if hurt strafe or Dodge Arrow is active - if so, skip handle() to avoid being overridden
+            if (!hasActiveHurtStrafe && !isDodgingArrow) {
                 handle(clear, randomStrafe, movePriority)
+            } else if (isDodgingArrow && CatDueller.config?.combatLogs == true) {
+                ChatUtil.combatInfo("Skipping handle() - Dodge Arrow movement takes priority")
             }
-            // If hurt strafe is active, movement is already handled above, skip handle()
+            // If hurt strafe or Dodge Arrow is active, movement is already handled above, skip handle()
         }
     }
 
@@ -1314,5 +1555,150 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
     private fun decideRandomStrafeDirection(): Int {
         return if (RandomUtil.randomBool()) 1 else 2
     }
+
+    /**
+     * Checks if there's a wall in the forward or backward direction.
+     * @param forward True to check forward, false to check backward
+     * @return True if there's a wall in that direction
+     */
+    private fun hasWallInMovementDirection(forward: Boolean): Boolean {
+        val player = mc.thePlayer ?: return false
+        val yawOffset = if (forward) 0f else 180f
+        val lookVec = EntityUtil.get2dLookVec(player).rotateYaw(yawOffset)
+        val checkPos = player.position.add(lookVec.xCoord * 1.5, 0.0, lookVec.zCoord * 1.5)
+        val block = mc.theWorld.getBlockState(checkPos).block
+        return block != Blocks.air
+    }
+
+    /**
+     * Switches the dodge arrow movement direction based on wall detection.
+     */
+    private fun switchDodgeMovement() {
+        if (!isDodgingArrow) return
+        
+        val hasWallForward = hasWallInMovementDirection(true)
+        val hasWallBackward = hasWallInMovementDirection(false)
+        
+        if (dodgeMovingForward) {
+            // Currently moving forward, check if we should switch to backward
+            if (hasWallForward && !hasWallBackward) {
+                // Wall in front, switch to backward
+                Movement.stopForward()
+                Movement.startBackward()
+                dodgeMovingForward = false
+                
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 前方有方塊，切換到後退")
+                }
+            } else if (!hasWallForward && !hasWallBackward) {
+                // No walls, normal switch to backward
+                Movement.stopForward()
+                Movement.startBackward()
+                dodgeMovingForward = false
+                
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 正常切換到後退")
+                }
+            } else if (hasWallForward && hasWallBackward) {
+                // Walls in both directions, stay forward but log warning
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 前後都有方塊，保持前進")
+                }
+            }
+            // If hasWallBackward && !hasWallForward, continue forward (don't switch)
+        } else {
+            // Currently moving backward, check if we should switch to forward
+            if (hasWallBackward && !hasWallForward) {
+                // Wall behind, switch to forward
+                Movement.stopBackward()
+                Movement.startForward()
+                dodgeMovingForward = true
+                
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 後方有方塊，切換到前進")
+                }
+            } else if (!hasWallForward && !hasWallBackward) {
+                // No walls, normal switch to forward
+                Movement.stopBackward()
+                Movement.startForward()
+                dodgeMovingForward = true
+                
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 正常切換到前進")
+                }
+            } else if (hasWallForward && hasWallBackward) {
+                // Walls in both directions, stay backward but log warning
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 前後都有方塊，保持後退")
+                }
+            }
+            // If hasWallForward && !hasWallBackward, continue backward (don't switch)
+        }
+    }
+
+    /**
+     * Starts the dodge movement timer that switches between forward and backward movement.
+     * Timer interval is randomized between 300-1000ms.
+     * Includes wall detection to avoid moving into blocks.
+     */
+    private fun startDodgeMovementTimer() {
+        dodgeMovementTimer?.cancel() // Cancel any existing timer
+        
+        // Start with initial movement, check for walls first
+        val hasWallForward = hasWallInMovementDirection(true)
+        val hasWallBackward = hasWallInMovementDirection(false)
+        
+        if (dodgeMovingForward && !hasWallForward) {
+            Movement.startForward()
+        } else if (!dodgeMovingForward && !hasWallBackward) {
+            Movement.startBackward()
+        } else if (dodgeMovingForward && hasWallForward && !hasWallBackward) {
+            // Switch to backward if forward is blocked
+            dodgeMovingForward = false
+            Movement.startBackward()
+            if (CatDueller.config?.combatLogs == true) {
+                ChatUtil.combatInfo("Dodge Arrow: 初始前進被阻擋，改為後退")
+            }
+        } else if (!dodgeMovingForward && hasWallBackward && !hasWallForward) {
+            // Switch to forward if backward is blocked
+            dodgeMovingForward = true
+            Movement.startForward()
+            if (CatDueller.config?.combatLogs == true) {
+                ChatUtil.combatInfo("Dodge Arrow: 初始後退被阻擋，改為前進")
+            }
+        } else {
+            // Both directions blocked or no walls, proceed with original direction
+            if (dodgeMovingForward) {
+                Movement.startForward()
+            } else {
+                Movement.startBackward()
+            }
+        }
+        
+        // Create timer and start immediately
+        dodgeMovementTimer = java.util.Timer("DodgeMovementTimer", true)
+        
+        // Start first movement switch immediately, then schedule random intervals
+        scheduleNextMovementSwitch()
+    }
+    
+    /**
+     * Schedules the next movement switch with a random delay.
+     * This creates a recursive scheduling pattern for truly random intervals.
+     */
+    private fun scheduleNextMovementSwitch() {
+        if (!isDodgingArrow || dodgeMovementTimer == null) return
+        
+        val nextDelay = RandomUtil.randomIntInRange(300, 1000).toLong()
+        dodgeMovementTimer?.schedule(object : java.util.TimerTask() {
+            override fun run() {
+                if (isDodgingArrow) {
+                    switchDodgeMovement()
+                    scheduleNextMovementSwitch() // Recursively schedule next switch
+                }
+            }
+        }, nextDelay)
+    }
+    
 
 }

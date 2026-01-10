@@ -20,6 +20,7 @@ object KeyBindings {
      * Default key: Semicolon (;)
      */
     val toggleBotKeyBinding = KeyBinding("cat.toggleBot", Keyboard.KEY_SEMICOLON, "category.cat")
+    val configGuiKeyBinding = KeyBinding("cat.configGui", Keyboard.KEY_RSHIFT, "category.cat")
 
     /**
      * Registers all key bindings with the Forge client registry.
@@ -27,5 +28,6 @@ object KeyBindings {
      */
     fun register() {
         ClientRegistry.registerKeyBinding(toggleBotKeyBinding)
+        ClientRegistry.registerKeyBinding(configGuiKeyBinding)
     }
 }

@@ -62,6 +62,12 @@ object Mouse {
     /** Whether the player is currently blocking an incoming arrow. */
     private var _blockingArrow = false
 
+    /** Whether the player is currently dodging arrows. */
+    private var _dodgingArrow = false
+
+    /** Target yaw for arrow dodging. */
+    private var dodgeArrowTargetYaw = 0f
+
     /** Remaining ticks to hold the left click. */
     private var leftClickDur = 0
 
@@ -279,6 +285,35 @@ object Mouse {
      */
     fun isBlockingArrow(): Boolean {
         return _blockingArrow
+    }
+
+    /**
+     * Sets whether the player is currently dodging arrows.
+     * @param dodging True if dodging arrows, false otherwise.
+     */
+    fun setDodgingArrow(dodging: Boolean) {
+        _dodgingArrow = dodging
+        if (dodging) {
+            // Set random dodge direction (left or right 90 degrees)
+            val currentYaw = CatDueller.mc.thePlayer?.rotationYaw ?: 0f
+            val randomDirection = if (RandomUtil.randomIntInRange(1, 2) == 1) 90f else -90f
+            dodgeArrowTargetYaw = currentYaw + randomDirection
+            
+            if (CatDueller.config?.combatLogs == true) {
+                ChatUtil.combatInfo("Dodge Arrow: Started dodging - turning ${if (randomDirection > 0) "left" else "right"} 90 degrees")
+            }
+        } else {
+            if (CatDueller.config?.combatLogs == true) {
+                ChatUtil.combatInfo("Dodge Arrow: Stopped dodging")
+            }
+        }
+    }
+
+    /**
+     * Returns whether the player is currently dodging arrows.
+     */
+    fun isDodgingArrow(): Boolean {
+        return _dodgingArrow
     }
 
     /**
@@ -532,12 +567,43 @@ object Mouse {
 
     /**
      * Applies aim rotations immediately toward the opponent.
-     * Handles special cases for running away, potion usage, and projectile aiming.
+     * Handles special cases for running away, potion usage, projectile aiming, and arrow dodging.
      * Uses smooth rotation with distance and angle-based speed adjustments.
      */
     private fun applyRotationsImmediate() {
         if (_runningAway) {
             _usingProjectile = false
+        }
+
+        // Handle Dodge Arrow rotation - takes priority over normal tracking
+        if (_dodgingArrow) {
+            val player = CatDueller.mc.thePlayer ?: return
+            val currentYaw = player.rotationYaw
+            
+            // Calculate yaw difference to target dodge direction
+            var yawDiff = dodgeArrowTargetYaw - currentYaw
+            while (yawDiff > 180) yawDiff -= 360
+            while (yawDiff < -180) yawDiff += 360
+            
+            // Apply smooth rotation toward dodge direction
+            val maxRotSpeed = 15.0f // Fast rotation for dodging
+            val dyaw = if (abs(yawDiff) > maxRotSpeed) {
+                if (yawDiff > 0) maxRotSpeed else -maxRotSpeed
+            } else {
+                yawDiff
+            }
+            
+            // Keep pitch level for dodging
+            val dpitch = -player.rotationPitch * 0.3f // Gradually level pitch
+            
+            player.rotationYaw += dyaw
+            player.rotationPitch += dpitch
+            
+            if (CatDueller.config?.combatLogs == true && abs(dyaw) > 0.1f) {
+                ChatUtil.combatInfo("Dodge Arrow rotation - dyaw: ${String.format("%.2f", dyaw)}, target: ${String.format("%.2f", dodgeArrowTargetYaw)}")
+            }
+            
+            return // Skip normal tracking when dodging arrows
         }
 
         var rotations = EntityUtil.getRotations(CatDueller.mc.thePlayer, CatDueller.bot?.opponent(), false)

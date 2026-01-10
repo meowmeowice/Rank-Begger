@@ -253,7 +253,7 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
         name = "Max Attack Distance",
         description = "How close the opponent has to be before the bot starts attacking them",
         category = "Combat",
-        min = 5,
+        min = 3,
         max = 15,
         increment = 1
     )
@@ -517,6 +517,14 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
         category = "Classic"
     )
     val enableArrowBlocking = true
+
+    @Property(
+        type = PropertyType.SWITCH,
+        name = "Dodge Arrows",
+        description = "When opponent is drawing bow and distance > 6 blocks, randomly turn 90 degrees and move forward/backward",
+        category = "Classic"
+    )
+    val dodgeArrow = false
 
     @Property(
         type = PropertyType.SWITCH,
