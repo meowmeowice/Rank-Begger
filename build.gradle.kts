@@ -108,6 +108,7 @@ tasks {
         destinationDirectory.set(layout.buildDirectory.dir("intermediates"))
         archiveClassifier.set("non-obfuscated-with-deps")
         configurations = listOf(shade)
+        exclude("fabric.mod.json")
 
         doLast {
             configurations.forEach {
@@ -115,7 +116,7 @@ tasks {
             }
         }
 
-        fun relocate(name: String) = relocate(name, "org.afterlike.lucid.lib.$name")
+        fun relocate(name: String) = relocate(name, "org.afterlike.catdueller.lib.$name")
         relocate("gg.essential.vigilance")
         relocate("gg.essential.elementa")
         relocate("gg.essential.universalcraft")
