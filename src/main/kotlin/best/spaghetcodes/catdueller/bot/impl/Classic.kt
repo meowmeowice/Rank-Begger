@@ -170,6 +170,12 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         lastDodgeArrowEndTime = 0L
         dodgeArrowStartTime = 0L
 
+        // Reset W-tap state
+        tapping = false
+        wTapStartTime = 0L
+        wTapRecoveryTimer?.cancel()
+        wTapRecoveryTimer = null
+
         // Reset Dodge Arrow state
         isDodgingArrow = false
         dodgeMovementTimer?.cancel()
@@ -198,6 +204,12 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         dodgeMovementTimer = null
         dodgeMovingForward = true
         Mouse.setDodgingArrow(false)
+
+        // Clean up W-tap state
+        tapping = false
+        wTapStartTime = 0L
+        wTapRecoveryTimer?.cancel()
+        wTapRecoveryTimer = null
 
         cleanupGameResources()
 
@@ -241,6 +253,9 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         isUsingBow = false
         shouldRetreatUntilRodHit = false
         tapping = false
+        wTapStartTime = 0L
+        wTapRecoveryTimer?.cancel()
+        wTapRecoveryTimer = null
 
         lastRetreatEndTime = 0L
 
@@ -264,6 +279,12 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
     /** Flag indicating W-tap is currently active. */
     var tapping = false
+
+    /** Timestamp when W-tap started for early recovery detection. */
+    private var wTapStartTime = 0L
+
+    /** Timer reference for W-tap recovery to allow early cancellation. */
+    private var wTapRecoveryTimer: java.util.Timer? = null
 
     /**
      * Uses the fishing rod with additional tracking and jump scheduling.
@@ -376,6 +397,20 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         super.onTick()
         var needJump = false
 
+        // Check for early W-tap recovery if player gets hurt during W-tap
+        if (tapping && wTapStartTime > 0 && mc.thePlayer != null) {
+            val currentHurtTime = mc.thePlayer.hurtTime
+            if (currentHurtTime > 0) {
+                // Player got hurt during W-tap, immediately recover forward movement
+                wTapRecoveryTimer?.cancel()
+                wTapRecoveryTimer = null
+                Movement.startForward()
+                tapping = false
+                val wTapDuration = System.currentTimeMillis() - wTapStartTime
+                wTapStartTime = 0L
+            }
+        }
+
         if (mc.thePlayer != null && opponent() != null) {
             // Check for rod hit via opponent's hurtTime change
             val opponentCurrentHurtTime = opponent()!!.hurtTime
@@ -415,13 +450,36 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 // W-Tap logic for rod hit - only when distance < 4.0 blocks and not during rod jump
                 if (!tapping && CatDueller.config?.enableWTap == true && distance < 4.0f && !rodHitNeedJump) {
                     tapping = true
+                    wTapStartTime = System.currentTimeMillis()
                     val delay = CatDueller.config?.wTapDelay ?: 100
+                    
                     TimerUtil.setTimeout(fun() {
                         val dur = 300  // Rod W-Tap duration
-                        Combat.wTap(dur)
-                        TimerUtil.setTimeout(fun() {
-                            tapping = false
-                        }, dur)
+                        
+                        // Start W-tap (stop forward movement)
+                        Movement.stopForward()
+                        
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("Rod W-Tap started - will recover in ${dur}ms or when hurt")
+                        }
+                        
+                        // Schedule recovery with cancellable timer
+                        wTapRecoveryTimer = java.util.Timer("WTapRecovery", true)
+                        wTapRecoveryTimer?.schedule(object : java.util.TimerTask() {
+                            override fun run() {
+                                if (tapping) {
+                                    Movement.startForward()
+                                    tapping = false
+                                    wTapStartTime = 0L
+                                    wTapRecoveryTimer = null
+                                    
+                                    if (CatDueller.config?.combatLogs == true) {
+                                        ChatUtil.combatInfo("Rod W-Tap completed normally after ${dur}ms")
+                                    }
+                                }
+                            }
+                        }, dur.toLong())
+                        
                     }, delay)
                 } else if (CatDueller.config?.combatLogs == true && CatDueller.config?.enableWTap == true) {
                     val reason = when {
@@ -775,17 +833,10 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
         if (mc.thePlayer != null) {
             // Then check for block in front (always check, even when dodging)
-            // But don't jump during Dodge Arrow - let the dodge movement handle obstacles
-            if (WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && mc.thePlayer.onGround && !isDodgingArrow) {
+            if ((WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air || WorldUtil.blockInFront(mc.thePlayer, 1f, 0.5f) != Blocks.air) && mc.thePlayer.onGround) {
                 needJump = true
                 Movement.singleJump(RandomUtil.randomIntInRange(150, 250))
-            } else if (WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air && isDodgingArrow) {
-                // During Dodge Arrow, just set needJump flag but don't actually jump
-                needJump = true
-                if (CatDueller.config?.combatLogs == true) {
-                    ChatUtil.combatInfo("Block detected during Dodge Arrow - jump suppressed")
-                }
-            }
+            } 
         }
 
         if (opponent() != null && mc.theWorld != null && mc.thePlayer != null) {
