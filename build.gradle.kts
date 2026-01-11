@@ -64,7 +64,7 @@ dependencies {
 
     shade(kotlin("stdlib-jdk8"))
     shade("gg.essential:vigilance:312")
-    modShade("gg.essential:universalcraft-1.8.9-forge:446")
+    shade("gg.essential:universalcraft-1.8.9-forge:446")
 
     shade("org.spongepowered:mixin:0.7.11-SNAPSHOT") {
         isTransitive = false
