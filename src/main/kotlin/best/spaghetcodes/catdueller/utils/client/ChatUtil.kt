@@ -13,6 +13,27 @@ import net.minecraft.util.EnumChatFormatting
 object ChatUtil {
 
     /**
+     * Strips characters that Minecraft's font renderer cannot render.
+     *
+     * Hypixel uses emojis and special Unicode characters in scoreboard text
+     * to avoid conflicts with player names. These characters have zero width
+     * in Minecraft's font renderer and should be removed for proper parsing.
+     *
+     * @param text The input string potentially containing unrenderable characters.
+     * @return The text with only renderable characters and formatting codes preserved.
+     */
+    fun stripUnrenderableChars(text: String): String {
+        val sb = StringBuilder()
+        for (c in text.toCharArray()) {
+            // Keep section symbol for formatting codes, and chars the font can render
+            if (CatDueller.mc.fontRendererObj.getCharWidth(c) > 0 || c == '§') {
+                sb.append(c)
+            }
+        }
+        return sb.toString()
+    }
+
+    /**
      * Removes Minecraft formatting codes from a string.
      *
      * Strips all section sign (paragraph symbol) formatting codes and their associated

@@ -2740,10 +2740,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             for (score in scores) {
                 val playerName = score.playerName ?: continue
                 val line = ScorePlayerTeam.formatPlayerName(scoreboard.getPlayersTeam(playerName), playerName)
-                val cleanLine = ChatUtil.removeFormatting(line).trim()
+                // Strip unrenderable chars (emojis) first, then remove formatting codes
+                val cleanLine = ChatUtil.removeFormatting(ChatUtil.stripUnrenderableChars(line)).trim()
 
-                // Use regex to match winstreak line with possible special characters
-                // Matches "Overall Winstreak" followed by any characters, then colon and number
+                // Use regex to match winstreak line
                 val winstreakPattern = Regex("Overall Winstreak.*?:\\s*(\\d+)")
                 val match = winstreakPattern.find(cleanLine)
 
@@ -2812,7 +2812,8 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             for (score in scores) {
                 val playerName = score.playerName ?: continue
                 val line = ScorePlayerTeam.formatPlayerName(scoreboard.getPlayersTeam(playerName), playerName)
-                val cleanLine = StringUtils.stripControlCodes(line).trim()
+                // Strip unrenderable chars (emojis) first, then strip control codes
+                val cleanLine = StringUtils.stripControlCodes(ChatUtil.stripUnrenderableChars(line)).trim()
 
                 val serverPattern = Regex("\\d{2}/\\d{2}/\\d{2}\\s+(.+)")
                 val match = serverPattern.find(cleanLine)
@@ -2820,7 +2821,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 if (match != null) {
                     val extractedServer = match.groupValues[1].trim()
 
-                    // Remove any emoji or special characters, keep only alphanumeric
+                    // Keep only alphanumeric characters for server ID
                     val cleanServer = extractedServer.replace(Regex("[^a-zA-Z0-9]"), "")
 
                     if (cleanServer.isNotEmpty() && cleanServer != currentServer) {
@@ -2856,7 +2857,8 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             for (score in scores) {
                 val playerName = score.playerName ?: continue
                 val line = ScorePlayerTeam.formatPlayerName(scoreboard.getPlayersTeam(playerName), playerName)
-                val cleanLine = StringUtils.stripControlCodes(line).trim()
+                // Strip unrenderable chars (emojis) first, then strip control codes
+                val cleanLine = StringUtils.stripControlCodes(ChatUtil.stripUnrenderableChars(line)).trim()
 
                 // Look for "Map: <mapname>" pattern
                 val mapPattern = Regex("Map:\\s*(.+)")
