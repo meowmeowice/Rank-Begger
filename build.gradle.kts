@@ -9,7 +9,7 @@ plugins {
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
-group = "best.spaghetcodes"
+group = "org.afterlike"
 version = "1.0.0"
 
 loom {
