@@ -53,6 +53,109 @@ object LobbyMovement {
     }
 
     /**
+     * Initiates a generic randomized movement pattern for standard arenas.
+     * Suitable for arenas with walls and minor Y-level changes.
+     * Uses recorded movement if configured, otherwise falls back to randomized generic movement.
+     */
+    fun generic() {
+        if (CatDueller.config?.useRecordedMovement == true) {
+            if (MovementRecorder.startRandomPlayback()) {
+                return
+            }
+        }
+        genericRandom()
+    }
+
+    /**
+     * Generic randomized lobby movement pattern.
+     * Features:
+     * - Randomized forward movement and sprinting (prioritized)
+     * - Reduced turning frequency for more straight-line movement
+     * - Wall detection and avoidance (turns away from obstacles)
+     * - Automatic jumping over small obstacles (1 block high)
+     * - Randomized jumping for behavior masking
+     * - Random left clicks
+     */
+    private fun genericRandom() {
+        if (CatDueller.mc.thePlayer != null) {
+            var left = RandomUtil.randomBool()
+            // Default to very low turn speed for "mostly straight" movement
+            var speed = RandomUtil.randomDoubleInRange(1.0, 3.0).toFloat()
+
+            // Initial small turn
+            tickYawChange = if (left) -speed else speed
+
+            TimerUtil.setTimeout(fun() {
+                Movement.startForward()
+                Movement.startSprinting()
+
+                // Periodic jumping for randomness and obstacle clearing
+                intervals.add(TimerUtil.setInterval(fun() {
+                    // 60% chance to jump randomly (higher chance for jump-sprinting)
+                    if (RandomUtil.randomIntInRange(0, 10) > 4) {
+                        Movement.singleJump(RandomUtil.randomIntInRange(100, 300))
+                    }
+                }, 800, RandomUtil.randomIntInRange(1500, 3000)))
+
+                // Random left clicks (swinging arm)
+                intervals.add(TimerUtil.setInterval(fun() {
+                    if (RandomUtil.randomIntInRange(0, 10) > 6) { // 40% chance
+                        CatDueller.mc.thePlayer.swingItem()
+                    }
+                }, 1000, RandomUtil.randomIntInRange(2000, 5000)))
+
+                // Direction switching and obstacle avoidance interval
+                intervals.add(TimerUtil.setInterval(fun() {
+                    // Check for walls
+                    val player = CatDueller.mc.thePlayer
+                    if (player != null) {
+                        // Check for wall at body height (1-2 blocks ahead)
+                        val wallAhead = WorldUtil.blockInFront(player, 2f, 1f) != net.minecraft.init.Blocks.air ||
+                                WorldUtil.blockInFront(player, 1f, 1f) != net.minecraft.init.Blocks.air
+
+                        if (wallAhead) {
+                            // Wall detected! Turn away immediately
+                            left = !left
+                            // Increase turn speed temporarily to avoid it
+                            speed = RandomUtil.randomDoubleInRange(15.0, 25.0).toFloat()
+                            tickYawChange = if (left) -speed else speed
+                        } else {
+                            // No wall, mostly straight movement
+                            
+                            // Very low chance to actually switch direction randomly (2%)
+                            if (RandomUtil.randomIntInRange(0, 100) < 2) { 
+                                left = !left
+                            }
+
+                            // Occasional "look around" movements, otherwise mostly straight
+                            if (speed > 5.0) {
+                                // Dampen speed back down quickly if we were turning fast
+                                speed = RandomUtil.randomDoubleInRange(1.0, 3.0).toFloat()
+                            } else {
+                                // 10% chance to do a small turn, otherwise keep it very steady
+                                if (RandomUtil.randomIntInRange(0, 100) < 10) {
+                                     speed = RandomUtil.randomDoubleInRange(2.0, 5.0).toFloat()
+                                } else {
+                                     speed = RandomUtil.randomDoubleInRange(0.5, 1.5).toFloat()
+                                }
+                            }
+                            tickYawChange = if (left) -speed else speed
+                        }
+
+                        // Check for step up (block at feet but air at head)
+                        val blockAtFeet = WorldUtil.blockInFront(player, 1f, 0.5f) != net.minecraft.init.Blocks.air
+                        val airAtHead = WorldUtil.blockInFront(player, 1f, 1.5f) == net.minecraft.init.Blocks.air
+                        if (blockAtFeet && airAtHead && player.onGround) {
+                            Movement.singleJump(100)
+                        }
+                    }
+                }, 0, 100)) // Check every 100ms
+
+            }, RandomUtil.randomIntInRange(100, 250))
+        }
+    }
+
+    /**
      * Stops all lobby movement, clears timers, and resets rotation state.
      * Also stops any recorded movement playback.
      */

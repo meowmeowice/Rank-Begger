@@ -16,6 +16,7 @@ import org.afterlike.catdueller.utils.game.WorldUtil
 import org.afterlike.catdueller.utils.system.RandomUtil
 import net.minecraft.init.Blocks
 import net.minecraft.util.Vec3
+import org.afterlike.catdueller.bot.player.LobbyMovement
 
 /**
  * Bot implementation for Classic Duels game mode.
@@ -139,6 +140,18 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
     private var lastRodHitTime = 0L
 
     /**
+     * Called when the bot joins a game lobby.
+     * Handles lobby movement and rotation setup.
+     */
+    override fun onJoinGame() {
+        super.onJoinGame()
+
+        if (CatDueller.config?.lobbyMovement == true) {
+            LobbyMovement.generic()
+        }
+    }
+
+    /**
      * Called when the game starts.
      * Resets all game-specific state variables and initiates movement.
      */
@@ -186,6 +199,14 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         Movement.startSprinting()
         Movement.startForward()
         TimerUtil.setTimeout(Movement::startJumping, RandomUtil.randomIntInRange(400, 1200))
+    }
+
+    /**
+     * Called before the game starts.
+     * Stops lobby movement.
+     */
+    override fun beforeStart() {
+        LobbyMovement.stop()
     }
 
     /**
