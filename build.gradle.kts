@@ -9,7 +9,7 @@ plugins {
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
-group = "best.spaghetcodes"
+group = "org.afterlike"
 version = "1.0.0"
 
 loom {
@@ -64,7 +64,7 @@ dependencies {
 
     shade(kotlin("stdlib-jdk8"))
     shade("gg.essential:vigilance:312")
-    modShade("gg.essential:universalcraft-1.8.9-forge:446")
+    shade("gg.essential:universalcraft-1.8.9-forge:446")
 
     shade("org.spongepowered:mixin:0.7.11-SNAPSHOT") {
         isTransitive = false
@@ -108,6 +108,7 @@ tasks {
         destinationDirectory.set(layout.buildDirectory.dir("intermediates"))
         archiveClassifier.set("non-obfuscated-with-deps")
         configurations = listOf(shade)
+        exclude("fabric.mod.json")
 
         doLast {
             configurations.forEach {
@@ -115,7 +116,7 @@ tasks {
             }
         }
 
-        fun relocate(name: String) = relocate(name, "org.afterlike.lucid.lib.$name")
+        fun relocate(name: String) = relocate(name, "org.afterlike.catdueller.lib.$name")
         relocate("gg.essential.vigilance")
         relocate("gg.essential.elementa")
         relocate("gg.essential.universalcraft")
