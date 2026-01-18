@@ -68,6 +68,15 @@ object Mouse {
     /** Target yaw for arrow dodging. */
     private var dodgeArrowTargetYaw = 0f
 
+    /** Whether the player is currently placing water at feet. */
+    private var _placingWater = false
+
+    /** Whether the player is currently placing plank at feet. */
+    private var _placingPlank = false
+
+    /** Whether the player is currently placing block at feet (water or plank). */
+    private var _placingBlockAtFeet = false
+
     /** Remaining ticks to hold the left click. */
     private var leftClickDur = 0
 
@@ -314,6 +323,53 @@ object Mouse {
      */
     fun isDodgingArrow(): Boolean {
         return _dodgingArrow
+    }
+
+    /**
+     * Sets whether the player is placing water at feet.
+     * @param placing True if placing water, false otherwise.
+     */
+    fun setPlacingWater(placing: Boolean) {
+        _placingWater = placing
+        _placingBlockAtFeet = placing
+    }
+
+    /**
+     * Returns whether the player is currently placing water.
+     */
+    fun isPlacingWater(): Boolean {
+        return _placingWater
+    }
+
+    /**
+     * Sets whether the player is placing plank at feet.
+     * @param placing True if placing plank, false otherwise.
+     */
+    fun setPlacingPlank(placing: Boolean) {
+        _placingPlank = placing
+        _placingBlockAtFeet = placing
+    }
+
+    /**
+     * Returns whether the player is currently placing plank.
+     */
+    fun isPlacingPlank(): Boolean {
+        return _placingPlank
+    }
+
+    /**
+     * Sets whether the player is placing any block at feet (water or plank).
+     * @param placing True if placing block, false otherwise.
+     */
+    fun setPlacingBlockAtFeet(placing: Boolean) {
+        _placingBlockAtFeet = placing
+    }
+
+    /**
+     * Returns whether the player is currently placing any block at feet.
+     */
+    fun isPlacingBlockAtFeet(): Boolean {
+        return _placingBlockAtFeet
     }
 
     /**
@@ -567,12 +623,39 @@ object Mouse {
 
     /**
      * Applies aim rotations immediately toward the opponent.
-     * Handles special cases for running away, potion usage, projectile aiming, and arrow dodging.
+     * Handles special cases for running away, potion usage, projectile aiming, arrow dodging, and block placement at feet.
      * Uses smooth rotation with distance and angle-based speed adjustments.
      */
     private fun applyRotationsImmediate() {
         if (_runningAway) {
             _usingProjectile = false
+        }
+
+        // Handle Block Placement at Feet rotation - takes highest priority (water or plank)
+        if (_placingBlockAtFeet) {
+            val player = CatDueller.mc.thePlayer ?: return
+            
+            // Look straight down (pitch = 90)
+            val targetPitch = 90f
+            val currentPitch = player.rotationPitch
+            val pitchDiff = targetPitch - currentPitch
+            
+            // Apply fast rotation downward
+            val maxRotSpeed = 30.0f
+            val dpitch = if (abs(pitchDiff) > maxRotSpeed) {
+                if (pitchDiff > 0) maxRotSpeed else -maxRotSpeed
+            } else {
+                pitchDiff
+            }
+            
+            player.rotationPitch += dpitch
+            
+            if (CatDueller.config?.combatLogs == true && abs(dpitch) > 0.1f) {
+                val blockType = if (_placingPlank) "Plank" else if (_placingWater) "Water" else "Block"
+                ChatUtil.combatInfo("$blockType Placement rotation - dpitch: ${String.format("%.2f", dpitch)}, target: 90°")
+            }
+            
+            return // Skip normal tracking when placing blocks at feet
         }
 
         // Handle Dodge Arrow rotation - takes priority over normal tracking
@@ -629,11 +712,20 @@ object Mouse {
                     val playerEyeY = player.posY + player.eyeHeight
                     val opponentMinY = opponent.entityBoundingBox.minY
                     val opponentMaxY = opponent.entityBoundingBox.maxY
-                    val candidateHeights = List(50) { i ->
-                        opponentMinY + i * (opponentMaxY - opponentMinY) / 49.0
+                    
+                    // Find closest Y coordinate without creating a list
+                    // Sample 50 points along opponent's height
+                    var targetY = (opponentMinY + opponentMaxY) / 2.0
+                    var minDiff = abs(playerEyeY - targetY)
+                    
+                    for (i in 0..49) {
+                        val candidateY = opponentMinY + i * (opponentMaxY - opponentMinY) / 49.0
+                        val diff = abs(playerEyeY - candidateY)
+                        if (diff < minDiff) {
+                            minDiff = diff
+                            targetY = candidateY
+                        }
                     }
-                    val targetY = candidateHeights.minByOrNull { h -> abs(playerEyeY - h) }
-                        ?: ((opponentMinY + opponentMaxY) / 2.0)
 
                     // Compute target pitch
                     val deltaX = opponent.posX - player.posX

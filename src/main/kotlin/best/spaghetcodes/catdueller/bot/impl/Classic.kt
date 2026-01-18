@@ -531,7 +531,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             
             val shouldDodgeArrow = CatDueller.config?.dodgeArrow == true && 
                                    opponentIsDrawingBow && 
-                                   distance > 8f &&
+                                   distance > 10f &&
                                    !isOnCooldown
 
             // Check if we should stop dodging with delay
@@ -583,6 +583,10 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     Combat.stopRandomStrafe()
                     Movement.clearLeftRight()
                     hurtStrafeDirection = 0  // Cancel any active hurt strafe
+                    
+                    // Clear forward/backward movement to prevent interference from bow/rod
+                    Movement.stopForward()
+                    Movement.stopBackward()
                     
                     // Stop any ongoing bow or rod usage
                     if (Mouse.isUsingProjectile()) {
@@ -985,7 +989,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     }
                 }
             } else {
-                if ((needJump || rodHitNeedJump) && !isDodgingArrow) {
+                if ((needJump || rodHitNeedJump || EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)) && !isDodgingArrow) {
                     Movement.startJumping()
                 } else if (isDodgingArrow) {
                     // Dodge Arrow is active - stop jumping
@@ -1085,7 +1089,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     }
                 }
 
-                if (distance < 1 || (distance < 2.7 && combo >= 1)) {
+                if (distance < 0.5 || (distance < 2.5 && combo >= 3)) {
                     Movement.stopForward()
                 } else {
                     if (!tapping) {
@@ -1398,6 +1402,10 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                             Combat.stopRandomStrafe()
                             Movement.clearLeftRight()
                             hurtStrafeDirection = 0  // Cancel any active hurt strafe
+                            
+                            // Clear forward/backward movement to prevent interference from bow/rod
+                            Movement.stopForward()
+                            Movement.stopBackward()
                             
                             // Switch to sword for safety
                             Inventory.setInvItem("sword")

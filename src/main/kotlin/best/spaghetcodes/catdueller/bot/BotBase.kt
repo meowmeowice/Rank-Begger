@@ -2114,8 +2114,9 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                         mapOf("name" to "Loser", "value" to formattedLoser, "inline" to "true")
                                     )
 
-                                    // Add damage statistics for Classic bot (before Bot Started)
-                                    if (getName() == "Classic" && (damageDealtToOpponent > 0.0 || damageReceivedFromOpponent > 0.0)) {
+                                    // Add damage statistics for Classic, OP, and UHC bots (before Bot Started)
+                                    if ((getName() == "Classic" || getName() == "OP" || getName() == "UHC") && 
+                                        (damageDealtToOpponent > 0.0 || damageReceivedFromOpponent > 0.0)) {
                                         // If we lost, show opponent's damage first (received - dealt)
                                         // If we won, show our damage first (dealt - received)
                                         val damageDisplay = if (iWon) {
@@ -2409,8 +2410,8 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             // Pass chat message to MovementRecorder for game full detection
             MovementRecorder.onChatMessage(unformatted)
 
-            // Check for damage statistics in Classic bot
-            if (getName() == "Classic") {
+            // Check for damage statistics in Classic, OP, and UHC bots
+            if (getName() == "Classic" || getName() == "OP" || getName() == "UHC") {
                 checkDamageStatistics(unformatted)
             }
 
@@ -2692,7 +2693,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      * Parses damage statistics from chat messages.
      *
      * Extracts damage dealt and received values from the game end summary
-     * for webhook reporting. Only used by Classic bot.
+     * for webhook reporting. Used by Classic, OP, and UHC bots.
      *
      * @param message The chat message to parse
      */
