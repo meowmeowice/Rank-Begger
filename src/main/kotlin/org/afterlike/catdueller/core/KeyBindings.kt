@@ -1,7 +1,10 @@
 package org.afterlike.catdueller.core
-
+import net.minecraft.client.Minecraft
 import net.minecraft.client.settings.KeyBinding
 import net.minecraftforge.fml.client.registry.ClientRegistry
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
+import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent
+import org.afterlike.catdueller.CatDueller
 import org.lwjgl.input.Keyboard
 
 /**
@@ -26,5 +29,12 @@ object KeyBindings {
     fun register() {
         ClientRegistry.registerKeyBinding(toggleBotKeyBinding)
         ClientRegistry.registerKeyBinding(configGuiKeyBinding)
+    }
+
+    @SubscribeEvent
+    fun onTick(ev: ClientTickEvent) {
+        if (configGuiKeyBinding.isPressed) {
+            Minecraft.getMinecraft().displayGuiScreen(CatDueller.config?.gui())
+        }
     }
 }

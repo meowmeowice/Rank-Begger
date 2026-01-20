@@ -1,7 +1,5 @@
 package org.afterlike.catdueller.bot.impl
 
-import net.minecraft.init.Blocks
-import net.minecraft.util.Vec3
 import org.afterlike.catdueller.CatDueller
 import org.afterlike.catdueller.bot.BotBase
 import org.afterlike.catdueller.bot.features.*
@@ -14,6 +12,8 @@ import org.afterlike.catdueller.utils.client.TimerUtil
 import org.afterlike.catdueller.utils.game.EntityUtil
 import org.afterlike.catdueller.utils.game.WorldUtil
 import org.afterlike.catdueller.utils.system.RandomUtil
+import net.minecraft.init.Blocks
+import net.minecraft.util.Vec3
 
 /**
  * Bot implementation for OP Duels game mode.
@@ -257,8 +257,8 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
         }
 
         // Check if opponent has apple - if so, don't W-tap
-        val opponentHasApple = opponent() != null && opponent()!!.heldItem != null &&
-                opponent()!!.heldItem.unlocalizedName.lowercase().contains("apple")
+        val opponentHasApple = opponent() != null && opponent()!!.heldItem != null && 
+                               opponent()!!.heldItem.unlocalizedName.lowercase().contains("apple")
 
         if (mc.thePlayer != null && mc.thePlayer.heldItem != null) {
             val n = mc.thePlayer.heldItem.unlocalizedName.lowercase()
@@ -476,93 +476,60 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                 }
             }
 
-            if (distance > 8.8) {
-                // Jumping priority system: 1) RunningAway, 2) Using Gap, 3) Using Potion, 4) Opponent has apple, 5) Speed Effect, 6) Opponent facing away, 7) Normal combat
-                if (Mouse.isRunningAway()) {
-                    // Priority 1: RunningAway - always jump
-                    Movement.startJumping()
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("OP: Jumping enabled - runningAway priority")
-                    }
-                } else if (Mouse.isUsingGap()) {
-                    // Priority 2: Using Gap - always jump
-                    Movement.startJumping()
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("OP: Jumping enabled - using gap priority")
-                    }
-                } else if (Mouse.isUsingPotion()) {
-                    // Priority 3: Using Potion - stop jumping
-                    Movement.stopJumping()
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("OP: Jumping disabled - using potion priority")
-                    }
-                } else if (opponent() != null && opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase()
-                        .contains("apple")
-                ) {
-                    // Priority 4: Opponent has apple - jump to apply pressure (higher priority than speed effect)
-                    Movement.startJumping()
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("OP: Jumping enabled - opponent has apple")
-                    }
-                } else if (hasSpeed && WorldUtil.blockInPath(
-                        mc.thePlayer,
-                        RandomUtil.randomIntInRange(3, 7),
-                        1f
-                    ) != Blocks.fire
-                ) {
-                    // Priority 5: Speed Effect - disable jumping
-                    Movement.stopJumping()
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("OP: Jumping disabled due to speed effect")
-                    }
-                } else if ((WorldUtil.blockInPath(
-                        mc.thePlayer,
-                        RandomUtil.randomIntInRange(3, 7),
-                        1f
-                    ) == Blocks.fire)
-                ) {
-                    Movement.startJumping()
-                } else if (EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)) {
-                    // Priority 6: Opponent facing away - jump to catch up
-                    Movement.startJumping()
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("OP: Jumping enabled - opponent facing away")
-                    }
-                } else if (opponent() != null && opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase()
-                        .contains("bow")
-                ) {
-                    // Priority 7: Normal combat - stop jumping when opponent has bow to dodge arrows
-                    Movement.stopJumping()
-                } else {
-                    // Priority 7: Normal combat - default jumping
-                    Movement.startJumping()
+
+            // Jumping priority system: 1) RunningAway, 2) Using Gap, 3) Using Potion, 4) Opponent has apple, 5) Speed Effect, 6) Opponent facing away, 7) Normal combat
+            if (Mouse.isRunningAway()) {
+                // Priority 1: RunningAway - always jump
+                Movement.startJumping()
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("OP: Jumping enabled - runningAway priority")
                 }
+            } else if (Mouse.isUsingGap()) {
+                // Priority 2: Using Gap - always jump
+                Movement.startJumping()
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("OP: Jumping enabled - using gap priority")
+                }
+            } else if (Mouse.isUsingPotion()) {
+                // Priority 3: Using Potion - stop jumping
+                Movement.stopJumping()
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("OP: Jumping disabled - using potion priority")
+                }
+            } else if (opponent() != null && opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase()
+                    .contains("apple")
+            ) {
+                // Priority 4: Opponent has apple - jump to apply pressure (higher priority than speed effect)
+                Movement.startJumping()
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("OP: Jumping enabled - opponent has apple")
+                }
+            } else if (hasSpeed && WorldUtil.blockInPath(mc.thePlayer, RandomUtil.randomIntInRange(3, 7), 1f) != Blocks.fire ) {
+                // Priority 5: Speed Effect - disable jumping
+                Movement.stopJumping()
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("OP: Jumping disabled due to speed effect")
+                }
+            } else if ((WorldUtil.blockInPath(mc.thePlayer, RandomUtil.randomIntInRange(3, 7),1f) == Blocks.fire )){
+                Movement.startJumping()
+            } else if (opponent() != null && opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase()
+                    .contains("bow")
+            ) {
+                // Priority 7: Normal combat - stop jumping when opponent has bow to dodge arrows
+                Movement.stopJumping()
+            } else if (EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)) {
+                // Priority 6: Opponent facing away - jump to catch up
+                Movement.startJumping()
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("OP: Jumping enabled - opponent facing away")
+                }
+            } else if(distance < 10){
+                // Priority 7: Normal combat - default jumping
+                Movement.stopJumping()
             } else {
-                // Close range - check priorities but generally stop jumping
-                if (Mouse.isRunningAway() || Mouse.isUsingGap()) {
-                    // High priority actions still need jumping even at close range
-                    Movement.startJumping()
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("OP: Close range jumping enabled - high priority action")
-                    }
-                } else if (opponent() != null && opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase()
-                        .contains("apple")
-                ) {
-                    // Jump when opponent has apple even at close range (higher priority than speed effect)
-                    Movement.startJumping()
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("OP: Close range jumping enabled - opponent has apple")
-                    }
-                } else if (EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)) {
-                    // Jump when opponent facing away even at close range
-                    Movement.startJumping()
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("OP: Close range jumping enabled - opponent facing away")
-                    }
-                } else {
-                    Movement.stopJumping()
-                }
+                Movement.startJumping()
             }
+           
 
             val movePriority = arrayListOf(0, 0)
             var clear = false
@@ -593,10 +560,6 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                     .contains("sword") &&
                 !Mouse.isUsingPotion() && !Mouse.isUsingProjectile() && !Mouse.isUsingGap() && !recentlyUsedConsumable
             ) {
-                Inventory.setInvItem("sword")
-                if (CatDueller.config?.holdLeftClick != true) {
-                    Mouse.rClickUp()
-                }
 
                 // Start attacking based on config
                 if (CatDueller.config?.holdLeftClick == true) {
@@ -623,7 +586,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                 Mouse.setRunningAway(false)
                 useGap(distance, false, false) // Don't retreat since we're already at a wall
                 gapsLeft--
-
+            
             }
 
             if (((distance > 3 && mc.thePlayer.health < 12) || mc.thePlayer.health < 9) && combo < 2 && mc.thePlayer.health <= (opponent()!!.health + 10)) {
@@ -644,7 +607,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                                 ChatUtil.combatInfo("OP: Using gap")
                             }
                             // If player is on fire, never retreat - eat gap immediately
-                            val shouldRetreat = distance < 8 && !mc.thePlayer.isBurning
+                            val shouldRetreat = distance < 4 && !mc.thePlayer.isBurning
                             useGap(distance, shouldRetreat, EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!))
                             gapsLeft--
                         }
@@ -723,43 +686,45 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                                     movePriority[1] += 4
                                 }
                             } else {
-                                if (distance in 15f..8f) {
+                                if (distance <= 11.0f ) {
+                                    randomStrafe = true
+                                    Movement.stopJumping()
+
+
+                                    if (CatDueller.config?.combatLogs == true) {
+                                        ChatUtil.combatInfo(
+                                            "Random strafe activated - distance: ${
+                                                String.format(
+                                                    "%.1f",
+                                                    distance
+                                                )
+                                            } blocks (≤ 8.8)"
+                                        )
+                                    }
+                                } else if (distance in 15f..8.8f) {
                                     randomStrafe = true
                                 } else {
                                     randomStrafe = false
-                                    if (opponent() != null && opponent()!!.heldItem != null && (opponent()!!.heldItem.unlocalizedName.lowercase()
-                                            .contains("bow") || opponent()!!.heldItem.unlocalizedName.lowercase()
-                                            .contains("rod"))
-                                    ) {
-                                        randomStrafe = true
-                                        if (distance < 15) {
-                                            Movement.stopJumping()
-                                        }
-                                    } else {
-                                        if (distance < 8) {
-                                            // Dynamic strafe logic with randomization
-                                            val rotations = EntityUtil.getRotations(opponent()!!, mc.thePlayer, false)
-                                            if (rotations != null) {
-                                                // Base direction preference
-                                                val basePreference = if (rotations[0] < 0) 1 else 0  // 0=left, 1=right
+                                    // Dodge strafe when opponent is drawing bow, has rod, or when we're in dodge mode
+                                    // But disable all strafe during Dodge Arrow
+                                    if (opponent() != null) {
+                                        val hasRod =
+                                            opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase()
+                                                .contains("rod")
 
-                                                // Add randomization to prevent predictable movement
-                                                val randomFactor = RandomUtil.randomIntInRange(1, 4)
-                                                val shouldReverse =
-                                                    RandomUtil.randomIntInRange(1, 100) <= 30 // 30% chance to reverse
+                                        // Use opponentIsDrawingBow for more accurate detection
+                                        if (hasRod || opponentIsDrawingBow) {
+                                            randomStrafe = true
+                                            if (distance < 15) {
+                                                Movement.stopJumping()
+                                            } 
 
-                                                if (shouldReverse) {
-                                                    // Reverse the preference occasionally
-                                                    movePriority[1 - basePreference] += randomFactor
-                                                } else {
-                                                    movePriority[basePreference] += randomFactor
-                                                }
-
-                                                // Add slight preference to the opposite direction for balance
-                                                movePriority[1 - basePreference] += 1
+                                            if (CatDueller.config?.combatLogs == true && (opponentIsDrawingBow)) {
+                                                ChatUtil.combatInfo("Dodge strafe activated - opponent drawing bow: $opponentIsDrawingBow, dodging: $isDodging")
                                             }
                                         }
                                     }
+
                                 }
                             }
                         }
@@ -770,7 +735,7 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                         mc.thePlayer,
                         RandomUtil.randomIntInRange(3, 7),
                         1f
-                    ) == Blocks.fire
+                    ) == Blocks.fire 
                 ) {
                     Movement.singleJump(RandomUtil.randomIntInRange(200, 400))
                 }
@@ -796,11 +761,11 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                     }
                 }
 
-                // Check if gap usage is active - if so, skip handle() to avoid being overridden
-                if (!Mouse.isUsingGap()) {
+                // Check if gap usage or potion usage is active - if so, skip handle() to avoid being overridden
+                if (!Mouse.isUsingGap() && !Mouse.isUsingPotion()) {
                     handle(clear, randomStrafe, movePriority)
                 }
-                // If gap usage is active, movement is already handled above, skip handle()
+                // If gap usage or potion usage is active, movement is already handled above, skip handle()
             }
         }
     }
