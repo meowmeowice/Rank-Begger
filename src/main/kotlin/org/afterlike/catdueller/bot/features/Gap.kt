@@ -24,21 +24,26 @@ interface Gap {
             if (Inventory.setInvItem("apple")) {
                 ChatUtil.info("About to gap")
                 Mouse.setUsingGap(true)
+                
+                // Ensure right click is released before starting
+                Mouse.rClickUp()
+                
                 TimerUtil.setTimeout(fun() {
                     Mouse.setRunningAway(false)
                 }, RandomUtil.randomIntInRange(200, 400))
-                val r = RandomUtil.randomIntInRange(1800, 1900)
+                val r = RandomUtil.randomIntInRange(1700, 1800)
                 Mouse.rClick(r)
                 Movement.startJumping()
+                
                 Movement.stopForward()
                 Movement.startBackward()
-
+            
                 TimerUtil.setTimeout(fun() {
                     Inventory.setInvItem("sword")
                     Movement.stopBackward()
                     Movement.startForward()
                     Mouse.setUsingGap(false)
-                }, r + RandomUtil.randomIntInRange(200, 300))
+                }, r + RandomUtil.randomIntInRange(100, 200))
             }
         }
 

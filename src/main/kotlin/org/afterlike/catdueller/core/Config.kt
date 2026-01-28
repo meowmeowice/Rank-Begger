@@ -33,7 +33,7 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
         name = "Current Bot",
         description = "The bot you want to use",
         category = "General",
-        options = ["Sumo", "Classic", "OP", "UHC"]
+        options = ["Sumo", "Classic", "OP", "UHC", "Blitz", "Bow"]
     )
     val currentBot = 0
 
@@ -988,7 +988,7 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
      * Map of bot index to bot instance for each available game mode.
      * Index corresponds to the selector options in currentBot property.
      */
-    val bots = mapOf(0 to Sumo(), 1 to Classic(), 2 to OP(), 3 to UHC(), 4 to Combo())
+    val bots = mapOf(0 to Sumo(), 1 to Classic(), 2 to OP(), 3 to UHC(), 4 to Blitz(), 5 to BowDuel())
 
     init {
         try {

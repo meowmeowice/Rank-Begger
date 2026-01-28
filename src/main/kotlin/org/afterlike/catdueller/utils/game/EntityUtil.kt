@@ -154,7 +154,7 @@ object EntityUtil {
                     }
 
                     // Apply speed effect multiplier if player has speed
-                    val speedMultiplier = if (player.isPotionActive(Potion.moveSpeed)) 1.0 else 1.0
+                    val speedMultiplier = if (player.isPotionActive(Potion.moveSpeed)) 1.3 else 1.0
                     val adjustedBaseTicks = baseTicks * speedMultiplier
 
                     // Add ping compensation bonus from config
@@ -215,8 +215,9 @@ object EntityUtil {
                     val height = when (dist) {
                         in 0f..8f -> target.eyeHeight * 0.5  // Normal height for close range
                         in 8f..15f -> target.eyeHeight * 1.0  // Normal height for medium range
-                        in 15f..25f -> target.eyeHeight * 1.5  // Normal height for long range
-                        else -> target.eyeHeight * 2.0  // Normal height for very long range
+                        in 15f..25f -> target.eyeHeight * 1.5 
+                        in 25f..35f -> target.eyeHeight * 2.0 // Normal height for long range
+                        else -> target.eyeHeight * 3.0  // Normal height for very long range
                     }
                     pos = target.positionVector.add(flatVelo).add(Vec3(0.0, height, 0.0)) ?: Vec3(
                         target.posX,

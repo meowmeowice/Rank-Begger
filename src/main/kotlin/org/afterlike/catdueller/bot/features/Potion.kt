@@ -40,6 +40,7 @@ interface Potion {
 
             if (Inventory.setInvItemByDamage(dmg)) {
                 ChatUtil.info("About to splash $dmg")
+                Mouse.rClickUp()
                 TimerUtil.setTimeout(fun() {
                     Mouse.setUsingPotion(true)
 
@@ -69,7 +70,9 @@ interface Potion {
                 pot(damage)
             }, RandomUtil.randomIntInRange(300, 500))
         } else {
-            pot(damage)
+            TimerUtil.setTimeout(fun() {
+                pot(damage)
+            }, RandomUtil.randomIntInRange(300, 500))
         }
     }
 

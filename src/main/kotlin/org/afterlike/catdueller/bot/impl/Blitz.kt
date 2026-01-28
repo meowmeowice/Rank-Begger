@@ -28,7 +28,7 @@ import org.afterlike.catdueller.utils.system.RandomUtil
  * - Hurt strafe for evasion after taking damage
  * - Wall avoidance during strafing
  */
-class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
+class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
 
     /**
      * Returns the display name of this bot.
@@ -144,10 +144,6 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
      */
     override fun onJoinGame() {
         super.onJoinGame()
-
-        if (CatDueller.config?.lobbyMovement == true) {
-            LobbyMovement.generic()
-        }
     }
 
     /**
@@ -206,7 +202,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
      * Stops lobby movement.
      */
     override fun beforeStart() {
-        LobbyMovement.stop()
+        
     }
 
     /**
@@ -561,6 +557,9 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
                 // Check for 3-second timeout first
                 if (dodgeArrowDuration >= 3000) {
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("Dodge Arrow: 3秒超時，自動結束閃避")
+                    }
                     true
                 } else if (!opponentIsDrawingBow && distance > 6f && opponentBowStopTime > 0) {
                     // If opponent stopped drawing bow and distance > 6, wait 500ms before stopping
@@ -652,6 +651,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 if (!tapping) {
                     Movement.startForward()
                 }
+
             }
 
             // Start arrow blocking after 700ms of opponent drawing bow
@@ -1419,67 +1419,6 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     }
                 }
 
-                if (canUseBow) {
-                    clear = true
-                    // Track bow usage start time
-                    if (!isUsingBow) {
-                        ourBowStartTime = System.currentTimeMillis()
-                        isUsingBow = true
-                    }
-
-                    useBow(distance, fun() {
-                        shotsFired++
-                        isUsingBow = false  // Reset when bow usage completes
-
-                        // Reset bow counter-attack when bow usage completes
-                        if (bowCounterAttackActive) {
-                            bowCounterAttackActive = false
-                            if (CatDueller.config?.combatLogs == true) {
-                                ChatUtil.combatInfo("Bow counter-attack completed - reset flag")
-                            }
-                        }
-
-                        // Check if we need to start Dodge Arrow after completing our bow shot
-                        val currentDistance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
-                        val shouldStartDodgeArrow = CatDueller.config?.dodgeArrow == true &&
-                                opponentIsDrawingBow &&
-                                currentDistance > 6f &&
-                                !isDodgingArrow
-
-                        if (shouldStartDodgeArrow) {
-                            isDodgingArrow = true
-                            Mouse.setDodgingArrow(true)
-                            dodgeArrowStartTime = System.currentTimeMillis()  // Record start time for timeout
-
-                            // Stop all strafe movements
-                            Combat.stopRandomStrafe()
-                            Movement.clearLeftRight()
-                            hurtStrafeDirection = 0  // Cancel any active hurt strafe
-
-                            // Clear forward/backward movement to prevent interference from bow/rod
-                            Movement.stopForward()
-                            Movement.stopBackward()
-
-                            // Switch to sword for safety
-                            Inventory.setInvItem("sword")
-                            Mouse.rClickUp()
-
-                            // Start movement switching timer
-                            startDodgeMovementTimer()
-
-                            if (CatDueller.config?.combatLogs == true) {
-                                ChatUtil.combatInfo("Dodge Arrow: Started dodging after completing bow shot - opponent still drawing at distance $currentDistance, all strafe cancelled")
-                            }
-                        }
-                    })
-                } else {
-                    clear = false
-                    if (WorldUtil.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
-                        movePriority[0] += 4
-                    } else {
-                        movePriority[1] += 4
-                    }
-                }
             } else {
                 if (EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)) {
                     if (WorldUtil.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
@@ -1699,13 +1638,23 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 Movement.startBackward()
                 dodgeMovingForward = false
 
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 前方有方塊，切換到後退")
+                }
             } else if (!hasWallForward && !hasWallBackward) {
                 // No walls, normal switch to backward
                 Movement.stopForward()
                 Movement.startBackward()
                 dodgeMovingForward = false
+
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 正常切換到後退")
+                }
             } else if (hasWallForward && hasWallBackward) {
                 // Walls in both directions, stay forward but log warning
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 前後都有方塊，保持前進")
+                }
             }
             // If hasWallBackward && !hasWallForward, continue forward (don't switch)
         } else {
@@ -1716,14 +1665,23 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 Movement.startForward()
                 dodgeMovingForward = true
 
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 後方有方塊，切換到前進")
+                }
             } else if (!hasWallForward && !hasWallBackward) {
                 // No walls, normal switch to forward
                 Movement.stopBackward()
                 Movement.startForward()
                 dodgeMovingForward = true
 
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 正常切換到前進")
+                }
             } else if (hasWallForward && hasWallBackward) {
                 // Walls in both directions, stay backward but log warning
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Dodge Arrow: 前後都有方塊，保持後退")
+                }
             }
             // If hasWallForward && !hasWallBackward, continue backward (don't switch)
         }
@@ -1749,10 +1707,16 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             // Switch to backward if forward is blocked
             dodgeMovingForward = false
             Movement.startBackward()
+            if (CatDueller.config?.combatLogs == true) {
+                ChatUtil.combatInfo("Dodge Arrow: 初始前進被阻擋，改為後退")
+            }
         } else if (!dodgeMovingForward && hasWallBackward && !hasWallForward) {
             // Switch to forward if backward is blocked
             dodgeMovingForward = true
             Movement.startForward()
+            if (CatDueller.config?.combatLogs == true) {
+                ChatUtil.combatInfo("Dodge Arrow: 初始後退被阻擋，改為前進")
+            }
         } else {
             // Both directions blocked or no walls, proceed with original direction
             if (dodgeMovingForward) {

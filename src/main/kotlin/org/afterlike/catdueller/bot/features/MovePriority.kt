@@ -1,7 +1,9 @@
 package org.afterlike.catdueller.bot.features
 
+import org.afterlike.catdueller.CatDueller
 import org.afterlike.catdueller.bot.player.Combat
 import org.afterlike.catdueller.bot.player.Movement
+import org.afterlike.catdueller.utils.client.ChatUtil
 import org.afterlike.catdueller.utils.system.RandomUtil
 
 /**
@@ -40,26 +42,47 @@ interface MovePriority {
                     if (movePriority[0] > movePriority[1]) {
                         Movement.stopRight()
                         Movement.startLeft()
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("MovePriority: Wall avoidance - moving LEFT (priority: ${movePriority[0]} vs ${movePriority[1]})")
+                        }
                     } else if (movePriority[1] > movePriority[0]) {
                         Movement.stopLeft()
                         Movement.startRight()
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("MovePriority: Wall avoidance - moving RIGHT (priority: ${movePriority[1]} vs ${movePriority[0]})")
+                        }
                     }
                 } else {
                     Combat.startRandomStrafe(300, 1000)
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("MovePriority: Starting random strafe (movePriority: [${movePriority[0]}, ${movePriority[1]}])")
+                    }
                 }
             } else {
                 Combat.stopRandomStrafe()
                 if (movePriority[0] > movePriority[1]) {
                     Movement.stopRight()
                     Movement.startLeft()
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("MovePriority: Priority movement - moving LEFT (priority: ${movePriority[0]} vs ${movePriority[1]})")
+                    }
                 } else if (movePriority[1] > movePriority[0]) {
                     Movement.stopLeft()
                     Movement.startRight()
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("MovePriority: Priority movement - moving RIGHT (priority: ${movePriority[1]} vs ${movePriority[0]})")
+                    }
                 } else {
                     if (RandomUtil.randomBool()) {
                         Movement.startLeft()
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("MovePriority: Equal priority - randomly chose LEFT")
+                        }
                     } else {
                         Movement.startRight()
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("MovePriority: Equal priority - randomly chose RIGHT")
+                        }
                     }
                 }
             }

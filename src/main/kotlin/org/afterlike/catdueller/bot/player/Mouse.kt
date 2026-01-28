@@ -782,13 +782,7 @@ object Mouse {
                 else -> 1.2f
             }
 
-            val onTarget = CatDueller.mc.objectMouseOver != null &&
-                    CatDueller.mc.objectMouseOver.typeOfHit == net.minecraft.util.MovingObjectPosition.MovingObjectType.ENTITY &&
-                    CatDueller.mc.objectMouseOver.entityHit == CatDueller.bot?.opponent()
-
-            val onTargetFactor = if (onTarget) 0.85f else 1.0f
-
-            val combinedFactor = distanceFactor * angleFactor * onTargetFactor
+            val combinedFactor = distanceFactor * angleFactor
 
             val maxRotH = if (_runningAway) {
                 30.0f

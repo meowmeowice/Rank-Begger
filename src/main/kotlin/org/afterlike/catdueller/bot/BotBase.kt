@@ -426,6 +426,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     /** Timestamp of last opponent bow check */
     private var lastOpponentBowCheck: Long = 0
 
+    /** Whether opponent is currently using golden apple */
+    var opponentIsUsingGap: Boolean = false
+
+    /** Timestamp of last opponent gap check */
+    private var lastOpponentGapCheck: Long = 0
+
     // ================== Movement Tracking Variables ==================
 
     /** Whether opponent is moving toward us */
@@ -1102,6 +1108,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         opponentUsedBow = false
         opponentArrowsFired = 0
         opponentIsDrawingBow = false
+        opponentIsUsingGap = false
 
         // Reset movement tracking
         opponentIsApproaching = false
@@ -1543,6 +1550,48 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }
 
             lastOpponentBowCheck = currentTime
+        }
+
+        // Check if opponent is using golden apple (every 100ms to avoid spam)
+        if (currentTime - lastOpponentGapCheck > 100) {
+            val wasUsingGap = opponentIsUsingGap
+            val hasApple =
+                opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase().contains("apple")
+
+            // Try multiple methods to detect apple usage
+            val itemInUseCount = try {
+                opponent()!!.itemInUseCount
+            } catch (_: Exception) {
+                0
+            }
+            val isUsingItem = try {
+                opponent()!!.isUsingItem
+            } catch (_: Exception) {
+                false
+            }
+            val itemInUseDuration = try {
+                opponent()!!.itemInUseDuration
+            } catch (_: Exception) {
+                0
+            }
+
+            // Consider using gap if any of these conditions are met
+            // Golden apples take 32 ticks (1.6 seconds) to consume
+            opponentIsUsingGap = hasApple && (itemInUseCount > 2 || isUsingItem || itemInUseDuration > 2)
+
+            // Debug gap usage detection
+            if (CatDueller.config?.combatLogs == true) {
+                // Show state changes
+                if (wasUsingGap != opponentIsUsingGap) {
+                    ChatUtil.combatInfo("Gap usage state changed - Using: $opponentIsUsingGap")
+                }
+                // Show when opponent has apple but not using (every 2 seconds to avoid spam)
+                if (hasApple && !opponentIsUsingGap && currentTime % 2000 < 100) {
+                    ChatUtil.combatInfo("Opponent gap check - HasApple: $hasApple, InUseCount: $itemInUseCount, IsUsing: $isUsingItem, Duration: $itemInUseDuration, UsingGap: $opponentIsUsingGap")
+                }
+            }
+
+            lastOpponentGapCheck = currentTime
         }
     }
 
@@ -2391,7 +2440,9 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             if ((formatted.contains("§f§lSumo Duel §r§7- §r§a§l0") ||
                         formatted.contains("§f§lClassic Duel §r§7-") ||
                         formatted.contains("§f§lOP Duel §r§7-") ||
-                        formatted.contains("§f§lUHC Duel §r§7-")) && !calledGameEnd
+                        formatted.contains("§f§lUHC Duel §r§7-") ||
+                        formatted.contains("§f§lBlitz Duel §r§7-") ||
+                        formatted.contains("§f§lBow Duel §r§7-")) && !calledGameEnd
             ) {
                 calledGameEnd = true
                 gameEnd()

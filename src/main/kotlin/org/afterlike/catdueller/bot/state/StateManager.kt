@@ -74,7 +74,9 @@ object StateManager {
         } else if (ev.message.formattedText.contains("§f§lSumo Duel §r§7- §r§a§l0") ||
             ev.message.formattedText.contains("§f§lOP Duel §r§7-") ||
             ev.message.formattedText.contains("§f§lClassic Duel §r§7-") ||
-            ev.message.formattedText.contains("§f§lUHC Duel §r§7-")
+            ev.message.formattedText.contains("§f§lUHC Duel §r§7-") ||
+            ev.message.formattedText.contains("§f§lBlitz Duel §r§7-") ||
+            ev.message.formattedText.contains("§f§lBow Duel §r§7-")
         ) {
             setState(States.GAME)  // Game ended, back to game lobby
             gameFull = false
