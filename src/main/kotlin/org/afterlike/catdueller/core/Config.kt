@@ -182,7 +182,7 @@ class Config : Vigilant(File(CatDueller.CONFIG_LOCATION), sortingBehavior = Conf
         name = "CPS",
         description = "Target clicks per second (with randomize)",
         category = "Combat",
-        minF = 1.0f,
+        minF = 0.0f,
         maxF = 20.0f,
         decimalPlaces = 1
     )
