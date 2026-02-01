@@ -83,7 +83,7 @@ object ChatUtil {
      */
     fun info(message: String) {
         sendChatMessage(
-            "${EnumChatFormatting.GOLD}[${EnumChatFormatting.LIGHT_PURPLE}${EnumChatFormatting.BOLD}Cat${EnumChatFormatting.RESET}${EnumChatFormatting.DARK_PURPLE}Dueller${EnumChatFormatting.GOLD}] ${EnumChatFormatting.WHITE}$message",
+            "${EnumChatFormatting.GOLD}[${EnumChatFormatting.LIGHT_PURPLE}ฅ^•ﻌ•^ฅ${EnumChatFormatting.GOLD}] ${EnumChatFormatting.WHITE}$message",
             false
         )
     }

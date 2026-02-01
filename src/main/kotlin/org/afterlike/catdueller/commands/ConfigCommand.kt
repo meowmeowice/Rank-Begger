@@ -1,6 +1,5 @@
 package org.afterlike.catdueller.commands
 
-import gg.essential.universal.UScreen
 import net.minecraft.command.CommandBase
 import net.minecraft.command.ICommandSender
 import net.minecraft.util.BlockPos
@@ -62,7 +61,7 @@ class ConfigCommand : CommandBase() {
      */
     private fun openConfig() {
         DelayedTaskHandler.schedule(1) {
-            UScreen.displayScreen(CatDueller.config?.gui())
+            CatDueller.mc.displayGuiScreen(org.afterlike.catdueller.gui.ClickGui())
         }
     }
 

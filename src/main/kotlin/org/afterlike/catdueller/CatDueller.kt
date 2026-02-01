@@ -18,6 +18,7 @@ import org.afterlike.catdueller.core.KeyBindings
 import org.afterlike.catdueller.irc.IRCDodgeClient
 import org.afterlike.catdueller.utils.client.TimerUtil
 import org.afterlike.catdueller.utils.game.ParticleUtil
+import java.io.File
 
 /**
  * Main mod class for CatDueller, a Minecraft Forge mod for automated dueling.
@@ -44,7 +45,7 @@ class CatDueller {
         const val VERSION = "1.0.0"
 
         /** File path for the mod configuration file. */
-        const val CONFIG_LOCATION = "./config/catdueller.toml"
+        const val CONFIG_LOCATION = "./config/catdueller.json"
 
         /** Reference to the Minecraft client instance. */
         val mc: Minecraft = Minecraft.getMinecraft()
@@ -88,8 +89,7 @@ class CatDueller {
     fun init(event: FMLInitializationEvent) {
         println("[CatDueller] Starting initialization...")
 
-        config = Config()
-        config?.initialize()
+        config = Config.load(File(CONFIG_LOCATION))
 
         ConfigCommand().register()
         MovementCommand().register()

@@ -59,7 +59,7 @@ interface Gap {
 
             TimerUtil.setTimeout(fun() { gap() }, time)
         } else {
-            gap()
+            TimerUtil.setTimeout(fun() { gap() }, RandomUtil.randomIntInRange(100, 200))
         }
     }
 

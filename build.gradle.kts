@@ -63,8 +63,6 @@ dependencies {
     forge("net.minecraftforge:forge:1.8.9-11.15.1.2318-1.8.9")
 
     shade(kotlin("stdlib-jdk8"))
-    shade("gg.essential:vigilance:312")
-    shade("gg.essential:universalcraft-1.8.9-forge:446")
 
     shade("org.spongepowered:mixin:0.7.11-SNAPSHOT") {
         isTransitive = false
@@ -117,9 +115,6 @@ tasks {
         }
 
         fun relocate(name: String) = relocate(name, "org.afterlike.catdueller.lib.$name")
-        relocate("gg.essential.vigilance")
-        relocate("gg.essential.elementa")
-        relocate("gg.essential.universalcraft")
         relocate("org.java_websocket")
     }
 

@@ -4,7 +4,7 @@ import net.minecraft.client.settings.KeyBinding
 import net.minecraftforge.fml.client.registry.ClientRegistry
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent
-import org.afterlike.catdueller.CatDueller
+import org.afterlike.catdueller.gui.ClickGui
 import org.lwjgl.input.Keyboard
 
 /**
@@ -20,7 +20,12 @@ object KeyBindings {
      * Default key: Semicolon (;)
      */
     val toggleBotKeyBinding = KeyBinding("cat.toggleBot", Keyboard.KEY_SEMICOLON, "category.cat")
-    val configGuiKeyBinding = KeyBinding("cat.configGui", Keyboard.KEY_RSHIFT, "category.cat")
+    
+    /**
+     * Key binding for opening ClickGUI.
+     * Default key: Right Control
+     */
+    val configGuiKeyBinding = KeyBinding("cat.configGui", Keyboard.KEY_RCONTROL, "category.cat")
 
     /**
      * Registers all key bindings with the Forge client registry.
@@ -34,7 +39,7 @@ object KeyBindings {
     @SubscribeEvent
     fun onTick(ev: ClientTickEvent) {
         if (configGuiKeyBinding.isPressed) {
-            Minecraft.getMinecraft().displayGuiScreen(CatDueller.config?.gui())
+            Minecraft.getMinecraft().displayGuiScreen(ClickGui())
         }
     }
 }

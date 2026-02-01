@@ -3457,10 +3457,8 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 // Add random strafe (left or right)
                 if (RandomUtil.randomBool()) {
                     Movement.startLeft()
-                    ChatUtil.info("Celebration: strafing left")
                 } else {
                     Movement.startRight()
-                    ChatUtil.info("Celebration: strafing right")
                 }
             }, 100) // 100ms delay to ensure clearing is complete
 
