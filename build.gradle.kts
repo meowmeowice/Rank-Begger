@@ -43,6 +43,7 @@ java {
 }
 
 repositories {
+    mavenCentral()
     maven("https://repo.essential.gg/repository/maven-public")
     maven("https://repo.spongepowered.org/repository/maven-public")
     maven("https://maven.afterlike.org/releases")
@@ -56,6 +57,8 @@ val shade: Configuration by configurations.creating {
 val modShade: Configuration by configurations.creating {
     configurations.modImplementation.get().extendsFrom(this)
 }
+
+val yguard: Configuration by configurations.creating
 
 dependencies {
     minecraft("com.mojang:minecraft:1.8.9")
@@ -72,6 +75,8 @@ dependencies {
     shade("org.java-websocket:Java-WebSocket:1.6.0")
 
     runtimeOnly("me.djtheredstoner:DevAuth-forge-legacy:1.2.1")
+
+    yguard("com.yworks:yguard:4.1.1")
 }
 
 sourceSets.main {
@@ -96,10 +101,96 @@ tasks {
         }
     }
 
+    val yguardObfuscate = register("yguardObfuscate") {
+        dependsOn(shadowJar)
+
+        val inputJar = shadowJar.get().archiveFile.get().asFile
+        val outputJar = layout.buildDirectory.file("intermediates/CatDueller-obfuscated.jar").get().asFile
+
+        inputs.file(inputJar)
+        outputs.file(outputJar)
+
+        doLast {
+            ant.withGroovyBuilder {
+                "taskdef"(
+                    "name" to "yguard",
+                    "classname" to "com.yworks.yguard.YGuardTask",
+                    "classpath" to yguard.asPath
+                )
+
+                "yguard" {
+                    "inoutpair"(
+                        "in" to inputJar.absolutePath,
+                        "out" to outputJar.absolutePath
+                    )
+
+                    "externalclasses"(
+                        "path" to configurations.runtimeClasspath.get().asPath
+                    )
+
+                    "rename"(
+                        "logfile" to layout.buildDirectory.file("yguard/yguardlog.xml").get().asFile.absolutePath,
+                        "conservemanifest" to "true"
+                    ) {
+                        "property"("name" to "naming-scheme", "value" to "small")
+
+                        "keep"(
+                            "runtimevisibleannotations" to "keep",
+                            "runtimeinvisibleannotations" to "keep",
+                            "runtimevisibleparameterannotations" to "keep",
+                            "runtimeinvisibleparameterannotations" to "keep",
+                            "runtimevisibletypeannotations" to "keep",
+                            "runtimeinvisibletypeannotations" to "keep"
+                        ) {
+                            // Mod 入口點 - 必須保留
+                            "class"("name" to "org.afterlike.catdueller.CatDueller")
+
+                            // Mixin 類 - 必須保留
+                            "class"("classes" to "private", "methods" to "private", "fields" to "private") {
+                                "patternset" {
+                                    "include"("name" to "org.afterlike.catdueller.mixins.**")
+                                }
+                            }
+
+                            // Config 類 - 完全不混淆（類名、方法名、字段名都保留）
+                            "class"("classes" to "private", "methods" to "private", "fields" to "private") {
+                                "patternset" {
+                                    "include"("name" to "org.afterlike.catdueller.core.Config")
+                                    "include"("name" to "org.afterlike.catdueller.core.Config${'$'}*")
+                                }
+                            }
+
+                            // MovementRecorder 的數據類 - 完全不混淆（Gson 序列化需要）
+                            "class"("classes" to "private", "methods" to "private", "fields" to "private") {
+                                "patternset" {
+                                    "include"("name" to "org.afterlike.catdueller.bot.player.MovementRecorder")
+                                    "include"("name" to "org.afterlike.catdueller.bot.player.MovementRecorder${'$'}*")
+                                }
+                            }
+
+                            // 外部庫 - 必須保留
+                            "class"("classes" to "private", "methods" to "private", "fields" to "private") {
+                                "patternset" {
+                                    "include"("name" to "kotlin.**")
+                                    "include"("name" to "org.jetbrains.**")
+                                    "include"("name" to "org.spongepowered.**")
+                                    "include"("name" to "org.java_websocket.**")
+                                    "include"("name" to "com.google.gson.**")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     val remapJar = named<RemapJarTask>("remapJar") {
         archiveClassifier.set("")
-        from(shadowJar)
-        input.set(shadowJar.get().archiveFile)
+        dependsOn(yguardObfuscate)
+        val obfuscatedJar = layout.buildDirectory.file("intermediates/CatDueller-obfuscated.jar")
+        from(obfuscatedJar)
+        input.set(obfuscatedJar)
     }
 
     shadowJar {

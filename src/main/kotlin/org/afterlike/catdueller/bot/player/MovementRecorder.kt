@@ -47,7 +47,7 @@ object MovementRecorder {
     )
 
     data class MovementPattern(
-        val name: String,
+        val name: String?,
         val duration: Int, // in ticks
         val frames: List<MovementFrame>
     )
@@ -160,7 +160,7 @@ object MovementRecorder {
         // Use explicit random selection to ensure it works properly
         val randomIndex = Random.nextInt(patterns.size)
         val randomPattern = patterns[randomIndex]
-        ChatUtil.info("Randomly selected pattern: ${randomPattern.name} (${randomIndex + 1}/${patterns.size})")
+        ChatUtil.info("Randomly selected pattern: ${randomPattern.name ?: "Unnamed"} (${randomIndex + 1}/${patterns.size})")
         return startPlayback(randomPattern)
     }
 
@@ -195,7 +195,7 @@ object MovementRecorder {
             recordingStartPitch = pattern.frames[0].pitch
         }
 
-        ChatUtil.info("Started playing movement pattern: ${pattern.name}")
+        ChatUtil.info("Started playing movement pattern: ${pattern.name ?: "Unnamed"}")
         return true
     }
 
@@ -436,7 +436,7 @@ object MovementRecorder {
 
         ChatUtil.info("Available movement patterns:")
         patterns.forEachIndexed { index, pattern ->
-            ChatUtil.info("${index + 1}. ${pattern.name} (${pattern.duration} ticks, ${pattern.frames.size} frames)")
+            ChatUtil.info("${index + 1}. ${pattern.name ?: "Unnamed"} (${pattern.duration} ticks, ${pattern.frames.size} frames)")
         }
     }
 
@@ -444,7 +444,7 @@ object MovementRecorder {
      * Delete a pattern by name
      */
     fun deletePattern(name: String): Boolean {
-        val removed = patterns.removeIf { it.name.equals(name, ignoreCase = true) }
+        val removed = patterns.removeIf { it.name?.equals(name, ignoreCase = true) == true }
         if (removed) {
             savePatterns()
             ChatUtil.info("Deleted movement pattern: $name")
@@ -535,8 +535,9 @@ object MovementRecorder {
         // Find the highest auto_lobby number in existing patterns
         var maxAutoNumber = 0
         patterns.forEach { pattern ->
-            if (pattern.name.startsWith("auto_lobby_")) {
-                val numberPart = pattern.name.substring("auto_lobby_".length)
+            val patternName = pattern.name ?: return@forEach
+            if (patternName.startsWith("auto_lobby_")) {
+                val numberPart = patternName.substring("auto_lobby_".length)
                 try {
                     val number = numberPart.toInt()
                     if (number > maxAutoNumber) {
