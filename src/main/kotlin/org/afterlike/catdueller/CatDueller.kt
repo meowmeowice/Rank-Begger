@@ -95,6 +95,7 @@ class CatDueller {
         MovementCommand().register()
         HWIDCommand().register()
         PingCommand().register()
+        InvCommand().register()
         ParticleTestCommand().register()
         RobotCommand().register()
         KeyBindings.register()

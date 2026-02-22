@@ -32,7 +32,8 @@ class ClickGui : GuiScreen() {
             Triple("General", 20, 20),
             Triple("Combat", 220, 20),
             Triple("Classic", 420, 20),
-            Triple("Sumo", 620, 20),
+            Triple("Blitz", 620, 20),
+            Triple("Sumo", 820, 20),
             Triple("Toggling", 20, 300),
             Triple("Queue Dodging", 220, 300),
             Triple("Auto Requeue", 420, 300),
@@ -51,6 +52,7 @@ class ClickGui : GuiScreen() {
                 "General" -> ConfigPanelBuilder.buildGeneralPanel(panel)
                 "Combat" -> ConfigPanelBuilder.buildCombatPanel(panel)
                 "Classic" -> ConfigPanelBuilder.buildClassicPanel(panel)
+                "Blitz" -> ConfigPanelBuilder.buildBlitzPanel(panel)
                 "Sumo" -> ConfigPanelBuilder.buildSumoPanel(panel)
                 "Toggling" -> ConfigPanelBuilder.buildTogglingPanel(panel)
                 "Queue Dodging" -> ConfigPanelBuilder.buildQueueDodgingPanel(panel)

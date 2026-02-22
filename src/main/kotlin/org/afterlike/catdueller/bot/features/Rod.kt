@@ -35,6 +35,7 @@ interface Rod {
      *                    versus offensive (e.g., combo setup). Defaults to false.
      */
     fun useRod(isDefensive: Boolean = false) {
+        if (Mouse.lClickDown) return  // Don't interrupt block breaking
         if (Mouse.isUsingProjectile() || CatDueller.bot?.rodRetractTimeout != null) {
             immediateRetractRod()
         }
@@ -76,7 +77,7 @@ interface Rod {
         Mouse.rClickUp()
         Mouse.setUsingProjectile(false)
 
-        if (mc_.thePlayer.heldItem != null && !mc_.thePlayer.heldItem.unlocalizedName.lowercase().contains("bow")) {
+        if (mc_.thePlayer.heldItem != null && !mc_.thePlayer.heldItem.unlocalizedName.lowercase().contains("bow") && !Mouse.lClickDown) {
             Inventory.setInvItem("sword")
         }
 

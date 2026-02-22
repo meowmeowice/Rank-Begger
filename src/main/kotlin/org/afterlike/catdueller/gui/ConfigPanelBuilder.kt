@@ -20,7 +20,7 @@ object ConfigPanelBuilder {
             SelectorSetting(
                 name = "Current Bot",
                 options = listOf("Sumo", "Classic", "OP", "UHC", "Blitz", "Bow"),
-                selectedIndex = config.currentBot,
+                selectedIndex = config.currentBot ?: 0,
                 onChange = { index ->
                     config.currentBot = index
                     config.markDirty()
@@ -38,7 +38,7 @@ object ConfigPanelBuilder {
         // Lobby Movement (with sub-setting)
         val lobbyMovementSetting = BooleanSetting(
             name = "Lobby Movement",
-            value = config.lobbyMovement,
+            value = config.lobbyMovement ?: true,
             onChange = { value ->
                 config.lobbyMovement = value
                 config.markDirty()
@@ -688,6 +688,63 @@ object ConfigPanelBuilder {
         )
     }
     
+    fun buildBlitzPanel(panel: Panel) {
+        val config = CatDueller.config ?: return
+        
+        // Kit selector
+        panel.addSetting(
+            SelectorSetting(
+                name = "Kit",
+                options = listOf("Fisherman", "Necromancer"),
+                selectedIndex = config.blitzKit ?: 0,
+                onChange = { index ->
+                    config.blitzKit = index
+                    config.markDirty()
+                    config.writeData()
+                }
+            )
+        )
+        
+        // Necromancer melee weapon selector
+        panel.addSetting(
+            SelectorSetting(
+                name = "Melee",
+                options = listOf("Sword", "Shovel"),
+                selectedIndex = config.necromancerMelee ?: 0,
+                onChange = { index ->
+                    config.necromancerMelee = index
+                    config.markDirty()
+                    config.writeData()
+                }
+            )
+        )
+
+        val placeMobsSetting = BooleanSetting(
+            name = "Place Mobs",
+            value = config.placeMobs ?: false,
+            onChange = { value ->
+                config.placeMobs = value
+                config.markDirty()
+                config.writeData()
+            }
+        )
+        
+        placeMobsSetting.addSubSetting(
+            BooleanSetting(
+                name = "Only When Opponent Bowing",
+                value = config.placeMobsOnlyWhenBowing ?: true,
+                onChange = { value ->
+                    config.placeMobsOnlyWhenBowing = value
+                    config.markDirty()
+                    config.writeData()
+                },
+                isSubSetting = true
+            )
+        )
+        
+        panel.addSetting(placeMobsSetting)
+    }
+    
     fun buildSumoPanel(panel: Panel) {
         val config = CatDueller.config ?: return
         
@@ -1077,17 +1134,35 @@ object ConfigPanelBuilder {
         panel.addSetting(sendServerDMSetting)
         
         // IRC Dodge
-        panel.addSetting(
+        // IRC Dodge (parent setting)
+        val ircDodgeSetting = BooleanSetting(
+            name = "IRC Dodge",
+            value = config.ircDodgeEnabled ?: true,
+            onChange = { value ->
+                config.ircDodgeEnabled = value
+                config.markDirty()
+                config.writeData()
+            }
+        )
+        
+        // Auto IRC Dodge (sub-setting)
+        ircDodgeSetting.addSubSetting(
             BooleanSetting(
-                name = "IRC Dodge",
-                value = config.ircDodgeEnabled,
+                name = "Auto IRC Dodge",
+                value = config.autoIRCDodge ?: true,
+                isSubSetting = true,
                 onChange = { value ->
-                    config.ircDodgeEnabled = value
+                    config.autoIRCDodge = value
                     config.markDirty()
                     config.writeData()
                 }
             )
         )
+        
+
+        
+        panel.addSetting(ircDodgeSetting)
+        
     }
     
     fun buildAutoRequeuePanel(panel: Panel) {
@@ -1366,6 +1441,30 @@ object ConfigPanelBuilder {
                     config.writeData()
                 },
                 scale = 0.85f
+            )
+        )
+
+        webhookSetting.addSubSetting(
+            BooleanSetting(
+                name = "Show Winstreak",
+                value = config.showWinstreak ?: true,
+                onChange = { value ->
+                    config.showWinstreak = value
+                    config.markDirty()
+                    config.writeData()
+                }
+            )
+        )
+
+        webhookSetting.addSubSetting(
+            BooleanSetting(
+                name = "Show Wins Per Hour",
+                value = config.showWinsPerHour ?: true,
+                onChange = { value ->
+                    config.showWinsPerHour = value
+                    config.markDirty()
+                    config.writeData()
+                }
             )
         )
         

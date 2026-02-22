@@ -15,23 +15,23 @@ import java.io.File
 class Config {
     
     // General Settings
-    var currentBot: Int? = 0
-    var lobbyMovement: Boolean? = true
-    var useRecordedMovement: Boolean? = false
-    var combatLogs: Boolean? = true
-    var serverIP: String? = "mc.hypixel.net"
-    var autoReconnectAfterDisconnect: Boolean? = true
-    var reconnectWaitMinutes: Int? = 30
-    var dynamicBreakVariance: Int? = 30
-    var lobbySitDuringDynamicBreak: Boolean? = false
-    var pauseWhenInternetUnstable: Boolean? = false
-    var bigBreakEnabled: Boolean? = false
-    var bigBreakStartHour: Int? = 13
-    var bigBreakEndHour: Int? = 17
-    var throwAfterGames: Int? = 0
-    var disconnectAfterGames: Int? = 0
-    var disconnectAfterMinutes: Int? = 0
-    var clipLosses: Boolean? = false
+    var currentBot = 0
+    var lobbyMovement = true
+    var useRecordedMovement = false
+    var combatLogs = true
+    var serverIP = "mc.hypixel.net"
+    var autoReconnectAfterDisconnect = true
+    var reconnectWaitMinutes = 30
+    var dynamicBreakVariance = 30
+    var lobbySitDuringDynamicBreak = false
+    var pauseWhenInternetUnstable = false
+    var bigBreakEnabled = false
+    var bigBreakStartHour = 13
+    var bigBreakEndHour = 17
+    var throwAfterGames = 0
+    var disconnectAfterGames = 0
+    var disconnectAfterMinutes = 0
+    var clipLosses = false
     
     // Combat Settings
     var cps = 12.0f
@@ -64,6 +64,12 @@ class Config {
     var enableRetreat = true
     var enableArrowBlocking = true
     var dodgeArrow = false
+    
+    // Blitz Settings
+    var blitzKit = 0  // 0 = Fisherman, 1 = Necromancer
+    var necromancerMelee = 0  // 0 = Sword, 1 = Shovel
+    var placeMobs: Boolean? = false
+    var placeMobsOnlyWhenBowing: Boolean? = true
     
     // Sumo Settings
     var hitSelectAtEdge = false
@@ -129,6 +135,8 @@ class Config {
     // Webhook Settings
     var sendWebhookMessages = false
     var webhookURL = ""
+    var showWinstreak: Boolean? = true
+    var showWinsPerHour: Boolean? = true
     
     // Bot Crasher Settings
     var botCrasherMode = false

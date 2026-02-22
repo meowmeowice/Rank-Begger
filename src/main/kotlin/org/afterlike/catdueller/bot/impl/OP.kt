@@ -122,6 +122,15 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
     /** Previous opponent strafe direction for detecting direction changes. */
     private var lastOpponentStrafeDirection = 0
 
+    /** Flag indicating post-bow strafe is active. */
+    private var postBowStrafeActive = false
+
+    /** Timestamp when post-bow strafe ends. */
+    private var postBowStrafeEndTime = 0L
+
+    /** Timestamp of last bow shot for cooldown tracking. */
+    private var lastBowShotTime = 0L
+
     /**
      * Called when the game starts.
      * Resets all consumable counts and state variables, then initiates movement.
@@ -156,6 +165,9 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
         lastRetreatEndTime = 0L
         lastRodHitTime = 0L
         lastOpponentStrafeDirection = 0
+        postBowStrafeActive = false
+        postBowStrafeEndTime = 0L
+        lastBowShotTime = 0L
 
         Movement.startSprinting()
         Movement.startForward()
@@ -205,6 +217,10 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
         shouldRetreatUntilRodHit = false
         lastRetreatEndTime = 0L
         lastRodHitTime = 0L
+
+        postBowStrafeActive = false
+        postBowStrafeEndTime = 0L
+        lastBowShotTime = 0L
 
         if (CatDueller.config?.holdLeftClick == true) {
             Mouse.stopHoldLeftClick()
@@ -689,7 +705,13 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                     val situation2 = distance in 28.0..33.0 && !EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)
 
                     if (situation1 || situation2) {
-                        val canUseBow = if (situation1) {
+                        // 0.5s cooldown between bow shots
+                        val bowOnCooldown = lastBowShotTime > 0 &&
+                                System.currentTimeMillis() - lastBowShotTime < 500
+
+                        val canUseBow = if (bowOnCooldown) {
+                            false
+                        } else if (situation1) {
                             // Situation 1: No opponentUsedBow requirement
                             distance > 10 && shotsFired < maxArrows && System.currentTimeMillis() - lastPotion > 5000
                         } else {
@@ -701,6 +723,15 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                             clear = true
                             useBow(distance, fun() {
                                 shotsFired++
+                                lastBowShotTime = System.currentTimeMillis()
+
+                                // Start post-bow strafe: random left or right for 1 second
+                                postBowStrafeActive = true
+                                postBowStrafeEndTime = System.currentTimeMillis() + 1000
+                                Combat.stopRandomStrafe()
+                                Movement.clearLeftRight()
+                                val strafeDir = if (RandomUtil.randomBool()) 1 else 2
+                                if (strafeDir == 1) Movement.startLeft() else Movement.startRight()
                             })
                         } else {
                             clear = false
@@ -787,7 +818,15 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
 
                 // Check if gap usage or potion usage is active - if so, skip handle() to avoid being overridden
                 if (!Mouse.isUsingGap() && !Mouse.isUsingPotion()) {
-                    handle(clear, randomStrafe, movePriority)
+                    // Check if post-bow strafe should end
+                    if (postBowStrafeActive && System.currentTimeMillis() >= postBowStrafeEndTime) {
+                        postBowStrafeActive = false
+                        Movement.clearLeftRight()
+                    }
+
+                    if (!postBowStrafeActive) {
+                        handle(clear, randomStrafe, movePriority)
+                    }
                 }
                 // If gap usage or potion usage is active, movement is already handled above, skip handle()
             }

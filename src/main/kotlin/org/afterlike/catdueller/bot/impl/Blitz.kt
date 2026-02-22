@@ -15,7 +15,7 @@ import org.afterlike.catdueller.utils.game.WorldUtil
 import org.afterlike.catdueller.utils.system.RandomUtil
 
 /**
- * Bot implementation for Classic Duels game mode.
+ * Bot implementation for Blitz Duels game mode.
  *
  * This bot handles combat mechanics including sword fighting, bow usage,
  * fishing rod tactics, W-tapping, block-hitting, arrow blocking, and
@@ -32,18 +32,26 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
 
     /**
      * Returns the display name of this bot.
-     * @return The string "Classic"
+     * @return The string "Blitz"
      */
     override fun getName(): String {
-        return "Classic"
+        return "Blitz"
+    }
+
+    /** Returns the melee weapon name based on kit and config. */
+    private fun meleeWeapon(): String {
+        val kit = CatDueller.config?.blitzKit ?: 0
+        if (kit == 0) return "sword" // Fisherman always uses sword
+        // Necromancer: check config
+        return if ((CatDueller.config?.necromancerMelee ?: 0) == 0) "sword" else "shovel"
     }
 
     init {
         setStatKeys(
             mapOf(
-                "wins" to "player.stats.Duels.classic_duel_wins",
-                "losses" to "player.stats.Duels.classic_duel_losses",
-                "ws" to "player.stats.Duels.current_classic_winstreak",
+                "wins" to "player.stats.Duels.blitz_duel_wins",
+                "losses" to "player.stats.Duels.blitz_duel_losses",
+                "ws" to "player.stats.Duels.current_blitz_winstreak",
             )
         )
     }
@@ -52,7 +60,7 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
     var shotsFired = 0
 
     /** Maximum arrows allowed per game. */
-    var maxArrows = 5
+    var maxArrows = 19
 
     /** Strafe direction after being hurt: 0=none, 1=left, 2=right. */
     private var hurtStrafeDirection = 0
@@ -96,6 +104,12 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
     /** Flag indicating bow counter-attack is in progress. */
     private var bowCounterAttackActive = false
 
+    /** Flag indicating spawn egg placement is in progress. */
+    private var isPlacingSpawnEgg = false
+
+    /** Timestamp of last bow shot for cooldown tracking. */
+    private var lastBowShotTime = 0L
+
     /** Flag indicating arrow dodging is currently active. */
     private var isDodgingArrow = false
 
@@ -104,6 +118,12 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
 
     /** Current dodge movement direction: true=forward, false=backward. */
     private var dodgeMovingForward = true
+
+    /** Flag indicating post-bow strafe is active. */
+    private var postBowStrafeActive = false
+
+    /** Timestamp when post-bow strafe started. */
+    private var postBowStrafeEndTime = 0L
 
     /** Previous tick's opponent bow drawing state. */
     private var lastTickOpponentDrawingBow = false
@@ -137,6 +157,9 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
 
     /** Previous opponent strafe direction for detecting direction changes. */
     private var lastOpponentStrafeDirection = 0
+
+    /** Timestamp when block breaking ended, for 1s strafe suppression. */
+    private var blockBreakEndTime = 0L
 
     /**
      * Called when the bot joins a game lobby.
@@ -177,6 +200,10 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
         lastRodHitTime = 0L
         lastDodgeArrowEndTime = 0L
         dodgeArrowStartTime = 0L
+        isPlacingSpawnEgg = false
+        postBowStrafeActive = false
+        postBowStrafeEndTime = 0L
+        lastBowShotTime = 0L
         lastOpponentStrafeDirection = 0
 
         // Reset W-tap state
@@ -214,6 +241,11 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
 
         shotsFired = 0
         shouldHoldLeftClick = false
+
+        // Clean up block breaking state
+        if (Mouse.lClickDown) {
+            Mouse.lClickUp()
+        }
 
         // Clean up Dodge Arrow state
         isDodgingArrow = false
@@ -288,6 +320,17 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
         hurtStrafeDirection = 0
 
         shouldHoldLeftClick = false
+
+        // Clean up spawn egg state
+        if (isPlacingSpawnEgg) {
+            isPlacingSpawnEgg = false
+            Mouse.setPlacingWater(false)
+            Mouse.rClickUp()
+        }
+
+        // Clean up post-bow strafe
+        postBowStrafeActive = false
+        postBowStrafeEndTime = 0L
 
         if (CatDueller.config?.combatLogs == true) {
             ChatUtil.combatInfo("Game resources cleaned up - memory leak prevention")
@@ -376,8 +419,9 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
         if (mc.thePlayer != null && mc.thePlayer.heldItem != null) {
             val n = mc.thePlayer.heldItem.unlocalizedName.lowercase()
 
-            if (n.contains("sword") && distance < 3) {
+            if (n.contains(meleeWeapon()) && distance < 3) {
                 Mouse.rClick(RandomUtil.randomIntInRange(80, 100))
+                
             }
         }
 
@@ -413,6 +457,66 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
     override fun onTick() {
         super.onTick()
         var needJump = false
+
+        // Block breaking: if looking at a plank or log block, switch to axe and hold left click
+        if (toggled() && opponent() != null && mc.thePlayer != null && mc.objectMouseOver != null &&
+            mc.objectMouseOver.typeOfHit == net.minecraft.util.MovingObjectPosition.MovingObjectType.BLOCK) {
+            val blockPos = mc.objectMouseOver.blockPos
+            val block = mc.theWorld?.getBlockState(blockPos)?.block
+            val isBreakable = block == Blocks.planks || block == Blocks.log || block == Blocks.log2
+            if (isBreakable && !Mouse.lClickDown) {
+                Inventory.setInvItem("hatchet")
+                Mouse.startLeftClick()
+                Combat.stopRandomStrafe()
+                Movement.clearLeftRight()
+            }
+            if (!isBreakable && Mouse.lClickDown) {
+                Mouse.lClickUp()
+                Mouse.setBreakingBlock(false)
+                Inventory.setInvItem(meleeWeapon())
+                blockBreakEndTime = System.currentTimeMillis()
+            }
+        } else if (Mouse.lClickDown) {
+            Mouse.lClickUp()
+            Mouse.setBreakingBlock(false)
+            Inventory.setInvItem(meleeWeapon())
+            blockBreakEndTime = System.currentTimeMillis()
+        }
+
+        // Aim at feet-level block: if above head is NOT air, feet level has a block, and opponent distance > 1
+        if (toggled() && mc.thePlayer != null && mc.theWorld != null && opponent() != null) {
+            val opponentDist = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
+            val aboveNotAir = (WorldUtil.blockInFront(mc.thePlayer, 4f, 2.5f) != Blocks.air || WorldUtil.blockInFront(mc.thePlayer, 3f, 2.5f) != Blocks.air || WorldUtil.blockInFront(mc.thePlayer, 2f, 2.5f) != Blocks.air || WorldUtil.blockInFront(mc.thePlayer, 1f, 2.5f) != Blocks.air)
+            val feetBlock3Raw = WorldUtil.blockInFront(mc.thePlayer, 3f, 0.5f)
+            val feetBlock2Raw = WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f)
+            val feetBlock1Raw = WorldUtil.blockInFront(mc.thePlayer, 1f, 0.5f)
+            val isBreakableFeet3 = feetBlock3Raw == Blocks.planks || feetBlock3Raw == Blocks.log || feetBlock3Raw == Blocks.log2
+            val isBreakableFeet2 = feetBlock2Raw == Blocks.planks || feetBlock2Raw == Blocks.log || feetBlock2Raw == Blocks.log2
+            val isBreakableFeet1 = feetBlock1Raw == Blocks.planks || feetBlock1Raw == Blocks.log || feetBlock1Raw == Blocks.log2
+            val feetBlock3 = isBreakableFeet3
+            val feetBlock2 = isBreakableFeet2
+            val feetBlock1 = isBreakableFeet1
+
+            if (aboveNotAir && (feetBlock1 || feetBlock2 || feetBlock3) && opponentDist > 1f) {
+                // Calculate pitch to aim at the feet-level block
+                // Block is at player.y + 0.3 (feet level = -0.2 + 0.5), eye is at player.y + 1.62
+                // Vertical diff = 1.32 blocks down, horizontal = 1 or 2 blocks
+                val horizDist = if (feetBlock1) 1.0 else 2.0
+                val vertDiff = 1.32
+                val pitch = Math.toDegrees(kotlin.math.atan2(vertDiff, horizDist)).toFloat()
+                Mouse.setBreakingBlock(true, pitch)
+            } else if (Mouse.isBreakingBlock()) {
+                Mouse.setBreakingBlock(false)
+            }
+
+            // Jump if block directly above head (distance 0 = at player position) but NOT if there's a wall in front, and NOT during block breaking
+            val headClearInFront = WorldUtil.blockInFront(mc.thePlayer, 0f, 1.5f) == Blocks.air
+            if (!Mouse.lClickDown && WorldUtil.blockInFront(mc.thePlayer, 0f, 2.5f) != Blocks.air && mc.thePlayer.onGround && headClearInFront) {
+                needJump = true
+                ChatUtil.info("head hitter")
+                Movement.singleJump(RandomUtil.randomIntInRange(100, 150))
+            }
+        }
 
         // Check for early W-tap recovery if player gets hurt during W-tap
         if (tapping && wTapStartTime > 0 && mc.thePlayer != null) {
@@ -557,9 +661,6 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
 
                 // Check for 3-second timeout first
                 if (dodgeArrowDuration >= 3000) {
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("Dodge Arrow: 3秒超時，自動結束閃避")
-                    }
                     true
                 } else if (!opponentIsDrawingBow && distance > 6f && opponentBowStopTime > 0) {
                     // If opponent stopped drawing bow and distance > 6, wait 500ms before stopping
@@ -623,8 +724,10 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                         }
                     }
 
-                    // Switch to sword for safety
-                    Inventory.setInvItem("sword")
+                    // Switch to sword/shovel for safety
+                    if (!Mouse.lClickDown) {
+                        Inventory.setInvItem(meleeWeapon())
+                    }
                     Mouse.rClickUp()
 
                     // Start movement switching timer (300-1000ms intervals)
@@ -680,10 +783,10 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 val wasUsingProjectile = Mouse.isUsingProjectile() || Mouse.rClickDown
 
                 // Ensure we have a sword for blocking - switch without releasing right click if we were using projectile
-                if (mc.thePlayer.heldItem == null || !mc.thePlayer.heldItem.unlocalizedName.lowercase()
-                        .contains("sword")
+                if (!Mouse.lClickDown && (mc.thePlayer.heldItem == null || !mc.thePlayer.heldItem.unlocalizedName.lowercase()
+                        .contains(meleeWeapon()))
                 ) {
-                    Inventory.setInvItem("sword")
+                    Inventory.setInvItem(meleeWeapon())
 
                     if (wasUsingProjectile) {
                         // If we were using projectile, continue holding right click for seamless blocking
@@ -837,13 +940,9 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
             lastTickOpponentDrawingBow = opponentIsDrawingBow
         }
 
-        if (mc.thePlayer != null) {
+        if (mc.thePlayer != null && opponent() != null) {
             // Then check for block in front (always check, even when dodging)
-            if ((WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air || WorldUtil.blockInFront(
-                    mc.thePlayer,
-                    1f,
-                    0.5f
-                ) != Blocks.air) && mc.thePlayer.onGround
+            if ((WorldUtil.blockInFront(mc.thePlayer, 1f, 0.5f) != Blocks.air || WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air) && WorldUtil.blockInFront(mc.thePlayer, 1f, 2.5f) == Blocks.air && WorldUtil.blockInFront(mc.thePlayer, 2f, 2.5f) == Blocks.air && WorldUtil.blockInFront(mc.thePlayer, 3f, 2.5f) == Blocks.air && WorldUtil.blockInFront(mc.thePlayer, 0.5f, 1.5f) == Blocks.air && mc.thePlayer.onGround
             ) {
                 needJump = true
                 Movement.singleJump(RandomUtil.randomIntInRange(150, 250))
@@ -960,7 +1059,7 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 // Hold Left Click mode: Distance-based control only (no crosshair check)
                 val maxAttackDistance = CatDueller.config?.maxDistanceAttack ?: 5
                 val hasSword =
-                    mc.thePlayer.heldItem != null && mc.thePlayer.heldItem.unlocalizedName.lowercase().contains("sword")
+                    mc.thePlayer.heldItem != null && mc.thePlayer.heldItem.unlocalizedName.lowercase().contains(meleeWeapon())
                 val inRange = distance <= maxAttackDistance
 
                 // Add delay after weapon switching to avoid immediate attack
@@ -992,7 +1091,7 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 // Normal mode: Use shouldStartAttacking with crosshair checks
                 if (shouldStartAttacking(distance)) {
                     if (mc.thePlayer.heldItem != null && mc.thePlayer.heldItem.unlocalizedName.lowercase()
-                            .contains("sword")
+                            .contains(meleeWeapon())
                     ) {
                         Mouse.startLeftAC()  // Start continuous attacking, hit select will handle cancellation
                     }
@@ -1021,7 +1120,9 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                         }
                     } else {
                         // Dodge Arrow is active - stop jumping
-                        Movement.stopJumping()
+                        if (!needJump && !rodHitNeedJump) {
+                            Movement.stopJumping()
+                        }
                         if (CatDueller.config?.combatLogs == true) {
                             ChatUtil.combatInfo("Dodge: Stopping jump - Dodge Arrow active")
                         }
@@ -1031,7 +1132,9 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                     isDodging = false
                 } else {
                     // Dodge Arrow is active - stop jumping
-                    Movement.stopJumping()
+                    if (!needJump && !rodHitNeedJump) {
+                        Movement.stopJumping()
+                    }
                     if (CatDueller.config?.combatLogs == true) {
                         ChatUtil.combatInfo("Dodge: Stopping jump - Dodge Arrow active (no opponent bow)")
                     }
@@ -1045,19 +1148,64 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                     Movement.startJumping()
                 } else if (isDodgingArrow) {
                     // Dodge Arrow is active - stop jumping
-                    Movement.stopJumping()
+                    if (!needJump && !rodHitNeedJump) {
+                        Movement.stopJumping()
+                    }
                     if (CatDueller.config?.combatLogs == true) {
                         ChatUtil.combatInfo("Dodge: Stopping jump - Dodge Arrow active (close range)")
                     }
                 } else {
-                    Movement.stopJumping()
+                    if (!needJump && !rodHitNeedJump) {
+                        Movement.stopJumping()
+                    }
                 }
                 isDodging = false
+            }
+
+            // Check if post-bow strafe should end
+            if (postBowStrafeActive && System.currentTimeMillis() >= postBowStrafeEndTime) {
+                postBowStrafeActive = false
+                Movement.clearLeftRight()
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Post-bow strafe ended")
+                }
             }
 
             val movePriority = arrayListOf(0, 0)
             var clear = false
             var randomStrafe = false
+
+            // Height advantage distance keeping: if opponent is >3 blocks above us, keep 28-33 distance
+            val heightDiff = opponent()!!.posY - mc.thePlayer.posY
+            val opponentHighAbove = heightDiff > 3.0
+            if (opponentHighAbove && !isDodgingArrow) {
+                // Check if world border is behind us within 3 blocks — if so, force forward
+                val border = mc.theWorld.worldBorder
+                val behindVec = EntityUtil.get2dLookVec(mc.thePlayer).rotateYaw(180f)
+                val behindX = mc.thePlayer.posX + behindVec.xCoord * 3.0
+                val behindZ = mc.thePlayer.posZ + behindVec.zCoord * 3.0
+                val borderBehind = behindX - border.minX() < 3.0 || border.maxX() - behindX < 3.0 ||
+                        behindZ - border.minZ() < 3.0 || border.maxZ() - behindZ < 3.0
+
+                if (borderBehind) {
+                    // Border behind — force forward regardless of distance
+                    Movement.stopBackward()
+                    if (!tapping) Movement.startForward()
+                } else if (distance < 28f) {
+                    Movement.stopForward()
+                    Movement.startBackward()
+                } else if (distance > 33f) {
+                    Movement.stopBackward()
+                    if (!tapping) Movement.startForward()
+                } else {
+                    Movement.stopForward()
+                    Movement.stopBackward()
+                }
+                if (!needJump && !rodHitNeedJump) {
+                    Movement.stopJumping()
+                }
+                randomStrafe = true
+            }
 
             // Retreat logic: low health + medium distance - retreat until rod hits once
             // Start retreat when: low health + health disadvantage + medium distance + cooldown expired + enabled in config
@@ -1101,7 +1249,7 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 }
             }
 
-            if (shouldContinueRetreat || shouldDefensiveRodRetreat) {
+            if ((shouldContinueRetreat || shouldDefensiveRodRetreat) && !opponentHighAbove) {
                 Movement.stopForward()
                 Movement.startBackward()
 
@@ -1113,7 +1261,7 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                     }
                     ChatUtil.combatInfo(retreatReason)
                 }
-            } else if (!isDodgingArrow) {
+            } else if (!isDodgingArrow && !opponentHighAbove) {
                 Movement.stopBackward()  // Stop retreating when not needed
 
                 // Reset retreat state if conditions no longer met OR if distance is outside retreat range
@@ -1150,10 +1298,10 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 }
             }
 
-            if (distance < 1.5 && mc.thePlayer.heldItem != null && !mc.thePlayer.heldItem.unlocalizedName.lowercase()
-                    .contains("sword")
+            if (distance < 1.5 && !Mouse.lClickDown && mc.thePlayer.heldItem != null && !mc.thePlayer.heldItem.unlocalizedName.lowercase()
+                    .contains(meleeWeapon())
             ) {
-                Inventory.setInvItem("sword")
+                Inventory.setInvItem(meleeWeapon())
                 Mouse.rClickUp()
                 // Don't start attacking here - let the distance control logic handle it
             }
@@ -1172,6 +1320,9 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 ChatUtil.combatInfo("Counter-strafe detected - applying ${counterStrafeMultiplier}x prediction multiplier")
             }
 
+            // Rod logic - only for Fisherman kit (blitzKit == 0)
+            val isFisherman = (CatDueller.config?.blitzKit ?: 0) == 0
+
             // Adjust rod usage distances based on prediction compensation
             // Extend minimum range when opponent is retreating
             val baseRodDistance1Min = if (opponentIsRetreating) 3.5f else 4.0f
@@ -1180,31 +1331,30 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
             val rodDistance2Min = 8.5f + distanceAdjustment
             val rodDistance2Max = 10.0f + distanceAdjustment
 
+            // Rod usage variables - only relevant for Fisherman
+            var shouldUseDefensiveRod = false
+            var shouldUseOffensiveRod = false
+            var shouldAvoidRodDueToCloseRangeBow = false
 
-            // Check for defensive rod usage (opponent combo >= 3)
-            val shouldUseDefensiveRod = opponentCombo >= 3 && distance > 3
-            // Check for offensive rod usage (distance-based)
-            val shouldUseOffensiveRod =
-                (distance in rodDistance1Min..rodDistance1Max || distance in rodDistance2Min..rodDistance2Max) &&
-                        opponent() != null && !EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)
-
-            // Check if we should avoid rod usage due to close range + opponent drawing bow
-            val shouldAvoidRodDueToCloseRangeBow = distance <= 5f && opponentIsDrawingBow
-
-            if (shouldAvoidRodDueToCloseRangeBow) {
-                // Start jumping to dodge arrows at close range instead of using rod
+            // Close range + opponent drawing bow: jump to dodge (applies to ALL kits)
+            if (distance <= 5f && opponentIsDrawingBow) {
+                shouldAvoidRodDueToCloseRangeBow = true
                 needJump = true
                 Movement.startJumping()
                 if (CatDueller.config?.combatLogs == true) {
                     ChatUtil.combatInfo(
-                        "Avoiding rod usage and jumping - close range (${
-                            String.format(
-                                "%.1f",
-                                distance
-                            )
-                        } blocks ≤ 6) + opponent drawing bow"
+                        "Jumping - close range (${String.format("%.1f", distance)} blocks ≤ 5) + opponent drawing bow"
                     )
                 }
+            }
+
+            if (isFisherman) {
+                // Check for defensive rod usage (opponent combo >= 3)
+                shouldUseDefensiveRod = opponentCombo >= 3 && distance > 3
+                // Check for offensive rod usage (distance-based)
+                shouldUseOffensiveRod =
+                    (distance in rodDistance1Min..rodDistance1Max || distance in rodDistance2Min..rodDistance2Max) &&
+                            opponent() != null && !EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)
             }
 
 
@@ -1221,7 +1371,7 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
             }
 
 
-            if ((shouldUseDefensiveRod || shouldUseOffensiveRod) && !Mouse.isUsingProjectile() && !Mouse.isBlockingArrow() && !shouldAvoidRodDueToCloseRangeBow && !isDodgingArrow) {
+            if (isFisherman && (shouldUseDefensiveRod || shouldUseOffensiveRod) && !Mouse.isUsingProjectile() && !Mouse.isBlockingArrow() && !shouldAvoidRodDueToCloseRangeBow && !isDodgingArrow && !Mouse.lClickDown) {
                 if (CatDueller.config?.combatLogs == true) {
                     val rodType = if (shouldUseDefensiveRod) "defensive" else "offensive"
                     val rangeInfo = if (distance in rodDistance2Min..rodDistance2Max) "Range2" else "Range1"
@@ -1250,8 +1400,9 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
 
             // Smart weapon switching based on distance and situation
             // Combine offensive rod ranges with defensive rod condition
-            val inRodRange =
+            val inRodRange = if (isFisherman) {
                 (distance in rodDistance1Min..rodDistance1Max || distance in rodDistance2Min..rodDistance2Max) || shouldUseDefensiveRod
+            } else false
             val shouldHaveSword = distance < 4f || (!inRodRange && distance < 6f)
 
             // Check if rod is currently in use (don't interrupt rod usage)
@@ -1262,18 +1413,18 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                             this.rodRetractTimeout != null  // Rod is still active even if we're not holding it
                     )
 
-            if (mc.thePlayer.heldItem != null && !isRodInUse) {
+            if (mc.thePlayer.heldItem != null && !isRodInUse && !Mouse.lClickDown && !isUsingBow) {
                 val currentItem = mc.thePlayer.heldItem.unlocalizedName.lowercase()
 
                 // Switch to sword if we should have sword but don't
-                if (shouldHaveSword && !currentItem.contains("sword")) {
-                    Inventory.setInvItem("sword")
+                if (shouldHaveSword && !currentItem.contains(meleeWeapon())) {
+                    Inventory.setInvItem(meleeWeapon())
                     Mouse.rClickUp()
                     // Don't start attacking here - let the distance control logic handle it
                 }
                 // Switch to rod if we're in rod range but holding bow
                 else if (inRodRange && currentItem.contains("bow") && !Mouse.isUsingProjectile()) {
-                    Inventory.setInvItem("sword")  // Switch to sword first, rod usage will switch to rod when needed
+                    Inventory.setInvItem(meleeWeapon())  // Switch to melee first, rod usage will switch to rod when needed
                     Mouse.rClickUp()
                 }
             }
@@ -1292,56 +1443,32 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 }
             }
 
+            // Bow situations - only for Necromancer kit (blitzKit == 1)
             // Situation 1: Enemy facing away (6-30 blocks) - wait for opponent to fire arrow
-            val situation1 = (EntityUtil.entityFacingAway(
+            val opponentHoldingBow = opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase().contains("bow")
+            // Situation 1: Enemy facing away (6-30 blocks) - don't start if opponent holding bow
+            val situation1 = !isFisherman && (EntityUtil.entityFacingAway(
                 mc.thePlayer,
                 opponent()!!
             ) || (opponentIsRetreating)) && distance in 6f..30f &&
-                    !opponentIsDrawingBow
-            // Situation 2: Long distance (28-33 blocks) - wait for opponent to fire arrow
-            val situation2 = distance in 28.0..33.0 && !EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!) &&
-                    !opponentIsDrawingBow
-            // Situation 3: Low health opponent (< 2 hearts, distance > 8) - wait for opponent to fire arrow
-            val situation3 =
+                    !opponentHoldingBow
+            // Situation 2: Long distance - if opponent holding bow: 28-33 blocks, otherwise: 10-33 blocks
+            val situation2Range = if (opponentHoldingBow) 28.0..33.0 else 10.0..33.0
+            val situation2 = !isFisherman && distance in situation2Range && !EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!) &&
+                    !opponentHoldingBow
+            // Situation 3: Low health opponent (< 2 hearts, distance > 8) - don't start if opponent holding bow
+            val situation3 = !isFisherman &&
                 opponent()!!.health < 4.0f && (distance > 10.0f || (distance > 8.0f && opponentIsRetreating)) &&
-                        !opponentIsDrawingBow
-            // Situation 4: Our health lower than opponent's health and distance > 10 - wait for opponent to fire arrow
-            val situation4 = mc.thePlayer.health < opponent()!!.health && distance > 10.0f &&
-                    !opponentIsDrawingBow
-
+                        !opponentHoldingBow
+            // Situation 4: Our health lower than opponent's health and distance > 10 - don't start if opponent holding bow
+            val situation4 = !isFisherman && mc.thePlayer.health < opponent()!!.health && distance > 10.0f &&
+                    !opponentHoldingBow
             // First, check if we should interrupt our bow usage when opponent starts drawing
-            // All situations now wait for opponent to fire before starting, so only interrupt non-protected situations
-            if (Mouse.isUsingProjectile() && isUsingBow && opponentIsDrawingBow) {
-                val bowUsageTime = System.currentTimeMillis() - ourBowStartTime
-                val isProtectedSituation = situation3 || situation4
-
-                if (bowUsageTime < 2000 && !isProtectedSituation && !bowCounterAttackActive) {
-                    // Interrupt bow usage to focus on dodging - switch to sword and release right click
-                    Mouse.setUsingProjectile(false)
-                    Inventory.setInvItem("sword")
-                    Mouse.rClickUp()
-                    isUsingBow = false
-                    lastWeaponSwitchTime = System.currentTimeMillis()  // Record weapon switch time
-
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("Interrupted bow usage to dodge - used for ${bowUsageTime}ms")
-                    }
-                } else if ((isProtectedSituation || bowCounterAttackActive) && CatDueller.config?.combatLogs == true) {
-                    val situationType = when {
-                        situation3 -> "situation 3 (low health opponent)"
-                        situation4 -> "situation 4 (our health disadvantage)"
-                        bowCounterAttackActive -> "bow counter-attack in progress"
-                        else -> "protected situation"
-                    }
-                    ChatUtil.combatInfo("Bow interruption skipped - $situationType")
-                }
-            }
-
             // Check if we should interrupt bow usage due to close distance (≤8 blocks)
-            if (isUsingBow && Mouse.isUsingProjectile() && distance <= 8f) {
+            if (!isFisherman && isUsingBow && Mouse.isUsingProjectile() && distance <= 8f && !Mouse.lClickDown) {
                 // Interrupt bow usage immediately when opponent gets too close
                 Mouse.setUsingProjectile(false)
-                Inventory.setInvItem("sword")
+                Inventory.setInvItem(meleeWeapon())
                 Mouse.rClickUp()
                 isUsingBow = false
                 bowCounterAttackActive = false  // Reset bow counter-attack
@@ -1358,8 +1485,79 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 }
             }
 
-            if ((situation1 || situation2 || situation3 || situation4) && !Mouse.isBlockingArrow()) {
-                val canUseBow = if (situation1) {
+            // Spawn egg placement: when we have spawn eggs (Necromancer only)
+            // If onlyWhenBowing=true: only when opponent is drawing bow
+            // If onlyWhenBowing=false: also when distance < 20
+            val onlyWhenBowing = CatDueller.config?.placeMobsOnlyWhenBowing ?: true
+            val shouldPlaceEgg = if (onlyWhenBowing) opponentIsDrawingBow else (opponentIsDrawingBow || distance < 20)
+            if (CatDueller.config?.placeMobs == true && !isFisherman && shouldPlaceEgg && !isPlacingSpawnEgg) {
+                // Try to switch to spawn egg - if found, start placing
+                // Try both unlocalizedName variants: "monsterPlacer" (item.monsterPlacer) and "spawn_egg" (registry name)
+                if (Inventory.setInvItem("monsterPlacer")) {
+                    isPlacingSpawnEgg = true
+
+                    // Stop attacking
+                    if (CatDueller.config?.holdLeftClick == true) {
+                        Mouse.stopHoldLeftClick()
+                    } else {
+                        Mouse.stopLeftAC()
+                    }
+
+                    Mouse.setPlacingWater(true)  // Look straight down
+                    Mouse.startRightClick()  // Hold right click to place
+
+                    if (CatDueller.config?.combatLogs == true) {
+                        val reason = if (opponentIsDrawingBow) "opponent drawing bow" else "distance < 20 ($distance)"
+                        ChatUtil.combatInfo("Spawn egg: Started placing - $reason")
+                    }
+                }
+            } else if (isPlacingSpawnEgg) {
+                // Check if we should continue or stop
+                val stillHasEgg = Inventory.setInvItem("monsterPlacer")
+                val onlyBowing = CatDueller.config?.placeMobsOnlyWhenBowing ?: true
+                val shouldContinue = if (onlyBowing) opponentIsDrawingBow else (opponentIsDrawingBow || distance < 20)
+                if (!shouldContinue || !stillHasEgg) {
+                    // Stop placing
+                    isPlacingSpawnEgg = false
+                    Mouse.setPlacingWater(false)
+                    Mouse.rClickUp()
+                    if (!Mouse.lClickDown) {
+                        Inventory.setInvItem(meleeWeapon())
+                    }
+
+                    // Resume attacking
+                    if (CatDueller.config?.holdLeftClick == true) {
+                        Mouse.startHoldLeftClick()
+                    } else {
+                        Mouse.startLeftAC()
+                    }
+
+                    if (CatDueller.config?.combatLogs == true) {
+                        val reason = if (!shouldContinue) "condition no longer met" else "no spawn eggs left"
+                        ChatUtil.combatInfo("Spawn egg: Stopped placing - $reason")
+                    }
+                } else {
+                    // Continue placing - keep right click held
+                    if (!Mouse.rClickDown) {
+                        Mouse.startRightClick()
+                    }
+                }
+            }
+
+            val canSeeOpponent = mc.thePlayer.canEntityBeSeen(opponent())
+
+            if ((situation1 || situation2 || situation3 || situation4) && !Mouse.isBlockingArrow() && canSeeOpponent) {
+                val bowOnCooldown = lastBowShotTime > 0 &&
+                        System.currentTimeMillis() - lastBowShotTime < 500
+
+                val canUseBow = if (bowOnCooldown && !Mouse.isUsingProjectile()) {
+                    // Cooldown active - don't start new bow usage
+                    if (CatDueller.config?.combatLogs == true) {
+                        val remaining = 500 - (System.currentTimeMillis() - lastBowShotTime)
+                        ChatUtil.combatInfo("Bow cooldown active - ${remaining}ms remaining (opponent drawing bow)")
+                    }
+                    false
+                } else if (situation1) {
                     // Situation 1: Start bow usage if not already active
                     val canStart =
                         distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows && !isDodgingArrow
@@ -1375,7 +1573,7 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 } else if (situation2) {
                     // Situation 2: Start bow usage if not already active (requires opponentUsedBow)
                     val canStart =
-                        distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows && opponentUsedBow && !isDodgingArrow
+                        distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows && !isDodgingArrow
 
                     if (canStart && !bowCounterAttackActive) {
                         bowCounterAttackActive = true
@@ -1419,6 +1617,75 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                     }
                 }
 
+                // Necromancer kit: actually use the bow
+                if (!isFisherman && canUseBow && !Mouse.lClickDown) {
+                    clear = true
+                    // Track bow usage start time
+                    if (!isUsingBow) {
+                        ourBowStartTime = System.currentTimeMillis()
+                        isUsingBow = true
+                    }
+
+                    if (isUsingBow) {
+                        useBow(distance, fun() {
+                        shotsFired++
+                        isUsingBow = false
+                        lastBowShotTime = System.currentTimeMillis()
+
+                        // Start post-bow strafe: random left or right for 1 second (skip during block breaking and 1s after)
+                        if (!Mouse.lClickDown && System.currentTimeMillis() - blockBreakEndTime >= 1000) {
+                            postBowStrafeActive = true
+                            postBowStrafeEndTime = System.currentTimeMillis() + 1000
+                            Combat.stopRandomStrafe()
+                            Movement.clearLeftRight()
+                            val strafeDir = decideRandomStrafeDirection()
+                            if (strafeDir == 1) Movement.startLeft() else Movement.startRight()
+
+                            if (CatDueller.config?.combatLogs == true) {
+                                val dirName = if (strafeDir == 1) "left" else "right"
+                                ChatUtil.combatInfo("Post-bow strafe: moving $dirName for 1s")
+                            }
+                        }
+
+                        if (bowCounterAttackActive) {
+                            bowCounterAttackActive = false
+                            if (CatDueller.config?.combatLogs == true) {
+                                ChatUtil.combatInfo("Bow counter-attack completed - reset flag")
+                            }
+                        }
+
+                        // Check if we need to start Dodge Arrow after completing our bow shot
+                        val currentDistance = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
+                        val shouldStartDodgeArrow = CatDueller.config?.dodgeArrow == true &&
+                                opponentIsDrawingBow &&
+                                currentDistance > 6f &&
+                                !isDodgingArrow
+
+                        if (shouldStartDodgeArrow) {
+                            isDodgingArrow = true
+                            Mouse.setDodgingArrow(true)
+                            dodgeArrowStartTime = System.currentTimeMillis()
+                            Combat.stopRandomStrafe()
+                            Movement.clearLeftRight()
+                            hurtStrafeDirection = 0
+                            Movement.stopForward()
+                            Movement.stopBackward()
+                            if (!Mouse.lClickDown) {
+                                Inventory.setInvItem(meleeWeapon())
+                            }
+                            Mouse.rClickUp()
+                            this@Blitz.startDodgeMovementTimer()
+                        }
+
+                        if (CatDueller.config?.holdLeftClick == true) {
+                            Mouse.startHoldLeftClick()
+                        } else {
+                            Mouse.startLeftAC()
+                        }
+                    })
+                    }
+                }
+
             } else {
                 if (EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)) {
                     if (WorldUtil.leftOrRightToPoint(mc.thePlayer, Vec3(0.0, 0.0, 0.0))) {
@@ -1427,9 +1694,7 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                         movePriority[1] += 4
                     }
                 } else {
-                    // Distance <= 8.8: Always use random strafe regardless of opponent's weapon or state
-                    // But disable all strafe during Dodge Arrow
-                    if (distance <= 11.0f && !isDodgingArrow) {
+                    if (distance <= 11.0f) {
                         randomStrafe = true
                         if (!needJump && !rodHitNeedJump) {
                             Movement.stopJumping()
@@ -1442,48 +1707,28 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                                         "%.1f",
                                         distance
                                     )
-                                } blocks (≤ 8.8)"
+                                } blocks (<= 11)"
                             )
                         }
-                    } else if (distance in 15f..8.8f && !isDodgingArrow) {
-                        randomStrafe = true
-                    } else if (isDodgingArrow) {
-                        // Dodge Arrow is active - stop jumping and disable strafe
-                        randomStrafe = false
-                        Movement.stopJumping()
-                        if (CatDueller.config?.combatLogs == true) {
-                            ChatUtil.combatInfo("Random strafe disabled and jumping stopped - Dodge Arrow active")
-                        }
                     } else {
-                        randomStrafe = false
-                        // Dodge strafe when opponent is drawing bow, has rod, or when we're in dodge mode
-                        // But disable all strafe during Dodge Arrow
-                        if (opponent() != null && !isDodgingArrow) {
+                        // Long range (> 15 blocks) - dodge strafe when opponent is drawing bow or has rod
+                        if (opponent() != null) {
                             val hasRod =
                                 opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase()
                                     .contains("rod")
 
                             // Use opponentIsDrawingBow for more accurate detection
-                            if (hasRod || opponentIsDrawingBow || isDodging) {
+                            if (hasRod || opponentIsDrawingBow) {
                                 randomStrafe = true
-                                if (distance < 15 && !needJump && !rodHitNeedJump && !isDodgingArrow) {
+                                if (!needJump && !rodHitNeedJump) {
                                     Movement.stopJumping()
-                                } else if (isDodgingArrow) {
-                                    // Dodge Arrow is active - stop jumping
-                                    Movement.stopJumping()
-                                    if (CatDueller.config?.combatLogs == true) {
-                                        ChatUtil.combatInfo("Dodge strafe jumping stopped - Dodge Arrow active")
-                                    }
                                 }
 
-                                if (CatDueller.config?.combatLogs == true && (opponentIsDrawingBow || isDodging)) {
-                                    ChatUtil.combatInfo("Dodge strafe activated - opponent drawing bow: $opponentIsDrawingBow, dodging: $isDodging")
+                                if (CatDueller.config?.combatLogs == true && opponentIsDrawingBow) {
+                                    ChatUtil.combatInfo("Dodge strafe activated - opponent drawing bow at distance ${String.format("%.1f", distance)}")
                                 }
                             }
-                        } else if (isDodgingArrow && CatDueller.config?.combatLogs == true) {
-                            ChatUtil.combatInfo("All strafe disabled - Dodge Arrow active")
                         }
-
                     }
                 }
             }
@@ -1496,10 +1741,23 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 return block != Blocks.air
             }
 
+            // World border detection: check if a direction would be within 3 blocks of border
+            fun hasBorderInDirection(yaw: Float, checkDist: Float): Boolean {
+                val border = mc.theWorld.worldBorder
+                val lookVec = EntityUtil.get2dLookVec(mc.thePlayer).rotateYaw(yaw)
+                val checkX = mc.thePlayer.posX + lookVec.xCoord * checkDist
+                val checkZ = mc.thePlayer.posZ + lookVec.zCoord * checkDist
+                return checkX - border.minX() < 3.0 || border.maxX() - checkX < 3.0 ||
+                       checkZ - border.minZ() < 3.0 || border.maxZ() - checkZ < 3.0
+            }
+
             val hasWallOnLeft =
-                hasWallInDirection(90f, 1f) || hasWallInDirection(90f, 2f) || hasWallInDirection(90f, 3f)
+                hasWallInDirection(90f, 1f) || hasWallInDirection(90f, 2f) || hasWallInDirection(90f, 3f) ||
+                hasBorderInDirection(90f, 3f)
             val hasWallOnRight =
-                hasWallInDirection(-90f, 1f) || hasWallInDirection(-90f, 2f) || hasWallInDirection(-90f, 3f)
+                hasWallInDirection(-90f, 1f) || hasWallInDirection(-90f, 2f) || hasWallInDirection(-90f, 3f) ||
+                hasBorderInDirection(-90f, 3f)
+            val hasBorderBehind = hasBorderInDirection(180f, 3f)
 
             // Hurt strafe logic - only when hurt
             val player = mc.thePlayer
@@ -1507,7 +1765,7 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
 
             // Check for hurt strafe activation (at hurtTime = 4, which is 400ms after hit)
             // But disable hurt strafe during Dodge Arrow
-            if (currentHurtTime == 4 && CatDueller.config?.hurtStrafe == true && !isDodgingArrow) {
+            if (currentHurtTime == 4 && CatDueller.config?.hurtStrafe == true && !isDodgingArrow && !Mouse.lClickDown && System.currentTimeMillis() - blockBreakEndTime >= 1000) {
                 // Always activate hurt strafe - decide direction randomly
                 hurtStrafeDirection = decideRandomStrafeDirection()
 
@@ -1523,7 +1781,9 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
             val hasActiveHurtStrafe = hurtStrafeDirection != 0 &&
                     opponent() != null &&
                     mc.thePlayer != null &&
-                    !isDodgingArrow  // Disable hurt strafe during Dodge Arrow
+                    !isDodgingArrow &&  // Disable hurt strafe during Dodge Arrow
+                    !Mouse.lClickDown &&  // Disable hurt strafe during block breaking
+                    System.currentTimeMillis() - blockBreakEndTime >= 1000  // Disable hurt strafe 1s after block breaking
 
             // HURT STRAFE HAS THE HIGHEST PRIORITY - but consider walls and Dodge Arrow
             if (hasActiveHurtStrafe) {
@@ -1588,11 +1848,31 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 }
             }
 
-            // Check if hurt strafe or Dodge Arrow is active - if so, skip handle() to avoid being overridden
-            if (!hasActiveHurtStrafe && !isDodgingArrow) {
+            // Cancel all strafing during block breaking and 1s after
+            val blockBreakCooldown = System.currentTimeMillis() - blockBreakEndTime < 1000
+            val suppressStrafe = Mouse.lClickDown || blockBreakCooldown
+            if (suppressStrafe) {
+                Combat.stopRandomStrafe()
+                Movement.clearLeftRight()
+            }
+            // Stop forward movement and jumping during block breaking
+            if (Mouse.lClickDown) {
+                Movement.stopJumping()
+                if (opponent() != null) {
+                    val breakDist = EntityUtil.getDistanceNoY(mc.thePlayer, opponent())
+                    if (breakDist > 2.5f && (WorldUtil.blockInFront(mc.thePlayer, 4f, 2.5f) != Blocks.air || WorldUtil.blockInFront(mc.thePlayer, 3f, 2.5f) != Blocks.air || WorldUtil.blockInFront(mc.thePlayer, 2f, 2.5f) != Blocks.air || WorldUtil.blockInFront(mc.thePlayer, 1f, 2.5f) != Blocks.air)) {
+                        Movement.stopForward()
+                    }
+                }
+            }
+
+            // Check if hurt strafe, Dodge Arrow, post-bow strafe, or block breaking is active - if so, skip handle()
+            if (!hasActiveHurtStrafe && !isDodgingArrow && !postBowStrafeActive && !suppressStrafe) {
                 handle(clear, randomStrafe, movePriority)
             } else if (isDodgingArrow && CatDueller.config?.combatLogs == true) {
                 ChatUtil.combatInfo("Skipping handle() - Dodge Arrow movement takes priority")
+            } else if (postBowStrafeActive && CatDueller.config?.combatLogs == true) {
+                ChatUtil.combatInfo("Skipping handle() - Post-bow strafe takes priority")
             }
             // If hurt strafe or Dodge Arrow is active, movement is already handled above, skip handle()
         }

@@ -8,6 +8,7 @@ import org.afterlike.catdueller.bot.player.*
 import org.afterlike.catdueller.utils.client.ChatUtil
 import org.afterlike.catdueller.utils.client.TimerUtil
 import org.afterlike.catdueller.utils.game.EntityUtil
+import org.afterlike.catdueller.utils.game.WorldUtil
 import org.afterlike.catdueller.utils.system.RandomUtil
 
 /**
@@ -48,6 +49,12 @@ class BowDuel : BotBase("/play duels_bow_duel"), Bow, MovePriority {
     /** Flag indicating bow counter-attack is in progress. */
     private var bowCounterAttackActive = false
 
+    /** Flag indicating post-bow strafe is active. */
+    private var postBowStrafeActive = false
+
+    /** Timestamp when post-bow strafe ends. */
+    private var postBowStrafeEndTime = 0L
+
     /** Previous tick's opponent bow drawing state. */
     private var lastTickOpponentDrawingBow = false
 
@@ -56,6 +63,9 @@ class BowDuel : BotBase("/play duels_bow_duel"), Bow, MovePriority {
 
     /** Timestamp when opponent stopped drawing bow. */
     private var opponentBowStopTime = 0L
+
+    /** Timestamp of last bow shot for cooldown tracking. */
+    private var lastBowShotTime = 0L
 
     /** Flag indicating if initial positioning is complete. */
     private var initialPositioningComplete = false
@@ -81,6 +91,9 @@ class BowDuel : BotBase("/play duels_bow_duel"), Bow, MovePriority {
         ourBowStartTime = 0
         isUsingBow = false
         bowCounterAttackActive = false
+        postBowStrafeActive = false
+        postBowStrafeEndTime = 0L
+        lastBowShotTime = 0L
         opponentBowStartTime = 0L
         opponentBowStopTime = 0L
         lastTickOpponentDrawingBow = false
@@ -108,6 +121,7 @@ class BowDuel : BotBase("/play duels_bow_duel"), Bow, MovePriority {
 
         isUsingBow = false
         bowCounterAttackActive = false
+        postBowStrafeActive = false
 
         Mouse.stopLeftAC()
 
@@ -168,12 +182,21 @@ class BowDuel : BotBase("/play duels_bow_duel"), Bow, MovePriority {
             }
 
             // Distance control - maintain 28-33 blocks distance
+            // Wall behind check takes priority over retreat
+            val wallBehind = WorldUtil.wallBehind(mc.thePlayer, 5)
+
             if (distance < 28f) {
-                // Too close - move backward
-                Movement.stopForward()
-                Movement.startBackward()
-                if (CatDueller.config?.combatLogs == true && !initialPositioningComplete) {
-                    ChatUtil.combatInfo("Distance < 28 blocks (${String.format("%.1f", distance)}), moving backward")
+                if (wallBehind) {
+                    // Wall behind within 3 blocks - stop retreating, just hold position
+                    Movement.stopForward()
+                    Movement.stopBackward()
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("Wall behind within 3 blocks - stopping retreat at distance ${String.format("%.1f", distance)}")
+                    }
+                } else {
+                    // No wall behind - safe to move backward
+                    Movement.stopForward()
+                    Movement.startBackward()
                 }
                 initialPositioningComplete = true
             } else if (distance > 33f) {
@@ -194,19 +217,35 @@ class BowDuel : BotBase("/play duels_bow_duel"), Bow, MovePriority {
                 }
             }
 
-            // Bow usage logic - always use bow
-            if (!isUsingBow) {
+            // Bow usage logic - normal useBow, but early release if opponent stops drawing bow
+            val bowOnCooldown = lastBowShotTime > 0 &&
+                    System.currentTimeMillis() - lastBowShotTime < 500
+
+            if (!isUsingBow && !bowOnCooldown) {
                 ourBowStartTime = System.currentTimeMillis()
                 isUsingBow = true
             }
 
-            useBow(distance, fun() {
-                isUsingBow = false  // Reset when bow usage completes
-                
-                if (CatDueller.config?.combatLogs == true) {
-                    ChatUtil.combatInfo("Shot arrow at distance ${String.format("%.1f", distance)}")
-                }
-            })
+            if (isUsingBow) {
+                useBow(distance, fun() {
+                    isUsingBow = false
+                    lastBowShotTime = System.currentTimeMillis()
+
+                    // Start post-bow strafe
+                    postBowStrafeActive = true
+                    postBowStrafeEndTime = System.currentTimeMillis() + 1000
+                    Combat.stopRandomStrafe()
+                    Movement.clearLeftRight()
+                    val strafeDir = if (RandomUtil.randomBool()) 1 else 2
+                    if (strafeDir == 1) Movement.startLeft() else Movement.startRight()
+                })
+            }
+
+            // Early release: if opponent just stopped drawing bow and we're charging, release immediately
+            val opponentJustStoppedDrawing = lastTickOpponentDrawingBow && !opponentIsDrawingBow
+            if (opponentJustStoppedDrawing && isUsingBow && Mouse.isUsingProjectile() && Mouse.rClickDown) {
+                Mouse.rClickUp()
+            }
 
             // Jumping logic - dodge when opponent draws bow
             if (distance > 11) {
@@ -229,10 +268,21 @@ class BowDuel : BotBase("/play duels_bow_duel"), Bow, MovePriority {
             // Strafing logic - always strafe
             val randomStrafe = true
 
-            // Handle movement priorities
+            // Check if post-bow strafe should end
+            if (postBowStrafeActive && System.currentTimeMillis() >= postBowStrafeEndTime) {
+                postBowStrafeActive = false
+                Movement.clearLeftRight()
+                if (CatDueller.config?.combatLogs == true) {
+                    ChatUtil.combatInfo("Post-bow strafe ended")
+                }
+            }
+
+            // Handle movement priorities (skip if post-bow strafe is active)
             val movePriority = arrayListOf(0, 0)
             val clear = false
-            handle(clear, randomStrafe, movePriority)
+            if (!postBowStrafeActive) {
+                handle(clear, randomStrafe, movePriority)
+            }
         }
     }
 }

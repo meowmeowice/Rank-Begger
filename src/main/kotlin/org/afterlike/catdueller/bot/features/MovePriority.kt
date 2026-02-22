@@ -53,7 +53,7 @@ interface MovePriority {
                         }
                     }
                 } else {
-                    Combat.startRandomStrafe(300, 1000)
+                    Combat.startRandomStrafe(500, 2000)
                     if (CatDueller.config?.combatLogs == true) {
                         ChatUtil.combatInfo("MovePriority: Starting random strafe (movePriority: [${movePriority[0]}, ${movePriority[1]}])")
                     }

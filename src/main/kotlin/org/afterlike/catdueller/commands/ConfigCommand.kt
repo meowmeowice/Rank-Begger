@@ -34,10 +34,14 @@ class ConfigCommand : CommandBase() {
     override fun getRequiredPermissionLevel(): Int = 0
 
     override fun processCommand(sender: ICommandSender?, args: Array<out String>?) {
-        when (args?.getOrNull(0)?.lowercase()) {
-            "config", "cfg", "settings" -> openConfig()
-            "session" -> handleSession(args.getOrNull(1))
-            else -> handleDefault()
+        try {
+            when (args?.getOrNull(0)?.lowercase()) {
+                "config", "cfg", "settings" -> openConfig()
+                "session" -> handleSession(args.getOrNull(1))
+                else -> handleDefault()
+            }
+        } catch (e: Exception) {
+            ChatUtil.info("Command error: ${e.message}")
         }
     }
 
@@ -114,4 +118,6 @@ class ConfigCommand : CommandBase() {
 
         ChatUtil.info(Session.getSession(winstreak))
     }
+
+
 }

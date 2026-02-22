@@ -2164,7 +2164,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                                     )
 
                                     // Add damage statistics for Classic, OP, and UHC bots (before Bot Started)
-                                    if ((getName() == "Classic" || getName() == "OP" || getName() == "UHC") &&
+                                    if ((getName() == "Classic" || getName() == "OP" || getName() == "UHC" || getName() == "Blitz") &&
                                         (damageDealtToOpponent > 0.0 || damageReceivedFromOpponent > 0.0)
                                     ) {
                                         // If we lost, show opponent's damage first (received - dealt)
@@ -2268,7 +2268,16 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             if (hitSelectEnabled && canSwing() && !isKbReductionAttack) {
                 hitSelectAttackTime = System.currentTimeMillis()
             }
+
+            // Allow subclasses to handle attack entity event
+            onAttackEntity()
         }
+    }
+
+    /**
+     * Called when the player attacks an entity. Subclasses can override for custom behavior.
+     */
+    protected open fun onAttackEntity() {
     }
 
     /**
@@ -2463,7 +2472,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             MovementRecorder.onChatMessage(unformatted)
 
             // Check for damage statistics in Classic, OP, and UHC bots
-            if (getName() == "Classic" || getName() == "OP" || getName() == "UHC") {
+            if (getName() == "Classic" || getName() == "OP" || getName() == "UHC" || getName() == "Blitz") {
                 checkDamageStatistics(unformatted)
             }
 

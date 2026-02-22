@@ -138,6 +138,21 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
     /** Previous opponent strafe direction for detecting direction changes. */
     private var lastOpponentStrafeDirection = 0
 
+    /** Flag indicating post-bow strafe is active. */
+    private var postBowStrafeActive = false
+
+    /** Timestamp when post-bow strafe ends. */
+    private var postBowStrafeEndTime = 0L
+
+    /** Timestamp of last bow shot for cooldown tracking. */
+    private var lastBowShotTime = 0L
+
+    /** Timestamp of last fake fishing click for random interval. */
+    private var lastFakeFishingClick = 0L
+
+    /** Whether fake fishing mode is currently active. */
+    private var isFakeFishing = false
+
     /**
      * Called when the bot joins a game lobby.
      * Handles lobby movement and rotation setup.
@@ -182,6 +197,11 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         lastDodgeArrowEndTime = 0L
         dodgeArrowStartTime = 0L
         lastOpponentStrafeDirection = 0
+        postBowStrafeActive = false
+        postBowStrafeEndTime = 0L
+        lastBowShotTime = 0L
+        lastFakeFishingClick = 0L
+        isFakeFishing = false
 
         // Reset W-tap state
         tapping = false
@@ -218,6 +238,12 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
         shotsFired = 0
         shouldHoldLeftClick = false
+
+        // Clean up fake fishing state
+        if (isFakeFishing) {
+            isFakeFishing = false
+            Mouse.setBreakingBlock(false)
+        }
 
         // Clean up Dodge Arrow state
         isDodgingArrow = false
@@ -292,6 +318,13 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         hurtStrafeDirection = 0
 
         shouldHoldLeftClick = false
+
+        // Clean up post-bow strafe
+        postBowStrafeActive = false
+        postBowStrafeEndTime = 0L
+        lastBowShotTime = 0L
+        lastFakeFishingClick = 0L
+        isFakeFishing = false
 
         if (CatDueller.config?.combatLogs == true) {
             ChatUtil.combatInfo("Game resources cleaned up - memory leak prevention")
@@ -1001,6 +1034,29 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 }
             }
 
+            // Fake fishing: when distance > 20, look down 30° and randomly click/use rod
+            if (distance > 20f && !Mouse.isUsingProjectile() && !Mouse.isBlockingArrow() && !isDodgingArrow) {
+                if (!isFakeFishing) {
+                    isFakeFishing = true
+                    Mouse.setBreakingBlock(true, 30f)
+                    Inventory.setInvItem("rod")
+                }
+                val now = System.currentTimeMillis()
+                if (now - lastFakeFishingClick > RandomUtil.randomIntInRange(800, 2500)) {
+                    lastFakeFishingClick = now
+                    // Randomly either left click or use rod
+                    if (RandomUtil.randomBool()) {
+                        mc.thePlayer?.swingItem()
+                    } else {
+                        Mouse.rClick(RandomUtil.randomIntInRange(50, 150))
+                    }
+                }
+            } else if (isFakeFishing) {
+                isFakeFishing = false
+                Mouse.setBreakingBlock(false)
+                Inventory.setInvItem("sword")
+            }
+
             if (distance > 11) {
                 // Use opponentIsDrawingBow for more accurate dodge detection
                 if (opponentIsDrawingBow) {
@@ -1359,7 +1415,13 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             }
 
             if ((situation1 || situation2 || situation3 || situation4) && !Mouse.isBlockingArrow()) {
-                val canUseBow = if (situation1) {
+                // 0.5s cooldown between bow shots when opponent is drawing bow
+                val bowOnCooldown = lastBowShotTime > 0 &&
+                        System.currentTimeMillis() - lastBowShotTime < 500
+
+                val canUseBow = if (bowOnCooldown && !Mouse.isUsingProjectile()) {
+                    false
+                } else if (situation1) {
                     // Situation 1: Start bow usage if not already active
                     val canStart =
                         distance > 8 && !Mouse.isUsingProjectile() && shotsFired < maxArrows && !isDodgingArrow
@@ -1429,14 +1491,19 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
                     useBow(distance, fun() {
                         shotsFired++
-                        isUsingBow = false  // Reset when bow usage completes
+                        isUsingBow = false
+                        lastBowShotTime = System.currentTimeMillis()
 
-                        // Reset bow counter-attack when bow usage completes
+                        // Start post-bow strafe
+                        postBowStrafeActive = true
+                        postBowStrafeEndTime = System.currentTimeMillis() + 1000
+                        Combat.stopRandomStrafe()
+                        Movement.clearLeftRight()
+                        val strafeDir = if (RandomUtil.randomBool()) 1 else 2
+                        if (strafeDir == 1) Movement.startLeft() else Movement.startRight()
+
                         if (bowCounterAttackActive) {
                             bowCounterAttackActive = false
-                            if (CatDueller.config?.combatLogs == true) {
-                                ChatUtil.combatInfo("Bow counter-attack completed - reset flag")
-                            }
                         }
 
                         // Check if we need to start Dodge Arrow after completing our bow shot
@@ -1449,27 +1516,15 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                         if (shouldStartDodgeArrow) {
                             isDodgingArrow = true
                             Mouse.setDodgingArrow(true)
-                            dodgeArrowStartTime = System.currentTimeMillis()  // Record start time for timeout
-
-                            // Stop all strafe movements
+                            dodgeArrowStartTime = System.currentTimeMillis()
                             Combat.stopRandomStrafe()
                             Movement.clearLeftRight()
-                            hurtStrafeDirection = 0  // Cancel any active hurt strafe
-
-                            // Clear forward/backward movement to prevent interference from bow/rod
+                            hurtStrafeDirection = 0
                             Movement.stopForward()
                             Movement.stopBackward()
-
-                            // Switch to sword for safety
                             Inventory.setInvItem("sword")
                             Mouse.rClickUp()
-
-                            // Start movement switching timer
                             startDodgeMovementTimer()
-
-                            if (CatDueller.config?.combatLogs == true) {
-                                ChatUtil.combatInfo("Dodge Arrow: Started dodging after completing bow shot - opponent still drawing at distance $currentDistance, all strafe cancelled")
-                            }
                         }
                     })
                 } else {
@@ -1557,10 +1612,22 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 return block != Blocks.air
             }
 
+            // World border detection: check if a direction would be within 3 blocks of border
+            fun hasBorderInDirection(yaw: Float, checkDist: Float): Boolean {
+                val border = mc.theWorld.worldBorder
+                val lookVec = EntityUtil.get2dLookVec(mc.thePlayer).rotateYaw(yaw)
+                val checkX = mc.thePlayer.posX + lookVec.xCoord * checkDist
+                val checkZ = mc.thePlayer.posZ + lookVec.zCoord * checkDist
+                return checkX - border.minX() < 3.0 || border.maxX() - checkX < 3.0 ||
+                       checkZ - border.minZ() < 3.0 || border.maxZ() - checkZ < 3.0
+            }
+
             val hasWallOnLeft =
-                hasWallInDirection(90f, 1f) || hasWallInDirection(90f, 2f) || hasWallInDirection(90f, 3f)
+                hasWallInDirection(90f, 1f) || hasWallInDirection(90f, 2f) || hasWallInDirection(90f, 3f) ||
+                hasBorderInDirection(90f, 3f)
             val hasWallOnRight =
-                hasWallInDirection(-90f, 1f) || hasWallInDirection(-90f, 2f) || hasWallInDirection(-90f, 3f)
+                hasWallInDirection(-90f, 1f) || hasWallInDirection(-90f, 2f) || hasWallInDirection(-90f, 3f) ||
+                hasBorderInDirection(-90f, 3f)
 
             // Hurt strafe logic - only when hurt
             val player = mc.thePlayer
@@ -1651,7 +1718,15 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
             // Check if hurt strafe or Dodge Arrow is active - if so, skip handle() to avoid being overridden
             if (!hasActiveHurtStrafe && !isDodgingArrow) {
-                handle(clear, randomStrafe, movePriority)
+                // Check if post-bow strafe should end
+                if (postBowStrafeActive && System.currentTimeMillis() >= postBowStrafeEndTime) {
+                    postBowStrafeActive = false
+                    Movement.clearLeftRight()
+                }
+
+                if (!postBowStrafeActive) {
+                    handle(clear, randomStrafe, movePriority)
+                }
             } else if (isDodgingArrow && CatDueller.config?.combatLogs == true) {
                 ChatUtil.combatInfo("Skipping handle() - Dodge Arrow movement takes priority")
             }

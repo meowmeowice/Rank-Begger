@@ -51,11 +51,7 @@ object EntityUtil {
         return if (entity == null) {
             false
         } else if (CatDueller.mc.thePlayer.isEntityAlive && entity.isEntityAlive) {
-            if (!entity.isInvisible) {
-                CatDueller.mc.thePlayer.getDistanceToEntity(entity) <= 64.0f
-            } else {
-                false
-            }
+            CatDueller.mc.thePlayer.getDistanceToEntity(entity) <= 64.0f
         } else {
             false
         }
@@ -179,9 +175,15 @@ object EntityUtil {
                     val opponentSpeed = if (isUsingBow) {
                         // Bow: Use opponent's actual tracked speed with maximum 0.15 for moving targets (no minimum limit)
                         val trackedSpeed = CatDueller.bot?.opponentActualSpeed ?: 0.13f
+                        // If opponent is drawing bow, use fixed 0.13 speed (bow drawing slows movement)
+                        val opponentDrawingBow = CatDueller.bot?.opponentIsDrawingBow == true
                         if (currentSpeed > 0.005) {  // If target is moving (threshold to avoid micro-movements)
-                            // Moving target: no minimum, maximum 0.15 speed
-                            min(trackedSpeed, 0.15f)
+                            if (opponentDrawingBow) {
+                                0.07f
+                            } else {
+                                // Moving target: no minimum, maximum 0.15 speed
+                                min(trackedSpeed, 0.15f)
+                            }
                         } else {
                             // Stationary target: no prediction (0.0 speed)
                             0.0f
@@ -215,9 +217,10 @@ object EntityUtil {
                     val height = when (dist) {
                         in 0f..8f -> target.eyeHeight * 0.5  // Normal height for close range
                         in 8f..15f -> target.eyeHeight * 1.0  // Normal height for medium range
-                        in 15f..25f -> target.eyeHeight * 1.5 
-                        in 25f..35f -> target.eyeHeight * 2.0 // Normal height for long range
-                        else -> target.eyeHeight * 3.0  // Normal height for very long range
+                        in 15f..25f -> target.eyeHeight * 1.5
+                        in 25f..35f -> target.eyeHeight * 2.5 // Normal height for long range
+                        in 35f..45f -> target.eyeHeight * 3.5
+                        else -> target.eyeHeight * 4.5  // Normal height for very long range
                     }
                     pos = target.positionVector.add(flatVelo).add(Vec3(0.0, height, 0.0)) ?: Vec3(
                         target.posX,

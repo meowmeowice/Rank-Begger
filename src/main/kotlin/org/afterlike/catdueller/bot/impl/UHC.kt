@@ -126,6 +126,15 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
     /** Previous opponent strafe direction for detecting direction changes. */
     private var lastOpponentStrafeDirection = 0
 
+    /** Flag indicating post-bow strafe is active. */
+    private var postBowStrafeActive = false
+
+    /** Timestamp when post-bow strafe ends. */
+    private var postBowStrafeEndTime = 0L
+
+    /** Timestamp of last bow shot for cooldown tracking. */
+    private var lastBowShotTime = 0L
+
     /**
      * Called when the game starts.
      * Resets all consumable counts and state variables, then initiates movement.
@@ -161,6 +170,9 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
         isPlacingPlank = false
         isPlacingWater = false
         lastOpponentStrafeDirection = 0
+        postBowStrafeActive = false
+        postBowStrafeEndTime = 0L
+        lastBowShotTime = 0L
 
         Movement.startSprinting()
         Movement.startForward()
@@ -211,6 +223,9 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
         isPlacingPlank = false
         isPlacingWater = false
         lastOpponentStrafeDirection = 0
+        postBowStrafeActive = false
+        postBowStrafeEndTime = 0L
+        lastBowShotTime = 0L
 
         if (CatDueller.config?.holdLeftClick == true) {
             Mouse.stopHoldLeftClick()
@@ -279,12 +294,15 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
         // Switch to head and use it
         if (Inventory.setInvItem("skull")) {
             // Single right click to consume head
-            Mouse.rClick(50) // Very short click duration for quick consumption
+            TimerUtil.setTimeout({
+                Mouse.rClick(50)
+            }, 100)
+             // Very short click duration for quick consumption
 
             // Switch back to sword after a short delay
             TimerUtil.setTimeout({
                 Inventory.setInvItem("sword")
-            }, 100)
+            }, 200)
 
             headsLeft--
         } else {
@@ -355,6 +373,24 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
     override fun onTick() {
         super.onTick()
         var needJump = false
+
+        // Block breaking: if looking at a plank or log block, switch to axe and hold left click
+        if (toggled() && opponent() != null && mc.thePlayer != null && !isPlacingWater && mc.objectMouseOver != null &&
+            mc.objectMouseOver.typeOfHit == net.minecraft.util.MovingObjectPosition.MovingObjectType.BLOCK) {
+            val blockPos = mc.objectMouseOver.blockPos
+            val block = mc.theWorld?.getBlockState(blockPos)?.block
+            val isBreakable = block == Blocks.planks || block == Blocks.log || block == Blocks.log2
+            if (isBreakable && !Mouse.lClickDown) {
+                Inventory.setInvItem("hatchet")
+                Mouse.startLeftClick()
+            } else if (!isBreakable && Mouse.lClickDown) {
+                Mouse.lClickUp()
+                Inventory.setInvItem("sword")
+            }
+        } else if (Mouse.lClickDown) {
+            Mouse.lClickUp()
+            Inventory.setInvItem("sword")
+        }
 
         if (tapping && System.currentTimeMillis() >= tappingEndTime) {
             tapping = false
@@ -446,25 +482,20 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
                         // Enable water placement rotation mode
                         Mouse.setPlacingWater(true)
                         Mouse.rClickUp()
-                        // Wait for rotation to apply
+                        // Wait for rotation to apply, then hold right click for 500ms
                         TimerUtil.setTimeout({
-                            // Right click to place water at same level
-                            Mouse.rClick(50)
+                            Mouse.startRightClick()
 
-                            // Click again to pick up the water
+                            // Release after 500ms and switch back to sword
                             TimerUtil.setTimeout({
-                                Mouse.rClick(50)
-
-                                // Disable water placement rotation and switch back to sword
-                                TimerUtil.setTimeout({
-                                    Mouse.setPlacingWater(false)
-                                    Inventory.setInvItem("sword")
-                                    isPlacingWater = false
-                                }, 200)
-                            }, 200)
-                        }, 200)
+                                Mouse.rClickUp()
+                                Mouse.setPlacingWater(false)
+                                Inventory.setInvItem("sword")
+                                isPlacingWater = false
+                            }, 400)
+                        }, 100)
                     }
-                }, RandomUtil.randomIntInRange(300, 500))
+                }, RandomUtil.randomIntInRange(100, 300))
 
                 
             }
@@ -494,11 +525,7 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
 
         if (mc.thePlayer != null) {
             // Check for block in front (always check, similar to Classic)
-            if ((WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air || WorldUtil.blockInFront(
-                    mc.thePlayer,
-                    1f,
-                    0.5f
-                ) != Blocks.air) && mc.thePlayer.onGround
+            if ((WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air || WorldUtil.blockInFront(mc.thePlayer, 1f, 0.5f) != Blocks.air) && WorldUtil.blockInFront(mc.thePlayer, 1f, 2.5f) == Blocks.air && WorldUtil.blockInFront(mc.thePlayer, 2f, 2.5f) == Blocks.air && mc.thePlayer.onGround
             ) {
                 needJump = true
                 Movement.singleJump(RandomUtil.randomIntInRange(150, 250))
@@ -705,7 +732,7 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
                 // UHC-specific: Jump over fire
                 Movement.startJumping()
             } else if (opponent() != null && opponent()!!.heldItem != null && opponent()!!.heldItem.unlocalizedName.lowercase()
-                    .contains("bow")
+                    .contains("bow") && !needJump && !rodHitNeedJump
             ) {
                 // Priority 5: Normal combat - stop jumping when opponent has bow to dodge arrows
                 Movement.stopJumping()
@@ -726,8 +753,23 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
             var clear = false
             var randomStrafe = false
 
+            // Height advantage distance keeping: if opponent is >3 blocks above us, keep 28-33 distance
+            val heightDiff = opponent()!!.posY - mc.thePlayer.posY
+            val opponentHighAbove = heightDiff > 3.0
+
             // Gap usage has highest priority for movement - always move backward during gap
-            if (Mouse.isUsingGap()) {
+            if (opponentHighAbove && !Mouse.isUsingGap()) {
+                if (distance < 28f) {
+                    Movement.stopForward()
+                    Movement.startBackward()
+                } else if (distance > 33f) {
+                    Movement.stopBackward()
+                    if (!tapping) Movement.startForward()
+                } else {
+                    Movement.stopForward()
+                    Movement.stopBackward()
+                }
+            } else if (Mouse.isUsingGap()) {
                 Movement.stopForward()
                 Movement.startBackward()
                 if (CatDueller.config?.combatLogs == true) {
@@ -746,7 +788,7 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
             // Avoid switching to sword when recently used gap to prevent inventory conflicts
             val recentlyUsedGap = System.currentTimeMillis() - lastGap < 3000
 
-            if (distance < 1.5 && mc.thePlayer.heldItem != null && !mc.thePlayer.heldItem.unlocalizedName.lowercase()
+            if (distance < 1.5 && !Mouse.lClickDown && !isPlacingWater && mc.thePlayer.heldItem != null && !mc.thePlayer.heldItem.unlocalizedName.lowercase()
                     .contains("sword") &&
                 !Mouse.isUsingProjectile() && !Mouse.isUsingGap() && !recentlyUsedGap
             ) {
@@ -771,19 +813,20 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
             }
 
             // UHC Head usage logic - for close range emergency healing
-            if (mc.thePlayer.health < 10 && combo < 2 && headsLeft > 0 &&
+            if (mc.thePlayer.health < 10 && combo < 2 && headsLeft > 0 && !Mouse.lClickDown && !isPlacingWater &&
                 System.currentTimeMillis() - lastHead > 3000 && System.currentTimeMillis() - lastGap > 7000 && !Mouse.isUsingGap() && !Mouse.isUsingProjectile()
             ) {
+                lastHead = System.currentTimeMillis()  // Update immediately to prevent multiple triggers
                 TimerUtil.setTimeout(fun() {
                     useHead()
-                }, RandomUtil.randomIntInRange(300, 500))
+                }, RandomUtil.randomIntInRange(100, 300))
                 
             }
 
             // UHC Gap usage logic - similar to OP mode
             if (mc.thePlayer.health < 12 && combo < 2) {
                 // Use gap for healing since no potions available in UHC
-                if (!Mouse.isUsingProjectile() && !Mouse.isUsingGap() && gapsLeft > 0 && 
+                if (!Mouse.isUsingProjectile() && !Mouse.isUsingGap() && !Mouse.lClickDown && !isPlacingWater && gapsLeft > 0 && 
                     System.currentTimeMillis() - lastGap > 7000 && System.currentTimeMillis() - lastHead > 3000 &&
                     (System.currentTimeMillis() - lastGap > 15000 || mc.thePlayer.health < 10) &&
                     (mc.thePlayer.health <= (opponent()!!.health) || opponentIsUsingGap) &&
@@ -819,7 +862,7 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
                     }
                 }
 
-                if ((distance in rodDistance1Min..rodDistance1Max || distance in rodDistance2Min..rodDistance2Max) && !EntityUtil.entityFacingAway(
+                if ((distance in rodDistance1Min..rodDistance1Max || distance in rodDistance2Min..rodDistance2Max) && !Mouse.lClickDown && !isPlacingWater && !EntityUtil.entityFacingAway(
                         mc.thePlayer,
                         opponent()!!
                     )
@@ -832,7 +875,13 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
                     val situation2 = distance in 28.0..33.0 && !EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)
 
                     if (situation1 || situation2) {
-                        val canUseBow = if (situation1) {
+                        // 0.5s cooldown between bow shots
+                        val bowOnCooldown = lastBowShotTime > 0 &&
+                                System.currentTimeMillis() - lastBowShotTime < 500
+
+                        val canUseBow = if (bowOnCooldown) {
+                            false
+                        } else if (situation1) {
                             // Situation 1: No opponentUsedBow requirement
                             distance > 10 && shotsFired < maxArrows
                         } else {
@@ -840,10 +889,19 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
                             distance > 10 && shotsFired < maxArrows && opponentUsedBow
                         }
 
-                        if (canUseBow) {
+                        if (canUseBow && !Mouse.lClickDown && !isPlacingWater) {
                             clear = true
                             useBow(distance, fun() {
                                 shotsFired++
+                                lastBowShotTime = System.currentTimeMillis()
+
+                                // Start post-bow strafe: random left or right for 1 second
+                                postBowStrafeActive = true
+                                postBowStrafeEndTime = System.currentTimeMillis() + 1000
+                                Combat.stopRandomStrafe()
+                                Movement.clearLeftRight()
+                                val strafeDir = if (RandomUtil.randomBool()) 1 else 2
+                                if (strafeDir == 1) Movement.startLeft() else Movement.startRight()
                             })
                         } else {
                             clear = false
@@ -872,7 +930,9 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
                                 // Strafe logic (copied from OP with distance-based approach)
                                 if (distance <= 11.0f) {
                                     randomStrafe = true
-                                    Movement.stopJumping()
+                                    if (!needJump && !rodHitNeedJump) {
+                                        Movement.stopJumping()
+                                    }
 
                                     if (CatDueller.config?.combatLogs == true) {
                                         ChatUtil.combatInfo(
@@ -894,7 +954,9 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
                                         // Use opponentIsDrawingBow for more accurate detection
                                         if (hasRod || opponentIsDrawingBow) {
                                             randomStrafe = true
-                                            Movement.stopJumping()
+                                            if (!needJump && !rodHitNeedJump) {
+                                                Movement.stopJumping()
+                                            }
 
                                             if (CatDueller.config?.combatLogs == true && opponentIsDrawingBow) {
                                                 ChatUtil.combatInfo("Dodge strafe activated - opponent drawing bow at distance ${String.format("%.1f", distance)}")
@@ -939,10 +1001,18 @@ class UHC : BotBase("/play duels_uhc_duel"), Bow, Rod, MovePriority, Gap {
 
                 // Check if gap usage or running away is active - if so, skip handle() to avoid being overridden
                 if (!Mouse.isUsingGap() && !Mouse.isRunningAway()) {
-                    if (CatDueller.config?.combatLogs == true) {
-                        ChatUtil.combatInfo("UHC: handle() - clear: $clear, randomStrafe: $randomStrafe, movePriority: [${movePriority[0]}, ${movePriority[1]}]")
+                    // Check if post-bow strafe should end
+                    if (postBowStrafeActive && System.currentTimeMillis() >= postBowStrafeEndTime) {
+                        postBowStrafeActive = false
+                        Movement.clearLeftRight()
                     }
-                    handle(clear, randomStrafe, movePriority)
+
+                    if (!postBowStrafeActive) {
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("UHC: handle() - clear: $clear, randomStrafe: $randomStrafe, movePriority: [${movePriority[0]}, ${movePriority[1]}]")
+                        }
+                        handle(clear, randomStrafe, movePriority)
+                    }
                 } else {
                     // Clear strafe when running away or using gap to avoid residual movement
                     Movement.clearLeftRight()

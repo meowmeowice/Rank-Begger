@@ -75,6 +75,27 @@ object WorldUtil {
     }
 
     /**
+     * Checks if there is a solid wall behind the player within the given distance.
+     *
+     * @param player The player to check from.
+     * @param distance The maximum distance in blocks to check behind.
+     * @return `true` if a solid (non-air) block is found behind the player within the distance.
+     */
+    fun wallBehind(player: EntityPlayer, distance: Int): Boolean {
+        val behindVec = EntityUtil.get2dLookVec(player).rotateYaw(180f)
+        for (i in 1..distance) {
+            val x = player.posX + behindVec.xCoord * i
+            val z = player.posZ + behindVec.zCoord * i
+            val blockFeet = CatDueller.mc.theWorld.getBlockState(BlockPos(x, player.posY, z)).block
+            val blockHead = CatDueller.mc.theWorld.getBlockState(BlockPos(x, player.posY + 1.0, z)).block
+            if (blockFeet != Blocks.air || blockHead != Blocks.air) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
      * Checks if there is an air gap (void/edge) to the left of the player.
      *
      * @param player The player to check from.

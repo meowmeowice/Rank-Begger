@@ -28,6 +28,9 @@ object Mouse {
     /** Whether the right mouse button is currently held down. */
     var rClickDown = false
 
+    /** Whether the left mouse button is currently held down via KeyBinding. */
+    var lClickDown = false
+
     /** Whether target tracking is currently active. */
     private var tracking = false
 
@@ -76,6 +79,12 @@ object Mouse {
 
     /** Whether the player is currently placing block at feet (water or plank). */
     private var _placingBlockAtFeet = false
+
+    /** Whether the player is currently aiming at a block to break. */
+    private var _breakingBlock = false
+
+    /** Target pitch when breaking a block. */
+    private var _breakingBlockPitch = 0f
 
     /** Remaining ticks to hold the left click. */
     private var leftClickDur = 0
@@ -141,6 +150,7 @@ object Mouse {
      */
     fun leftClick() {
         val mc = CatDueller.mc
+        if (lClickDown) return  // Don't interrupt block breaking with auto-click
         if (CatDueller.bot?.toggled() == true && mc.thePlayer != null && !mc.thePlayer.isUsingItem) {
             // Only swing if canSwing allows it (BotBase handles all attack decision logic)
             if (CatDueller.bot?.canSwing() == true) {
@@ -252,6 +262,7 @@ object Mouse {
         setUsingGap(false)
         setRunningAway(false)
         setBlockingArrow(false)
+        setBreakingBlock(false)
         rClickDown = false
 
         gameEndViewRotationActive = false
@@ -370,6 +381,21 @@ object Mouse {
      */
     fun isPlacingBlockAtFeet(): Boolean {
         return _placingBlockAtFeet
+    }
+
+    /**
+     * Sets block breaking aim state with target pitch.
+     */
+    fun setBreakingBlock(breaking: Boolean, pitch: Float = 0f) {
+        _breakingBlock = breaking
+        _breakingBlockPitch = pitch
+    }
+
+    /**
+     * Returns whether the player is currently aiming at a block to break.
+     */
+    fun isBreakingBlock(): Boolean {
+        return _breakingBlock
     }
 
     /**
@@ -521,6 +547,32 @@ object Mouse {
     }
 
     /**
+     * Presses and holds the left mouse button via KeyBinding.
+     */
+    fun startLeftClick() {
+        if (CatDueller.bot?.toggled() == true) {
+            lClickDown = true
+            // Initiate block breaking via PlayerControllerMP
+            val mc = CatDueller.mc
+            if (mc.objectMouseOver != null &&
+                mc.objectMouseOver.typeOfHit == net.minecraft.util.MovingObjectPosition.MovingObjectType.BLOCK) {
+                val pos = mc.objectMouseOver.blockPos
+                val side = mc.objectMouseOver.sideHit
+                mc.playerController.clickBlock(pos, side)
+                mc.thePlayer?.swingItem()
+            }
+        }
+    }
+
+    /**
+     * Releases the left mouse button via KeyBinding.
+     */
+    fun lClickUp() {
+        lClickDown = false
+        CatDueller.mc.playerController?.resetBlockRemoving()
+    }
+
+    /**
      * Releases the right mouse button.
      */
     fun rClickUp() {
@@ -541,6 +593,18 @@ object Mouse {
         if (CatDueller.mc.thePlayer == null) return
 
         if (ev.phase == TickEvent.Phase.START && CatDueller.bot?.toggled() == true) {
+            // Progress block breaking every tick (works when tabbed out)
+            if (lClickDown) {
+                val mc = CatDueller.mc
+                if (mc.objectMouseOver != null &&
+                    mc.objectMouseOver.typeOfHit == net.minecraft.util.MovingObjectPosition.MovingObjectType.BLOCK) {
+                    val pos = mc.objectMouseOver.blockPos
+                    val side = mc.objectMouseOver.sideHit
+                    mc.playerController.onPlayerDamageBlock(pos, side)
+                    mc.thePlayer?.swingItem()
+                }
+            }
+
             if (leftAC) {
                 tickCounter++
 
@@ -575,7 +639,7 @@ object Mouse {
             if (leftClickDur > 0) {
                 leftClickDur--
             } else {
-                if (leftAC && CatDueller.mc.gameSettings.keyBindAttack.isKeyDown) {
+                if (leftAC && CatDueller.mc.gameSettings.keyBindAttack.isKeyDown && !lClickDown) {
                     KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindAttack.keyCode, false)
                 }
             }
@@ -663,6 +727,25 @@ object Mouse {
             }
 
             return // Skip normal tracking when placing blocks at feet
+        }
+
+        // Handle Block Breaking rotation - aim at target block
+        if (_breakingBlock) {
+            val player = CatDueller.mc.thePlayer ?: return
+
+            val currentPitch = player.rotationPitch
+            val pitchDiff = _breakingBlockPitch - currentPitch
+
+            val maxRotSpeed = 20.0f
+            val dpitch = if (abs(pitchDiff) > maxRotSpeed) {
+                if (pitchDiff > 0) maxRotSpeed else -maxRotSpeed
+            } else {
+                pitchDiff
+            }
+
+            player.rotationPitch += dpitch
+
+            return // Skip normal tracking when breaking blocks
         }
 
         // Handle Dodge Arrow rotation - takes priority over normal tracking
