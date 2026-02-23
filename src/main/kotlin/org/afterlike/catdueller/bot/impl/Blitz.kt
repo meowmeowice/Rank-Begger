@@ -1131,7 +1131,8 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 val now = System.currentTimeMillis()
                 if (now - lastRandomSwing > RandomUtil.randomIntInRange(500, 1000)) {
                     lastRandomSwing = now
-                    if (RandomUtil.randomBool()) {
+                    val isFisherman = (CatDueller.config?.blitzKit ?: 0) == 0
+                    if (!isFisherman || RandomUtil.randomBool()) {
                         if (mc.thePlayer?.heldItem == null || !mc.thePlayer.heldItem.unlocalizedName.lowercase().contains(meleeWeapon())) {
                             Inventory.setInvItem(meleeWeapon())
                         }
