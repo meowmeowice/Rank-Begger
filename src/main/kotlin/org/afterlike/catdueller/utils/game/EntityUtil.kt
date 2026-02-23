@@ -156,10 +156,8 @@ object EntityUtil {
                     // Add ping compensation bonus from config
                     val pingBonus = CatDueller.config?.predictionTicksBonus ?: 0
 
-                    // Apply counter strafe multiplier for bow/rod prediction
-                    val counterStrafeMultiplier = CatDueller.bot?.getCounterStrafeMultiplier() ?: 1.0f
                     val basePredictionTicks = adjustedBaseTicks + pingBonus
-                    val tickPredict = basePredictionTicks * counterStrafeMultiplier
+                    val tickPredict = basePredictionTicks.toDouble()
 
                     // For bow/rod, use actual velocity but apply prediction compensation
                     val actualVelocity = target.getVelocity()
@@ -182,7 +180,8 @@ object EntityUtil {
                                 0.07f
                             } else {
                                 // Moving target: no minimum, maximum 0.15 speed
-                                min(trackedSpeed, 0.15f)
+                                // min(trackedSpeed, 0.15f)
+                                trackedSpeed*0.7
                             }
                         } else {
                             // Stationary target: no prediction (0.0 speed)
@@ -191,7 +190,7 @@ object EntityUtil {
                     } else if (isUsingRod) {
                         // Rod: Use opponent's actual tracked speed with no speed limit
                         val trackedSpeed = CatDueller.bot?.opponentActualSpeed ?: 0.13f
-                        if (currentSpeed > 0.005) {  // If target is moving (threshold to avoid micro-movements)
+                        if (currentSpeed > 0.01) {  // If target is moving (threshold to avoid micro-movements)
                             // Moving target: use full tracked speed with no limit
                             trackedSpeed
                         } else {
@@ -205,7 +204,7 @@ object EntityUtil {
 
                     val adjustedVelocity = if (currentSpeed > 0) {
                         // Scale to appropriate speed while maintaining direction
-                        val scale = opponentSpeed / currentSpeed
+                        val scale = opponentSpeed.toDouble() / currentSpeed
                         Vec3(actualVelocity.xCoord * scale, actualVelocity.yCoord, actualVelocity.zCoord * scale)
                     } else {
                         // If not moving, don't predict movement

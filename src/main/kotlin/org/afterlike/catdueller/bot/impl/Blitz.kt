@@ -161,6 +161,12 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
     /** Timestamp when block breaking ended, for 1s strafe suppression. */
     private var blockBreakEndTime = 0L
 
+    /** Timestamp of last random swing for random interval. */
+    private var lastRandomSwing = 0L
+
+    /** Whether random swing mode is currently active. */
+    private var isRandomSwing = false
+
     /**
      * Called when the bot joins a game lobby.
      * Handles lobby movement and rotation setup.
@@ -204,6 +210,8 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
         postBowStrafeActive = false
         postBowStrafeEndTime = 0L
         lastBowShotTime = 0L
+        lastRandomSwing = 0L
+        isRandomSwing = false
         lastOpponentStrafeDirection = 0
 
         // Reset W-tap state
@@ -245,6 +253,12 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
         // Clean up block breaking state
         if (Mouse.lClickDown) {
             Mouse.lClickUp()
+        }
+
+        // Clean up random swing state
+        if (isRandomSwing) {
+            isRandomSwing = false
+            Mouse.setBreakingBlock(false)
         }
 
         // Clean up Dodge Arrow state
@@ -331,6 +345,13 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
         // Clean up post-bow strafe
         postBowStrafeActive = false
         postBowStrafeEndTime = 0L
+
+        // Clean up random swing
+        if (isRandomSwing) {
+            isRandomSwing = false
+            Mouse.setBreakingBlock(false)
+        }
+        lastRandomSwing = 0L
 
         if (CatDueller.config?.combatLogs == true) {
             ChatUtil.combatInfo("Game resources cleaned up - memory leak prevention")
@@ -1100,6 +1121,31 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
                 }
             }
 
+            // Random swing: when distance > 20, look down 20° and randomly swing sword or use rod (lowest priority)
+            if (distance > 20f && !Mouse.isUsingProjectile() && !Mouse.isBlockingArrow() && !Mouse.isDodgingArrow() && !Mouse.isRunningAway() && !Mouse.isUsingPotion() && !Mouse.isUsingGap() && !Mouse.isPlacingWater() && !Mouse.isPlacingPlank() && !Mouse.isPlacingBlockAtFeet() && !Mouse.lClickDown) {
+                if (!isRandomSwing) {
+                    isRandomSwing = true
+                    Mouse.setBreakingBlock(true, 20f)
+                    Inventory.setInvItem(meleeWeapon())
+                }
+                val now = System.currentTimeMillis()
+                if (now - lastRandomSwing > RandomUtil.randomIntInRange(500, 1000)) {
+                    lastRandomSwing = now
+                    if (RandomUtil.randomBool()) {
+                        if (mc.thePlayer?.heldItem == null || !mc.thePlayer.heldItem.unlocalizedName.lowercase().contains(meleeWeapon())) {
+                            Inventory.setInvItem(meleeWeapon())
+                        }
+                        mc.thePlayer?.swingItem()
+                    } else {
+                        useRodWithTracking(false)
+                    }
+                }
+            } else if (isRandomSwing) {
+                isRandomSwing = false
+                Mouse.setBreakingBlock(false)
+                Inventory.setInvItem(meleeWeapon())
+            }
+
             if (distance > 11) {
                 // Use opponentIsDrawingBow for more accurate dodge detection
                 if (opponentIsDrawingBow) {
@@ -1310,15 +1356,8 @@ class Blitz : BotBase("/play duels_blitz_duel"), Bow, Rod, MovePriority {
             val predictionTicksBonus = CatDueller.config?.predictionTicksBonus ?: 0
             val opponentActualSpeed = CatDueller.bot?.opponentActualSpeed ?: 0.13f  // Use opponent's actual speed
 
-            // Apply counter-strafe multiplier when counter-strafing (both moving away laterally)
-            val counterStrafeMultiplier =
-                if (isCounterStrafing) (CatDueller.config?.counterStrafeBonus ?: 1.5f) else 1.0f
             val basePredictionDistance = predictionTicksBonus * opponentActualSpeed
-            val distanceAdjustment = basePredictionDistance * counterStrafeMultiplier
-
-            if (CatDueller.config?.combatLogs == true && isCounterStrafing) {
-                ChatUtil.combatInfo("Counter-strafe detected - applying ${counterStrafeMultiplier}x prediction multiplier")
-            }
+            val distanceAdjustment = basePredictionDistance
 
             // Rod logic - only for Fisherman kit (blitzKit == 0)
             val isFisherman = (CatDueller.config?.blitzKit ?: 0) == 0

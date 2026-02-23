@@ -491,19 +491,6 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      */
     fun opponent() = opponent
 
-    /**
-     * Calculates the counter strafe multiplier for projectile prediction.
-     *
-     * When both players are strafing in the same relative direction,
-     * projectile prediction becomes more accurate and a bonus multiplier is applied.
-     *
-     * @return The multiplier to apply (1.0 = no bonus, configurable bonus when counter-strafing)
-     */
-    fun getCounterStrafeMultiplier(): Float {
-        val multiplier = CatDueller.config?.counterStrafeBonus ?: 1.5f
-        return if (isCounterStrafing) multiplier else 1.0f
-    }
-
     // ================== Overridable Methods ==================
 
     /**

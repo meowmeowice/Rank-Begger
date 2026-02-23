@@ -168,12 +168,6 @@ tasks {
                                 }
                             }
 
-                            // Commands - 保留方法名（Forge CommandBase override 需要）
-                            "class"("classes" to "private", "methods" to "private", "fields" to "private") {
-                                "patternset" {
-                                    "include"("name" to "org.afterlike.catdueller.commands.**")
-                                }
-                            }
 
                             // 外部庫 - 必須保留
                             "class"("classes" to "private", "methods" to "private", "fields" to "private") {

@@ -104,7 +104,7 @@ interface Bow {
                 }
                 val chargeTime = when (distance) {
                     in 0f..7f -> RandomUtil.randomIntInRange(700, 900)
-                    in 7f..15f -> RandomUtil.randomIntInRange(900, 1100)
+                    in 7f..15f -> RandomUtil.randomIntInRange(700, 900)
                     else -> RandomUtil.randomIntInRange(900, 1100)
                 }
                 // Start holding right click

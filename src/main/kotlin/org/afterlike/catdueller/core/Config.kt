@@ -45,13 +45,15 @@ class Config {
     
     // Classic Settings
     var predictionTicksBonus = 0
-    var counterStrafeBonus = 1.5f
     var enableRodJump = true
     var rodJumpDelay = 200
     var enableWTap = true
     var wTapDelay = 100
     var sprintReset = false
     var holdLeftClick = false
+    var keepDistanceMode = false
+    var keepDistance = 6.0f
+    var keepDistanceJumpOnRodHit: Boolean? = false
     var hitSelect = false
     var hitSelectDelay = 400
     var hitLaterInTrades = 0

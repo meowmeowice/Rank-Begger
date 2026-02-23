@@ -603,22 +603,6 @@ object ConfigPanelBuilder {
             )
         )
         
-        // Counter Strafe Multiplier
-        panel.addSetting(
-            SliderSetting(
-                name = "Counter Strafe Multiplier",
-                value = config.counterStrafeBonus.toDouble(),
-                min = 0.5,
-                max = 3.0,
-                increment = 0.1,
-                onChange = { value ->
-                    config.counterStrafeBonus = value.toFloat()
-                    config.markDirty()
-                    config.writeData()
-                }
-            )
-        )
-        
         // Enable Rod Jump
         panel.addSetting(
             BooleanSetting(
@@ -686,6 +670,48 @@ object ConfigPanelBuilder {
                 }
             )
         )
+        
+        // Keep Distance Mode
+        val keepDistanceSetting = BooleanSetting(
+            name = "Keep Distance Mode",
+            value = config.keepDistanceMode,
+            onChange = { value ->
+                config.keepDistanceMode = value
+                config.markDirty()
+                config.writeData()
+            }
+        )
+        
+        keepDistanceSetting.addSubSetting(
+            SliderSetting(
+                name = "Distance",
+                value = config.keepDistance.toDouble(),
+                min = 3.0,
+                max = 10.0,
+                increment = 0.5,
+                onChange = { value ->
+                    config.keepDistance = value.toFloat()
+                    config.markDirty()
+                    config.writeData()
+                },
+                scale = 0.85f
+            )
+        )
+        
+        keepDistanceSetting.addSubSetting(
+            BooleanSetting(
+                name = "Jump When Rod Hit",
+                value = config.keepDistanceJumpOnRodHit ?: false,
+                onChange = { value ->
+                    config.keepDistanceJumpOnRodHit = value
+                    config.markDirty()
+                    config.writeData()
+                },
+                isSubSetting = true
+            )
+        )
+        
+        panel.addSetting(keepDistanceSetting)
     }
     
     fun buildBlitzPanel(panel: Panel) {

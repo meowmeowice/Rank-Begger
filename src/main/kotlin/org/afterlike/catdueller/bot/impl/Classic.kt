@@ -147,11 +147,17 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
     /** Timestamp of last bow shot for cooldown tracking. */
     private var lastBowShotTime = 0L
 
-    /** Timestamp of last fake fishing click for random interval. */
-    private var lastFakeFishingClick = 0L
+    /** Timestamp of last random swing for random interval. */
+    private var lastRandomSwing = 0L
 
-    /** Whether fake fishing mode is currently active. */
-    private var isFakeFishing = false
+    /** Whether random swing mode is currently active. */
+    private var isRandomSwing = false
+
+    /** Whether keep distance mode is actively backing away. */
+    private var isKeepingDistance = false
+
+    /** Timestamp when keep distance last stopped (for cooldown). */
+    private var keepDistanceStopTime = 0L
 
     /**
      * Called when the bot joins a game lobby.
@@ -200,8 +206,10 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         postBowStrafeActive = false
         postBowStrafeEndTime = 0L
         lastBowShotTime = 0L
-        lastFakeFishingClick = 0L
-        isFakeFishing = false
+        lastRandomSwing = 0L
+        isRandomSwing = false
+        isKeepingDistance = false
+        keepDistanceStopTime = 0L
 
         // Reset W-tap state
         tapping = false
@@ -239,9 +247,9 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         shotsFired = 0
         shouldHoldLeftClick = false
 
-        // Clean up fake fishing state
-        if (isFakeFishing) {
-            isFakeFishing = false
+        // Clean up random swing state
+        if (isRandomSwing) {
+            isRandomSwing = false
             Mouse.setBreakingBlock(false)
         }
 
@@ -323,8 +331,10 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         postBowStrafeActive = false
         postBowStrafeEndTime = 0L
         lastBowShotTime = 0L
-        lastFakeFishingClick = 0L
-        isFakeFishing = false
+        lastRandomSwing = 0L
+        isRandomSwing = false
+        isKeepingDistance = false
+        keepDistanceStopTime = 0L
 
         if (CatDueller.config?.combatLogs == true) {
             ChatUtil.combatInfo("Game resources cleaned up - memory leak prevention")
@@ -498,6 +508,21 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     lastRetreatEndTime = System.currentTimeMillis()  // Record retreat end time for cooldown
                     if (CatDueller.config?.combatLogs == true) {
                         ChatUtil.combatInfo("Rod hit detected - stopping retreat, cooldown started")
+                    }
+                }
+
+                // Keep distance mode: resume forward on rod hit (only if within keepDistance + 1)
+                if (isKeepingDistance && distance < (CatDueller.config?.keepDistance ?: 6f) + 1f) {
+                    isKeepingDistance = false
+                    keepDistanceStopTime = System.currentTimeMillis()
+                    Movement.stopBackward()
+                    if (!tapping) Movement.startForward()
+                    if (CatDueller.config?.keepDistanceJumpOnRodHit == true && mc.thePlayer.onGround) {
+                        needJump = true
+                        Movement.singleJump(RandomUtil.randomIntInRange(150, 250))
+                    }
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("Keep distance: rod hit at ${String.format("%.1f", distance)} (< ${(CatDueller.config?.keepDistance ?: 6f) + 1f}) - resuming forward (1s cooldown)")
                     }
                 }
 
@@ -1034,25 +1059,29 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 }
             }
 
-            // Fake fishing: when distance > 20, look down 30° and randomly click/use rod
-            if (distance > 20f && !Mouse.isUsingProjectile() && !Mouse.isBlockingArrow() && !isDodgingArrow) {
-                if (!isFakeFishing) {
-                    isFakeFishing = true
-                    Mouse.setBreakingBlock(true, 30f)
-                    Inventory.setInvItem("rod")
+            // Random swing: when distance > 20, look down 20° and randomly swing sword or use rod (lowest priority)
+            if (distance > 20f && !Mouse.isUsingProjectile() && !Mouse.isBlockingArrow() && !Mouse.isDodgingArrow() && !Mouse.isRunningAway() && !Mouse.isUsingPotion() && !Mouse.isUsingGap() && !Mouse.isPlacingWater() && !Mouse.isPlacingPlank() && !Mouse.isPlacingBlockAtFeet()) {
+                if (!isRandomSwing) {
+                    isRandomSwing = true
+                    Mouse.setBreakingBlock(true, 20f)
+                    Inventory.setInvItem("sword")
                 }
                 val now = System.currentTimeMillis()
-                if (now - lastFakeFishingClick > RandomUtil.randomIntInRange(800, 2500)) {
-                    lastFakeFishingClick = now
-                    // Randomly either left click or use rod
+                if (now - lastRandomSwing > RandomUtil.randomIntInRange(500, 1000)) {
+                    lastRandomSwing = now
                     if (RandomUtil.randomBool()) {
+                        // Swing sword
+                        if (mc.thePlayer?.heldItem == null || !mc.thePlayer.heldItem.unlocalizedName.lowercase().contains("sword")) {
+                            Inventory.setInvItem("sword")
+                        }
                         mc.thePlayer?.swingItem()
                     } else {
-                        Mouse.rClick(RandomUtil.randomIntInRange(50, 150))
+                        // Use rod (handles switch to rod, cast, retract, and switch back to sword)
+                        useRodWithTracking(false)
                     }
                 }
-            } else if (isFakeFishing) {
-                isFakeFishing = false
+            } else if (isRandomSwing) {
+                isRandomSwing = false
                 Mouse.setBreakingBlock(false)
                 Inventory.setInvItem("sword")
             }
@@ -1161,6 +1190,12 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 Movement.stopForward()
                 Movement.startBackward()
 
+                // Jump over blocks when retreating
+                if ((WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air || WorldUtil.blockInFront(mc.thePlayer, 1f, 0.5f) != Blocks.air) && mc.thePlayer.onGround) {
+                    needJump = true
+                    Movement.singleJump(RandomUtil.randomIntInRange(150, 250))
+                }
+
                 if (CatDueller.config?.combatLogs == true) {
                     val retreatReason = if (shouldContinueRetreat) {
                         "Continuing retreat until rod hit - Low health (${mc.thePlayer.health}) vs opponent (${opponent()!!.health}), distance: $distance"
@@ -1199,6 +1234,88 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
                 if (distance < 0.5 || (distance < 2.5 && combo >= 3)) {
                     Movement.stopForward()
+                } else if (CatDueller.config?.keepDistanceMode == true
+                    && distance < (CatDueller.config?.keepDistance ?: 6f)
+                    && distance >= (CatDueller.config?.keepDistance ?: 6f) - 1f
+                    && !isKeepingDistance
+                    && !EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)
+                    && System.currentTimeMillis() - keepDistanceStopTime > 1000) {
+                    // Check if wall or border is behind before backing away
+                    val behindLookVec = EntityUtil.get2dLookVec(mc.thePlayer).rotateYaw(180f)
+                    val behindPos1 = mc.thePlayer.position.add(behindLookVec.xCoord * 1.0, 0.0, behindLookVec.zCoord * 1.0)
+                    val behindPos2 = mc.thePlayer.position.add(behindLookVec.xCoord * 2.0, 0.0, behindLookVec.zCoord * 2.0)
+                    val behindPos3 = mc.thePlayer.position.add(behindLookVec.xCoord * 3.0, 0.0, behindLookVec.zCoord * 3.0)
+                    val hasWallBehind = mc.theWorld.getBlockState(behindPos1).block != Blocks.air ||
+                            mc.theWorld.getBlockState(behindPos2).block != Blocks.air ||
+                            mc.theWorld.getBlockState(behindPos3).block != Blocks.air
+                    val border = mc.theWorld.worldBorder
+                    val checkBehindX = mc.thePlayer.posX + behindLookVec.xCoord * 3.0
+                    val checkBehindZ = mc.thePlayer.posZ + behindLookVec.zCoord * 3.0
+                    val hasBorderBehind = checkBehindX - border.minX() < 3.0 || border.maxX() - checkBehindX < 3.0 ||
+                            checkBehindZ - border.minZ() < 3.0 || border.maxZ() - checkBehindZ < 3.0
+
+                    if (hasWallBehind || hasBorderBehind) {
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("Keep distance: skipped - wall/border behind (wall=$hasWallBehind, border=$hasBorderBehind)")
+                        }
+                        if (!tapping) Movement.startForward()
+                    } else {
+                        isKeepingDistance = true
+                        Movement.stopForward()
+                        Movement.startBackward()
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("Keep distance: backing away - distance ${String.format("%.1f", distance)} < ${CatDueller.config?.keepDistance ?: 6f}")
+                        }
+                    }
+                } else if (isKeepingDistance && distance < (CatDueller.config?.keepDistance ?: 6f) && !EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)) {
+                    // Check wall/border behind every tick while keeping distance
+                    val behindLookVec = EntityUtil.get2dLookVec(mc.thePlayer).rotateYaw(180f)
+                    val behindPos1 = mc.thePlayer.position.add(behindLookVec.xCoord * 1.0, 0.0, behindLookVec.zCoord * 1.0)
+                    val behindPos2 = mc.thePlayer.position.add(behindLookVec.xCoord * 2.0, 0.0, behindLookVec.zCoord * 2.0)
+                    val behindPos3 = mc.thePlayer.position.add(behindLookVec.xCoord * 3.0, 0.0, behindLookVec.zCoord * 3.0)
+                    val hasWallBehind = mc.theWorld.getBlockState(behindPos1).block != Blocks.air ||
+                            mc.theWorld.getBlockState(behindPos2).block != Blocks.air ||
+                            mc.theWorld.getBlockState(behindPos3).block != Blocks.air
+                    val border = mc.theWorld.worldBorder
+                    val checkBehindX = mc.thePlayer.posX + behindLookVec.xCoord * 3.0
+                    val checkBehindZ = mc.thePlayer.posZ + behindLookVec.zCoord * 3.0
+                    val hasBorderBehind = checkBehindX - border.minX() < 3.0 || border.maxX() - checkBehindX < 3.0 ||
+                            checkBehindZ - border.minZ() < 3.0 || border.maxZ() - checkBehindZ < 3.0
+
+                    if (hasWallBehind || hasBorderBehind) {
+                        // Stop keeping distance, resume forward
+                        isKeepingDistance = false
+                        keepDistanceStopTime = System.currentTimeMillis()
+                        Movement.stopBackward()
+                        if (!tapping) Movement.startForward()
+                        if (CatDueller.config?.combatLogs == true) {
+                            ChatUtil.combatInfo("Keep distance: stopped - wall/border behind (wall=$hasWallBehind, border=$hasBorderBehind)")
+                        }
+                    } else {
+                        Movement.stopForward()
+                        Movement.startBackward()
+                        // Jump over blocks when keeping distance
+                        if ((WorldUtil.blockInFront(mc.thePlayer, 2f, 0.5f) != Blocks.air || WorldUtil.blockInFront(mc.thePlayer, 1f, 0.5f) != Blocks.air) && mc.thePlayer.onGround) {
+                            needJump = true
+                            Movement.singleJump(RandomUtil.randomIntInRange(150, 250))
+                        }
+                    }
+                } else if (isKeepingDistance && distance >= (CatDueller.config?.keepDistance ?: 6f)) {
+                    isKeepingDistance = false
+                    keepDistanceStopTime = System.currentTimeMillis()
+                    Movement.stopBackward()
+                    if (!tapping) Movement.startForward()
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("Keep distance: distance restored (${String.format("%.1f", distance)} >= ${CatDueller.config?.keepDistance ?: 6f}) - resuming forward")
+                    }
+                } else if (isKeepingDistance && EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)) {
+                    isKeepingDistance = false
+                    keepDistanceStopTime = System.currentTimeMillis()
+                    Movement.stopBackward()
+                    if (!tapping) Movement.startForward()
+                    if (CatDueller.config?.combatLogs == true) {
+                        ChatUtil.combatInfo("Keep distance: opponent facing away - resuming forward")
+                    }
                 } else {
                     if (!tapping) {
                         Movement.startForward()
@@ -1218,15 +1335,8 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             val predictionTicksBonus = CatDueller.config?.predictionTicksBonus ?: 0
             val opponentActualSpeed = CatDueller.bot?.opponentActualSpeed ?: 0.13f  // Use opponent's actual speed
 
-            // Apply counter-strafe multiplier when counter-strafing (both moving away laterally)
-            val counterStrafeMultiplier =
-                if (isCounterStrafing) (CatDueller.config?.counterStrafeBonus ?: 1.5f) else 1.0f
             val basePredictionDistance = predictionTicksBonus * opponentActualSpeed
-            val distanceAdjustment = basePredictionDistance * counterStrafeMultiplier
-
-            if (CatDueller.config?.combatLogs == true && isCounterStrafing) {
-                ChatUtil.combatInfo("Counter-strafe detected - applying ${counterStrafeMultiplier}x prediction multiplier")
-            }
+            val distanceAdjustment = basePredictionDistance
 
             // Adjust rod usage distances based on prediction compensation
             // Extend minimum range when opponent is retreating
@@ -1235,7 +1345,6 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             val rodDistance1Max = 7.2f + distanceAdjustment
             val rodDistance2Min = 8.5f + distanceAdjustment
             val rodDistance2Max = 10.0f + distanceAdjustment
-
 
             // Check for defensive rod usage (opponent combo >= 3)
             val shouldUseDefensiveRod = opponentCombo >= 3 && distance > 3

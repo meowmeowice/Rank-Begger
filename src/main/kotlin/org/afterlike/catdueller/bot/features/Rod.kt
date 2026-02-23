@@ -54,14 +54,15 @@ interface Rod {
             TimerUtil.setTimeout(fun() {
                 Inventory.setInvItem("rod")
                 TimerUtil.setTimeout(fun() {
+                    Inventory.setInvItem("rod") // Force rod in hand right before cast
                     val r = RandomUtil.randomIntInRange(100, 200)
                     Mouse.rClick(r)
 
                     CatDueller.bot?.rodRetractTimeout = TimerUtil.setTimeout(fun() {
                         retractRod()
                     }, r + RandomUtil.randomIntInRange(100, 200))
-                }, RandomUtil.randomIntInRange(50, 90))
-            }, RandomUtil.randomIntInRange(30, 60))
+                }, RandomUtil.randomIntInRange(80, 120))
+            }, RandomUtil.randomIntInRange(50, 80))
         }, RandomUtil.randomIntInRange(10, 30))
     }
 

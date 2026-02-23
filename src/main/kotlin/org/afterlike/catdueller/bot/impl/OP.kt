@@ -131,6 +131,12 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
     /** Timestamp of last bow shot for cooldown tracking. */
     private var lastBowShotTime = 0L
 
+    /** Timestamp of last random swing for random interval. */
+    private var lastRandomSwing = 0L
+
+    /** Whether random swing mode is currently active. */
+    private var isRandomSwing = false
+
     /**
      * Called when the game starts.
      * Resets all consumable counts and state variables, then initiates movement.
@@ -168,6 +174,8 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
         postBowStrafeActive = false
         postBowStrafeEndTime = 0L
         lastBowShotTime = 0L
+        lastRandomSwing = 0L
+        isRandomSwing = false
 
         Movement.startSprinting()
         Movement.startForward()
@@ -221,6 +229,11 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
         postBowStrafeActive = false
         postBowStrafeEndTime = 0L
         lastBowShotTime = 0L
+        lastRandomSwing = 0L
+        if (isRandomSwing) {
+            isRandomSwing = false
+            Mouse.setBreakingBlock(false)
+        }
 
         if (CatDueller.config?.holdLeftClick == true) {
             Mouse.stopHoldLeftClick()
@@ -586,6 +599,31 @@ class OP : BotBase("/play duels_op_duel"), Bow, Rod, MovePriority, Potion, Gap {
                 Movement.startJumping()
             }
            
+
+            // Random swing: when distance > 20, look down 20° and randomly swing sword or use rod (lowest priority)
+            if (distance > 20f && !Mouse.isUsingProjectile() && !Mouse.isUsingPotion() && !Mouse.isUsingGap() && !Mouse.isRunningAway() && !Mouse.isBlockingArrow() && !Mouse.isDodgingArrow() && !Mouse.isPlacingWater() && !Mouse.isPlacingPlank() && !Mouse.isPlacingBlockAtFeet()) {
+                if (!isRandomSwing) {
+                    isRandomSwing = true
+                    Mouse.setBreakingBlock(true, 20f)
+                    Inventory.setInvItem("sword")
+                }
+                val now = System.currentTimeMillis()
+                if (now - lastRandomSwing > RandomUtil.randomIntInRange(500, 1000)) {
+                    lastRandomSwing = now
+                    if (RandomUtil.randomBool()) {
+                        if (mc.thePlayer?.heldItem == null || !mc.thePlayer.heldItem.unlocalizedName.lowercase().contains("sword")) {
+                            Inventory.setInvItem("sword")
+                        }
+                        mc.thePlayer?.swingItem()
+                    } else {
+                        useRodWithTracking(false)
+                    }
+                }
+            } else if (isRandomSwing) {
+                isRandomSwing = false
+                Mouse.setBreakingBlock(false)
+                Inventory.setInvItem("sword")
+            }
 
             val movePriority = arrayListOf(0, 0)
             var clear = false
