@@ -249,6 +249,19 @@ object Mouse {
     }
 
     /**
+     * Start holding right click (using Robot)
+     */
+    fun startHoldRightClick() {
+        if (CatDueller.bot?.toggled() == true) {
+            if (!isHoldingRightClick) {
+                isHoldingRightClick = true
+                robot?.mousePress(InputEvent.BUTTON3_DOWN_MASK)
+                ChatUtil.combatInfo("Started holding right click (Robot)")
+            }
+        }
+    }
+
+    /**
      * Resets all mouse-related states to their default values.
      * Should be called when the bot is toggled off or reset.
      */

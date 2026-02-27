@@ -1,0 +1,3 @@
+org/afterlike/catdueller/core/HWID*
+org/afterlike/catdueller/utils/system/HWID*
+org/afterlike/catdueller/bot/BotBase*

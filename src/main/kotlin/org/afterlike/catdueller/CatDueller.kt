@@ -15,7 +15,7 @@ import org.afterlike.catdueller.core.Config
 import org.afterlike.catdueller.core.DelayedTaskHandler
 import org.afterlike.catdueller.core.HWIDLock
 import org.afterlike.catdueller.core.KeyBindings
-import org.afterlike.catdueller.irc.IRCDodgeClient
+// import org.afterlike.catdueller.irc.IRCDodgeClient  // IRC disabled - using direct HWID verification
 import org.afterlike.catdueller.utils.client.TimerUtil
 import org.afterlike.catdueller.utils.game.ParticleUtil
 import java.io.File
@@ -106,9 +106,9 @@ class CatDueller {
             println("[CatDueller] Your HWID: ${HWIDLock.getCurrentHWID()}")
         }
 
-        // Always initialize IRC client - it handles HWID authentication
-        println("[CatDueller] Initializing IRC client for auth...")
-        IRCDodgeClient.initialize()
+        // IRC client disabled - HWID verification is now done directly via HTTP
+        // println("[CatDueller] Initializing IRC client for auth...")
+        // IRCDodgeClient.initialize()
 
         MinecraftForge.EVENT_BUS.register(StateManager)
         MinecraftForge.EVENT_BUS.register(Mouse)
@@ -125,7 +125,7 @@ class CatDueller {
         Runtime.getRuntime().addShutdownHook(Thread {
             println("CatDueller shutting down, cleaning up...")
             TimerUtil.cancelAllTimers()
-            IRCDodgeClient.disconnect()
+            // IRCDodgeClient.disconnect()  // IRC disabled
         })
     }
 }

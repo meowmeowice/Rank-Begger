@@ -117,6 +117,9 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
     /** Flag to prevent multiple scheduling of blocking end. */
     private var blockingEndScheduled = false
 
+    /** Timestamp when blocking last ended due to timeout, prevents re-trigger during same bow draw. */
+    private var lastBlockingTimeoutEnd = 0L
+
     /** Timestamp when dodge arrow last ended for cooldown tracking. */
     private var lastDodgeArrowEndTime = 0L
 
@@ -195,6 +198,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         opponentBowStartTime = 0L
         opponentBowStopTime = 0L
         blockingEndScheduled = false
+        lastBlockingTimeoutEnd = 0L
         lastWeaponSwitchTime = 0
         lastOpponentDistance = 0f
         isOpponentApproaching = false
@@ -318,6 +322,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
         opponentBowStartTime = 0L
         opponentBowStopTime = 0L
         blockingEndScheduled = false
+        lastBlockingTimeoutEnd = 0L
 
         rodHitDistance = 0f
 
@@ -714,8 +719,10 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
             // Start arrow blocking after 700ms of opponent drawing bow
             // But only if distance is greater than 6 blocks (close range doesn't need blocking)
+            // Don't re-start if we just timed out blocking during this same bow draw
             if (CatDueller.config?.enableArrowBlocking == true && opponentIsDrawingBow && opponentBowStartTime > 0 &&
-                currentTime - opponentBowStartTime >= 500 && !Mouse.isBlockingArrow() && distance > 6f
+                currentTime - opponentBowStartTime >= 500 && !Mouse.isBlockingArrow() && distance > 6f &&
+                lastBlockingTimeoutEnd < opponentBowStartTime
             ) {
 
                 // Start arrow blocking - this will prevent other actions
@@ -745,26 +752,33 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
                     if (wasUsingProjectile) {
                         // If we were using projectile, continue holding right click for seamless blocking
-                        if (!Mouse.rClickDown) {
-                            Mouse.startRightClick()  // Start holding right click indefinitely
+                        if (CatDueller.config?.holdLeftClick == true) {
+                            Mouse.startHoldRightClick()
+                        } else if (!Mouse.rClickDown) {
+                            Mouse.startRightClick()
                         }
-                        // If already holding right click, just continue holding
 
                         if (CatDueller.config?.combatLogs == true) {
                             ChatUtil.combatInfo("Seamless transition from projectile to sword blocking (no right-click release)")
                         }
                     } else {
                         // Not using projectile, start fresh block
-                        Mouse.rClickUp()  // Release any ongoing right click
-                        Mouse.startRightClick()  // Start holding right click indefinitely
+                        if (CatDueller.config?.holdLeftClick == true) {
+                            Mouse.startHoldRightClick()
+                        } else {
+                            Mouse.rClickUp()
+                            Mouse.startRightClick()
+                        }
                     }
                 } else {
                     // Already have sword, start blocking
-                    if (!wasUsingProjectile) {
-                        Mouse.rClickUp()  // Release any ongoing right click only if not using projectile
+                    if (!wasUsingProjectile && CatDueller.config?.holdLeftClick != true) {
+                        Mouse.rClickUp()
                     }
-                    if (!Mouse.rClickDown) {
-                        Mouse.startRightClick()  // Start holding right click indefinitely
+                    if (CatDueller.config?.holdLeftClick == true) {
+                        Mouse.startHoldRightClick()
+                    } else if (!Mouse.rClickDown) {
+                        Mouse.startRightClick()
                     }
                 }
 
@@ -809,8 +823,13 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
                 // Stop blocking immediately when opponent draws bow too long
                 Mouse.setBlockingArrow(false)
-                Mouse.rClickUp()  // Release right click immediately
+                if (CatDueller.config?.holdLeftClick == true) {
+                    Mouse.stopHoldRightClick()
+                } else {
+                    Mouse.rClickUp()
+                }
                 blockingEndScheduled = false  // Reset flag
+                lastBlockingTimeoutEnd = System.currentTimeMillis()  // Prevent re-trigger during same bow draw
 
                 if (CatDueller.config?.combatLogs == true) {
                     ChatUtil.combatInfo("Arrow blocking ended - opponent drawing bow too long (${currentTime - opponentBowStartTime}ms > 1200ms)")
@@ -830,7 +849,11 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
 
                 // Stop blocking immediately when distance is too close
                 Mouse.setBlockingArrow(false)
-                Mouse.rClickUp()  // Release right click immediately
+                if (CatDueller.config?.holdLeftClick == true) {
+                    Mouse.stopHoldRightClick()
+                } else {
+                    Mouse.rClickUp()
+                }
                 blockingEndScheduled = false  // Reset flag
 
                 if (CatDueller.config?.combatLogs == true) {
@@ -863,7 +886,11 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 TimerUtil.setTimeout({
                     if (Mouse.isBlockingArrow()) {  // Double check we're still blocking
                         Mouse.setBlockingArrow(false)
-                        Mouse.rClickUp()  // Release right click after delay
+                        if (CatDueller.config?.holdLeftClick == true) {
+                            Mouse.stopHoldRightClick()
+                        } else {
+                            Mouse.rClickUp()
+                        }
                         blockingEndScheduled = false  // Reset flag
 
                         if (CatDueller.config?.combatLogs == true) {
@@ -1353,25 +1380,6 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                 (distance in rodDistance1Min..rodDistance1Max || distance in rodDistance2Min..rodDistance2Max) &&
                         opponent() != null && !EntityUtil.entityFacingAway(mc.thePlayer, opponent()!!)
 
-            // Check if we should avoid rod usage due to close range + opponent drawing bow
-            val shouldAvoidRodDueToCloseRangeBow = distance <= 5f && opponentIsDrawingBow
-
-            if (shouldAvoidRodDueToCloseRangeBow) {
-                // Start jumping to dodge arrows at close range instead of using rod
-                needJump = true
-                Movement.startJumping()
-                if (CatDueller.config?.combatLogs == true) {
-                    ChatUtil.combatInfo(
-                        "Avoiding rod usage and jumping - close range (${
-                            String.format(
-                                "%.1f",
-                                distance
-                            )
-                        } blocks ≤ 6) + opponent drawing bow"
-                    )
-                }
-            }
-
 
             // Debug rod range extension
             if (CatDueller.config?.combatLogs == true && opponentIsRetreating && shouldUseOffensiveRod) {
@@ -1386,7 +1394,7 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
             }
 
 
-            if ((shouldUseDefensiveRod || shouldUseOffensiveRod) && !Mouse.isUsingProjectile() && !Mouse.isBlockingArrow() && !shouldAvoidRodDueToCloseRangeBow && !isDodgingArrow) {
+            if ((shouldUseDefensiveRod || shouldUseOffensiveRod) && !Mouse.isUsingProjectile() && !Mouse.isBlockingArrow() && !isDodgingArrow) {
                 if (CatDueller.config?.combatLogs == true) {
                     val rodType = if (shouldUseDefensiveRod) "defensive" else "offensive"
                     val rangeInfo = if (distance in rodDistance2Min..rodDistance2Max) "Range2" else "Range1"
@@ -1400,16 +1408,11 @@ class Classic : BotBase("/play duels_classic_duel"), Bow, Rod, MovePriority {
                     )
                 }
                 useRodWithTracking(shouldUseDefensiveRod)  // Pass true if defensive, false if offensive
-            } else if ((shouldUseDefensiveRod || shouldUseOffensiveRod) && (shouldAvoidRodDueToCloseRangeBow || isDodgingArrow)) {
-                // Debug: explain why rod usage is skipped due to close range + opponent drawing bow or dodge arrow
+            } else if ((shouldUseDefensiveRod || shouldUseOffensiveRod) && isDodgingArrow) {
+                // Debug: explain why rod usage is skipped due to dodge arrow
                 if (CatDueller.config?.combatLogs == true) {
                     val rodType = if (shouldUseDefensiveRod) "defensive" else "offensive"
-                    val reason = if (shouldAvoidRodDueToCloseRangeBow) {
-                        "close range (${String.format("%.1f", distance)} blocks ≤ 6) + opponent drawing bow"
-                    } else {
-                        "dodge arrow active"
-                    }
-                    ChatUtil.combatInfo("Rod usage skipped ($rodType) - $reason")
+                    ChatUtil.combatInfo("Rod usage skipped ($rodType) - dodge arrow active")
                 }
             }
 

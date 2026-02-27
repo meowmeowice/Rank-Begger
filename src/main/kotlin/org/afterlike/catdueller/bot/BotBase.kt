@@ -34,7 +34,7 @@ import org.afterlike.catdueller.bot.state.Session
 import org.afterlike.catdueller.bot.state.StateManager
 import org.afterlike.catdueller.core.HWIDLock
 import org.afterlike.catdueller.core.KeyBindings
-import org.afterlike.catdueller.irc.IRCDodgeClient
+// import org.afterlike.catdueller.irc.IRCDodgeClient  // IRC disabled - using direct HWID verification
 import org.afterlike.catdueller.utils.client.ChatUtil
 import org.afterlike.catdueller.utils.client.TimerUtil
 import org.afterlike.catdueller.utils.game.EntityUtil
@@ -63,14 +63,13 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
     /** Minecraft client instance for accessing game state */
     protected val mc: Minecraft = Minecraft.getMinecraft()
 
-    /** Whether the bot is currently active */
-    private var toggled = false
-
     /**
      * Returns whether the bot is currently toggled on.
-     * @return true if the bot is active, false otherwise
+     * Delegates to HWIDLock.isBotActive() which is native-obfuscated —
+     * the auth check cannot be patched out in bytecode.
+     * @return true if the bot is active and authorized, false otherwise
      */
-    fun toggled() = toggled
+    fun toggled() = HWIDLock.isBotActive()
 
     /**
      * Toggles the bot on or off and handles all associated state changes.
@@ -83,15 +82,14 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      * @param isManualToggle True if triggered by user action, false if automatic (e.g., after break)
      */
     fun toggle(isManualToggle: Boolean = true) {
-        // Check HWID authorization before allowing toggle
-        if (!HWIDLock.isAuthorized()) {
-            ChatUtil.error("HWID verification failed - bot cannot be enabled")
-            ChatUtil.error("Your HWID: ${HWIDLock.getCurrentHWID()}")
+        val wasToggled = toggled()
+        // Toggle via HWIDLock — auth check + state flip happen in native code.
+        // If unauthorized, toggleBot() returns false and bot stays off.
+        val nowToggled = HWIDLock.toggleBot()
+        if (!wasToggled && !nowToggled) {
+            ChatUtil.error("HWID not authorized")
             return
         }
-
-        val wasToggled = toggled
-        toggled = !toggled
 
         // If bot is disabled, stop all actions and cancel timers
         if (wasToggled) {
@@ -112,7 +110,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             spamTimer = null
             disconnectedPlayers.clear()
 
-            // Cancel IRC dodge queue repeat timer
+            // Cancel IRC dodge queue repeat timer (IRC disabled)
             queueRepeatTimer?.cancel()
             queueRepeatTimer = null
 
@@ -199,12 +197,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                 }
             }
 
-            // Setup IRC dodge callback
-            if (CatDueller.config?.ircDodgeEnabled == true) {
-                IRCDodgeClient.onQueueAlert = { username, _, serverId, _ ->
-                    checkIRCDodge(serverId, username)
-                }
-            }
+            // IRC dodge callback disabled - using direct HWID verification
+            // if (CatDueller.config?.ircDodgeEnabled == true) {
+            //     IRCDodgeClient.onQueueAlert = { username, _, serverId, _ ->
+            //         checkIRCDodge(serverId, username)
+            //     }
+            // }
         }
     }
 
@@ -1127,10 +1125,10 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
         forceRequeueScheduled = false
         forceRequeueAttempts = 0  // Reset attempt counter
 
-        // Send IRC leave notification if enabled
-        if (CatDueller.config?.ircDodgeEnabled == true) {
-            IRCDodgeClient.sendLeaveInfo()
-        }
+        // IRC leave notification disabled
+        // if (CatDueller.config?.ircDodgeEnabled == true) {
+        //     IRCDodgeClient.sendLeaveInfo()
+        // }
 
         // Bot Crasher Mode: Cancel timer since game ended normally
         if (CatDueller.config?.botCrasherMode == true && CatDueller.config?.botCrasherAutoRequeue == true) {
@@ -1248,12 +1246,12 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             }, RandomUtil.randomIntInRange(100, 300))
         }
 
-        // Send IRC queue notification if enabled
-        if (CatDueller.config?.ircDodgeEnabled == true && currentServer != null) {
-            val gamemode = getGamemodeName()
-            val map = detectCurrentMap()
-            IRCDodgeClient.sendQueueInfo(gamemode, currentServer!!, map)
-        }
+        // IRC queue notification disabled
+        // if (CatDueller.config?.ircDodgeEnabled == true && currentServer != null) {
+        //     val gamemode = getGamemodeName()
+        //     val map = detectCurrentMap()
+        //     IRCDodgeClient.sendQueueInfo(gamemode, currentServer!!, map)
+        // }
     }
 
     /**
@@ -1873,7 +1871,7 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
      * @param packet The received network packet
      */
     fun onPacket(packet: Packet<*>) {
-        if (toggled) {
+        if (toggled()) {
             when (packet) {
                 is S40PacketDisconnect -> { // capture disconnect reason from server
                     try {

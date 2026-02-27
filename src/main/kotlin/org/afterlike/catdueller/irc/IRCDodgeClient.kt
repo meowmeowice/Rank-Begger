@@ -266,7 +266,7 @@ object IRCDodgeClient {
         authenticated = true
         reconnectAttempts = 0
 
-        HWIDLock.setAuthorized(true, assignedUsername)
+        // HWIDLock.setAuthorized(true, assignedUsername)  // IRC auth disabled
 
         println("[IRCDodge] Authenticated as $assignedUsername")
     }
@@ -275,7 +275,7 @@ object IRCDodgeClient {
         val reason = args.getOrNull(0) ?: "Unknown reason"
         authenticated = false
 
-        HWIDLock.setAuthorized(false, null)
+        // HWIDLock.setAuthorized(false, null)  // IRC auth disabled
 
         ChatUtil.error("Auth failed: $reason")
         println("[IRCDodge] Auth failed: $reason")

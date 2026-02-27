@@ -1,0 +1,16 @@
+{
+  "mappings": {
+    "org/afterlike/catdueller/mixins/MixinNetworkManager": {
+      "channelRead0*": "Lnet/minecraft/network/NetworkManager;channelRead0(Lio/netty/channel/ChannelHandlerContext;Lnet/minecraft/network/Packet;)V",
+      "sendPacket*": "Lnet/minecraft/network/NetworkManager;func_179290_a(Lnet/minecraft/network/Packet;)V"
+    }
+  },
+  "data": {
+    "named:intermediary": {
+      "org/afterlike/catdueller/mixins/MixinNetworkManager": {
+        "channelRead0*": "Lnet/minecraft/network/NetworkManager;channelRead0(Lio/netty/channel/ChannelHandlerContext;Lnet/minecraft/network/Packet;)V",
+        "sendPacket*": "Lnet/minecraft/network/NetworkManager;func_179290_a(Lnet/minecraft/network/Packet;)V"
+      }
+    }
+  }
+}
