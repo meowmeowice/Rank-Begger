@@ -4,6 +4,7 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent
 import org.afterlike.catdueller.CatDueller
 import org.afterlike.catdueller.bot.player.LobbyMovement.checkOpponentRotationAndDodge
+import org.afterlike.catdueller.bot.player.Mouse.snapToGcd
 import org.afterlike.catdueller.bot.state.StateManager
 import org.afterlike.catdueller.utils.client.ChatUtil
 import org.afterlike.catdueller.utils.client.TimerUtil
@@ -213,9 +214,11 @@ object LobbyMovement {
         ) {
             rotationAdjustmentActive = false
 
-            player.rotationYaw = targetYaw
-            player.rotationPitch = targetPitch
-            player.rotationYawHead = targetYaw
+            val finalYawDelta = snapToGcd(targetYaw - player.rotationYaw)
+            val finalPitchDelta = snapToGcd(targetPitch - player.rotationPitch, isYaw = false)
+            player.rotationYaw += finalYawDelta
+            player.rotationPitch += finalPitchDelta
+            player.rotationYawHead = player.rotationYaw
 
             onRotationReached?.invoke()
             return
@@ -223,18 +226,20 @@ object LobbyMovement {
 
         if (kotlin.math.abs(yawDiff) > angleTolerance) {
             val yawSpeed = kotlin.math.min(kotlin.math.abs(yawDiff), 2f) * if (yawDiff > 0) 1 else -1
-            player.rotationYaw += yawSpeed
+            player.rotationYaw += snapToGcd(yawSpeed)
             player.rotationYawHead = player.rotationYaw
         } else if (kotlin.math.abs(yawDiff) > 0.001f) {
-            player.rotationYaw = targetYaw
-            player.rotationYawHead = targetYaw
+            val snapYawDelta = snapToGcd(targetYaw - player.rotationYaw)
+            player.rotationYaw += snapYawDelta
+            player.rotationYawHead = player.rotationYaw
         }
 
         if (kotlin.math.abs(pitchDiff) > angleTolerance) {
             val pitchSpeed = kotlin.math.min(kotlin.math.abs(pitchDiff), 2f) * if (pitchDiff > 0) 1 else -1
-            player.rotationPitch += pitchSpeed
+            player.rotationPitch += snapToGcd(pitchSpeed, isYaw = false)
         } else if (kotlin.math.abs(pitchDiff) > 0.001f) {
-            player.rotationPitch = targetPitch
+            val snapPitchDelta = snapToGcd(targetPitch - player.rotationPitch, isYaw = false)
+            player.rotationPitch += snapPitchDelta
         }
     }
 
@@ -474,7 +479,7 @@ object LobbyMovement {
         if (tickYawChange != 0f && CatDueller.mc.thePlayer != null &&
             StateManager.state != StateManager.States.PLAYING && !MovementRecorder.isPlaying() && !rotationAdjustmentActive
         ) {
-            CatDueller.mc.thePlayer.rotationYaw += tickYawChange
+            CatDueller.mc.thePlayer.rotationYaw += snapToGcd(tickYawChange)
         }
     }
 }

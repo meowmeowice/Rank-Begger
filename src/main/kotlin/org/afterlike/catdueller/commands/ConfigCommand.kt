@@ -8,6 +8,7 @@ import org.afterlike.catdueller.CatDueller
 import org.afterlike.catdueller.bot.state.Session
 import org.afterlike.catdueller.core.DelayedTaskHandler
 import org.afterlike.catdueller.utils.client.ChatUtil
+import org.afterlike.catdueller.utils.debug.GcdDebug
 
 /**
  * Main command handler for CatDueller configuration and session management.
@@ -38,6 +39,7 @@ class ConfigCommand : CommandBase() {
             when (args?.getOrNull(0)?.lowercase()) {
                 "config", "cfg", "settings" -> openConfig()
                 "session" -> handleSession(args.getOrNull(1))
+                "gcddebug" -> toggleGcdDebug()
                 else -> handleDefault()
             }
         } catch (e: Exception) {
@@ -51,7 +53,7 @@ class ConfigCommand : CommandBase() {
         pos: BlockPos?
     ): List<String> {
         return when (args?.size) {
-            1 -> getListOfStringsMatchingLastWord(args, "config", "session")
+            1 -> getListOfStringsMatchingLastWord(args, "config", "session", "gcddebug")
             2 -> if (args[0].equals("session", true))
                 getListOfStringsMatchingLastWord(args, "reset", "show")
             else emptyList()
@@ -76,6 +78,7 @@ class ConfigCommand : CommandBase() {
         ChatUtil.info("CatDueller Commands:")
         ChatUtil.info("/catdueller config - Open config GUI")
         ChatUtil.info("/catdueller session [reset|show] - Manage session statistics")
+        ChatUtil.info("/catdueller gcddebug - Toggle GCD rotation debug")
     }
 
     /**
@@ -97,6 +100,13 @@ class ConfigCommand : CommandBase() {
         Session.losses = 0
         Session.startTime = System.currentTimeMillis()
         ChatUtil.info("Session statistics have been reset!")
+    }
+
+    /**
+     * Toggles GCD rotation debug on/off.
+     */
+    private fun toggleGcdDebug() {
+        if (GcdDebug.isEnabled()) GcdDebug.disable() else GcdDebug.enable()
     }
 
     /**

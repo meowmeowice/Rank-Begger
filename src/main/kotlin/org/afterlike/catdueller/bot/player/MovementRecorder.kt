@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import net.minecraft.client.Minecraft
 import net.minecraft.client.settings.KeyBinding
+import org.afterlike.catdueller.bot.player.Mouse.snapToGcd
 import org.afterlike.catdueller.utils.client.ChatUtil
 import java.io.File
 import java.io.FileReader
@@ -290,11 +291,13 @@ object MovementRecorder {
 
                 // Apply rotation limiting - skip if change is too large
                 if (yawChange <= maxRotationPerTick && pitchChange <= maxRotationPerTick) {
-                    player.rotationYaw = targetYaw
-                    player.rotationPitch = targetPitch
+                    val snappedYawDelta = snapToGcd(targetYaw - player.rotationYaw)
+                    val snappedPitchDelta = snapToGcd(targetPitch - player.rotationPitch, isYaw = false)
+                    player.rotationYaw += snappedYawDelta
+                    player.rotationPitch += snappedPitchDelta
                     // Update last applied rotations
-                    lastPlaybackYaw = targetYaw
-                    lastPlaybackPitch = targetPitch
+                    lastPlaybackYaw = player.rotationYaw
+                    lastPlaybackPitch = player.rotationPitch
                 } else {
                     // Log when rotation is skipped due to being too large
                     if (yawChange > maxRotationPerTick || pitchChange > maxRotationPerTick) {

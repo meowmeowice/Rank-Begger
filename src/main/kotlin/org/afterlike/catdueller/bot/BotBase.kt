@@ -1918,7 +1918,8 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
                         TimerUtil.setTimeout(fun() {
                             if (packet.message != null) {
                                 val unformatted = packet.message.unformattedText.lowercase()
-                                if ((unformatted.contains("won the duel!") || unformatted.contains("a draw!")) && mc.thePlayer != null) {
+                                if ((unformatted.contains("won the duel!") || unformatted.contains("a draw!")) && mc.thePlayer != null && !calledGameEnd) {
+                                    calledGameEnd = true
                                     var winner: String
                                     var loser: String
                                     var draw = false
@@ -2287,7 +2288,9 @@ open class BotBase(val queueCommand: String, val quickRefresh: Int = 10000) {
             checkLobbySitMode()
 
             registerPacketListener()
-            onTick()
+            if (toggled()) {
+                onTick()
+            }
 
             MovementRecorder.onTick()
 

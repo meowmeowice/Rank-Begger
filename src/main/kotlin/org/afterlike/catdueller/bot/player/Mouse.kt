@@ -53,11 +53,47 @@ object Mouse {
     /** Whether the player is currently using a projectile (bow, fishing rod, etc.) */
     private var _usingProjectile = false
 
+    // ==================== GCD Rotation Snap ====================
+    // Minecraft's mouse system quantizes rotation deltas to multiples of a
+    // "GCD interval" derived from the sensitivity slider. Anticheat checks
+    // that every yaw/pitch delta is divisible by this interval.
+
+    /** Cached GCD interval in degrees, recalculated when sensitivity changes. */
+    private var gcdInterval = 0.0f
+    /** Last known sensitivity value to detect changes. */
+    private var lastSensitivity = -1.0f
+    private var yawRemainder = 0f
+    private var pitchRemainder = 0f
+
+    private fun updateGcd() {
+        val sens = Minecraft.getMinecraft().gameSettings.mouseSensitivity
+        if (sens != lastSensitivity) {
+            lastSensitivity = sens
+            val f = sens * 0.6f + 0.2f
+            gcdInterval = f * f * f * 1.2f
+        }
+    }
+
+    fun snapToGcd(delta: Float, isYaw: Boolean = true): Float {
+        updateGcd()
+        if (gcdInterval <= 0f) return delta
+        val remainder = if (isYaw) yawRemainder else pitchRemainder
+        val total = delta + remainder
+        val steps = Math.round(total / gcdInterval)
+        val snapped = steps * gcdInterval
+        if (isYaw) yawRemainder = total - snapped
+        else pitchRemainder = total - snapped
+        return snapped
+    }
+
     /** Whether the player is currently using a splash potion. */
     private var _usingPotion = false
 
     /** Whether the player is currently using a golden apple (gap). */
     private var _usingGap = false
+
+    /** Whether the player is currently using a golden head. */
+    private var _usingHead = false
 
     /** Whether the player is currently running away from the opponent. */
     private var _runningAway = false
@@ -133,14 +169,6 @@ object Mouse {
             clickMouseMethod?.invoke(Minecraft.getMinecraft())
         } catch (e: Exception) {
             ChatUtil.error("Failed to invoke clickMouse: ${e.message}")
-            CatDueller.mc.thePlayer.swingItem()
-            KeyBinding.setKeyBindState(CatDueller.mc.gameSettings.keyBindAttack.keyCode, true)
-            if (CatDueller.mc.objectMouseOver != null && CatDueller.mc.objectMouseOver.entityHit != null) {
-                CatDueller.mc.playerController.attackEntity(
-                    CatDueller.mc.thePlayer,
-                    CatDueller.mc.objectMouseOver.entityHit
-                )
-            }
         }
     }
 
@@ -273,6 +301,7 @@ object Mouse {
         setUsingProjectile(false)
         setUsingPotion(false)
         setUsingGap(false)
+        setUsingHead(false)
         setRunningAway(false)
         setBlockingArrow(false)
         setBreakingBlock(false)
@@ -464,6 +493,22 @@ object Mouse {
     }
 
     /**
+     * Sets whether the player is currently using a golden head.
+     *
+     * @param head True if using a head, false otherwise.
+     */
+    fun setUsingHead(head: Boolean) {
+        _usingHead = head
+    }
+
+    /**
+     * Returns whether the player is using a golden head.
+     */
+    fun isUsingHead(): Boolean {
+        return _usingHead
+    }
+
+    /**
      * Sets whether the player is running away from the opponent.
      * Clears cached running rotations when state changes.
      *
@@ -533,8 +578,8 @@ object Mouse {
             pitchDiff
         }
 
-        player.rotationYaw += dyaw
-        player.rotationPitch += dpitch
+        player.rotationYaw += snapToGcd(dyaw)
+        player.rotationPitch += snapToGcd(dpitch, isYaw = false)
 
         if (abs(yawDiff) < 1f && abs(pitchDiff) < 1f) {
             gameEndViewRotationActive = false
@@ -725,7 +770,7 @@ object Mouse {
                 pitchDiff
             }
 
-            player.rotationPitch += dpitch
+            player.rotationPitch += snapToGcd(dpitch, isYaw = false)
 
             if (CatDueller.config?.combatLogs == true && abs(dpitch) > 0.1f) {
                 val blockType = if (_placingPlank) "Plank" else if (_placingWater) "Water" else "Block"
@@ -756,7 +801,7 @@ object Mouse {
                 pitchDiff
             }
 
-            player.rotationPitch += dpitch
+            player.rotationPitch += snapToGcd(dpitch, isYaw = false)
 
             return // Skip normal tracking when breaking blocks
         }
@@ -782,8 +827,8 @@ object Mouse {
             // Keep pitch level for dodging
             val dpitch = -player.rotationPitch * 0.3f // Gradually level pitch
 
-            player.rotationYaw += dyaw
-            player.rotationPitch += dpitch
+            player.rotationYaw += snapToGcd(dyaw)
+            player.rotationPitch += snapToGcd(dpitch, isYaw = false)
 
             if (CatDueller.config?.combatLogs == true && abs(dyaw) > 0.1f) {
                 ChatUtil.combatInfo(
@@ -929,8 +974,8 @@ object Mouse {
                 )
             }
 
-            CatDueller.mc.thePlayer.rotationYaw += dyaw
-            CatDueller.mc.thePlayer.rotationPitch += dpitch
+            CatDueller.mc.thePlayer.rotationYaw += snapToGcd(dyaw)
+            CatDueller.mc.thePlayer.rotationPitch += snapToGcd(dpitch, isYaw = false)
         }
     }
 

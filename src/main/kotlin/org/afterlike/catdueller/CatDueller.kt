@@ -117,6 +117,7 @@ class CatDueller {
         MinecraftForge.EVENT_BUS.register(KeyBindings)
         MinecraftForge.EVENT_BUS.register(ParticleUtil)
         MinecraftForge.EVENT_BUS.register(DelayedTaskHandler)
+        MinecraftForge.EVENT_BUS.register(org.afterlike.catdueller.utils.debug.GcdDebug)
 
         val selectedBotIndex = config?.currentBot ?: 0
         val selectedBot = config?.bots?.get(selectedBotIndex) ?: Sumo()

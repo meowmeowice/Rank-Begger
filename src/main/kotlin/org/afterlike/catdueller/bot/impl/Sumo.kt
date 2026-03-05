@@ -11,6 +11,7 @@ import org.afterlike.catdueller.bot.BotBase
 import org.afterlike.catdueller.bot.player.Combat
 import org.afterlike.catdueller.bot.player.LobbyMovement
 import org.afterlike.catdueller.bot.player.Mouse
+import org.afterlike.catdueller.bot.player.Mouse.snapToGcd
 import org.afterlike.catdueller.bot.player.Movement
 import org.afterlike.catdueller.bot.state.StateManager
 import org.afterlike.catdueller.utils.client.ChatUtil
@@ -1965,7 +1966,8 @@ class Sumo : BotBase("/play duels_sumo_duel") {
             val toMiddleZ2 = targetZ - player.posZ
             val angleToMiddle = atan2(-toMiddleX2, toMiddleZ2)
             val yawToMiddle = Math.toDegrees(angleToMiddle)
-            player.rotationYaw = yawToMiddle.toFloat()
+            val yawDeltaToMiddle = snapToGcd(yawToMiddle.toFloat() - player.rotationYaw)
+            player.rotationYaw += yawDeltaToMiddle
 
             if (distanceToMiddle > 1.2) {
                 Movement.startForward()
@@ -1977,7 +1979,8 @@ class Sumo : BotBase("/play duels_sumo_duel") {
                     val opponentZDiff = it.posZ - player.posZ
                     val angleToOpponent = atan2(-opponentXDiff, opponentZDiff)
                     val yawToOpponent = Math.toDegrees(angleToOpponent)
-                    player.rotationYaw = yawToOpponent.toFloat()
+                    val yawDeltaToOpponent = snapToGcd(yawToOpponent.toFloat() - player.rotationYaw)
+                    player.rotationYaw += yawDeltaToOpponent
                 }
 
                 Mouse.startHoldLeftClick()
